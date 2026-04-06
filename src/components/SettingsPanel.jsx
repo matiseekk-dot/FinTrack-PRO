@@ -11,7 +11,7 @@ import {
 import { Card } from "./ui/Card.jsx";
 import { Input, Select } from "./ui/Input.jsx";
 import { TemplatesEditor } from "./TemplatesEditor.jsx";
-import { BASE_CATEGORIES, INITIAL_ACCOUNTS } from "../constants.js";
+import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INITIAL_TEMPLATES } from "../constants.js";
 import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
 
@@ -292,7 +292,7 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
           <input
             value={partnerName}
             onChange={e => setPartnerName && setPartnerName(e.target.value)}
-            placeholder="np. Kinga, Marek, Partner…"
+            placeholder="np. Anna, Marek, Partner…"
             maxLength={30}
             style={{
               flex: 1, background: "#0a1120", border: "1px solid #1a2744",
