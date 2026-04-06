@@ -18,7 +18,7 @@ import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js
 const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
                          setTransactions, setAccounts, setBudgets, setCycleDay, setCustomCats,
-                         cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo }) => {
+                         cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) => {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -610,12 +610,9 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
                 Anuluj
               </button>
               <button onClick={() => {
-                localStorage.removeItem("fintrack_v1");
-                localStorage.removeItem("ft_templates");
-                localStorage.removeItem("ft_vacation");
-                localStorage.removeItem("ft_vacations");
-                localStorage.setItem("ft_onboarded", "1");
-                window.location.reload();
+                if (typeof onClearData === "function") onClearData();
+                setConfirmClear(false);
+                onClose();
               }} style={{ flex: 1, background: "#7f1d1d", border: "none", borderRadius: 12, padding: "12px 0", color: "#fca5a5", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Usuń wszystko
               </button>

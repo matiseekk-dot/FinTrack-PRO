@@ -111,6 +111,39 @@ export default function App() {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
   }, [vacationArchive]);
 
+  const clearAllData = async () => {
+    // Reset all state to initial
+    setAccounts(INITIAL_ACCOUNTS);
+    setTransactions(INITIAL_TRANSACTIONS);
+    setBudgets(INITIAL_BUDGETS);
+    setPayments(INITIAL_PAYMENTS);
+    setPaid({});
+    setGoals(INITIAL_GOALS);
+    setCustomCats([]);
+    setPortfolio([]);
+    setPartnerName("Partner");
+    setCycleDay(1);
+    setDefaultAcc(1);
+    setMonth(new Date().getMonth());
+    setVacationArchive([]);
+    // Clear localStorage
+    localStorage.removeItem("fintrack_v1");
+    localStorage.removeItem("ft_templates");
+    localStorage.removeItem("ft_vacation");
+    localStorage.removeItem("ft_vacations");
+    localStorage.setItem("ft_onboarded", "1");
+    // Clear Firestore if logged in
+    if (user) {
+      try {
+        const { doc, deleteDoc } = await import("firebase/firestore");
+        const { db } = await import("./firebase.js");
+        await deleteDoc(doc(db, "users", user.uid, "data", "main"));
+      } catch(e) {
+        console.error("[FT] Firestore clear error", e);
+      }
+    }
+  };
+
   const loadDemo = () => {
     setAccounts(DEMO_ACCOUNTS);
     setTransactions(DEMO_TRANSACTIONS);
@@ -238,7 +271,7 @@ export default function App() {
         cycleDay={cycleDay} setCycleDay={setCycleDay} setCustomCats={setCustomCats}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
-        setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo}
+        setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
       />
 
       {quickAddOpen && (
