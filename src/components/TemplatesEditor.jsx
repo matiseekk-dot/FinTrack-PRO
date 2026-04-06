@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
 import { Input, Select } from "./ui/Input.jsx";
-import { INITIAL_TEMPLATES } from "../constants.js";
+import { INITIAL_TEMPLATES, getCat, CATEGORIES } from "../constants.js";
 
 const TemplatesEditor = () => {
   const [tpls, setTpls] = useState(() => {
