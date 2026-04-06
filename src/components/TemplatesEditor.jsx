@@ -8,7 +8,7 @@ import {
   ClipboardList, RefreshCw, AlarmClock, Copy
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
-import { Input } from "./ui/Input.jsx";
+import { Input, Select } from "./ui/Input.jsx";
 import { INITIAL_TEMPLATES } from "../constants.js";
 
 const TemplatesEditor = () => {

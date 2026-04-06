@@ -1156,4 +1156,4 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
 };
 
 
-export { GoalsView };
+export { GoalsView, RecurringReminder, MiniComparison };
