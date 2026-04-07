@@ -17,13 +17,13 @@ function buildHistData(transactions, cycleDay = 1) {
 }
 
 //    UTILS                                                                     
-const fmt = (n, showSign = false) => {
+function fmt(n, showSign = false) {
   const s = Math.abs(n).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (showSign) return (n >= 0 ? "+" : "−") + s + " zł";
   return s + " zł";
 };
 
-const fmtShort = (n) => {
+function fmtShort(n) {
   if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1) + "k";
   return n.toFixed(0);
 };
@@ -34,7 +34,7 @@ const fmtShort = (n) => {
 // If cycleDay=1   standard calendar month.
 // If cycleDay=25   25th of prev month to 24th of current month.
 // "month" param is 0-indexed (0=Jan   11=Dec), year hardcoded 2026.
-const getCycleRange = (month, cycleDay) => {
+function getCycleRange(month, cycleDay) {
   if (cycleDay <= 1) {
     const y = new Date().getFullYear();
     const m = month + 1;
@@ -56,12 +56,12 @@ const getCycleRange = (month, cycleDay) => {
   return [start, end];
 };
 
-const cycleTxs = (transactions, month, cycleDay) => {
+function cycleTxs(transactions, month, cycleDay) {
   const [start, end] = getCycleRange(month, cycleDay);
   return transactions.filter(t => t.date >= start && t.date <= end);
 };
 
-const fmtCycleLabel = (month, cycleDay) => {
+function fmtCycleLabel(month, cycleDay) {
   if (cycleDay <= 1) return MONTH_NAMES[month] + " " + new Date().getFullYear();
   const prevMonth = month === 0 ? 11 : month - 1;
   return `${cycleDay} ${MONTHS[prevMonth]} – ${cycleDay-1} ${MONTHS[month]} ${new Date().getFullYear()}`;

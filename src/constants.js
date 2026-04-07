@@ -34,11 +34,11 @@ const BASE_CATEGORIES = [
 ];
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop
+function getCat(id) { return BASE_CATEGORIES.find(c => c.id === id) || { id, label: id, icon: Wallet, color: "#6b7280" }; }
 const CATEGORIES = BASE_CATEGORIES;
-const getCat = (id) => CATEGORIES.find(c => c.id === id) || { id, label: id, icon: Wallet, color: "#6b7280" };
 
 // Helper used where customCats are available
-const getAllCats = (customCats = []) => [...BASE_CATEGORIES, ...customCats];
+function getAllCats(customCats = []) { return [...BASE_CATEGORIES, ...customCats]; }
 
 const INITIAL_ACCOUNTS = [
   { id: 1, name: "Konto główne",  type: "savings", bank: "", balance: 0, color: "#3b82f6", iban: "" },
