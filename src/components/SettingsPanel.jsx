@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
@@ -15,23 +14,6 @@ import { TemplatesEditor } from "./TemplatesEditor.jsx";
 import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INITIAL_TEMPLATES } from "../constants.js";
 import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
-
-function useAppRect() {
-  const [rect, setRect] = useState({ left: 0, width: typeof window !== "undefined" ? Math.min(window.innerWidth, 480) : 390 });
-  useEffect(() => {
-    function measure() {
-      const el = document.getElementById("app-root");
-      if (el) {
-        const r = el.getBoundingClientRect();
-        setRect({ left: r.left, width: r.width });
-      }
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-  return rect;
-}
 
 const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -392,8 +374,8 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
 
   return (
     <div style={{
-                  position: "fixed", top: 0, left: appRect.left, width: appRect.width,
-                  bottom: 0, zIndex: 9999,
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  minHeight: "100%", zIndex: 200,
                   background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
                   display: "flex", alignItems: "flex-end", justifyContent: "center",
                 }}
@@ -770,7 +752,7 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: wyczyść dane */}
       {confirmClear && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Wyczyścić wszystkie dane?</div>
@@ -815,7 +797,7 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: załaduj demo */}
       {confirmDemo && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Załadować dane demo?</div>

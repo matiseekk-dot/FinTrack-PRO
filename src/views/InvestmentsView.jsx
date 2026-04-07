@@ -209,7 +209,7 @@ const InvestmentsView = ({ portfolio, setPortfolio, accounts = [] }) => {
 
       {/* Modal: importuj z kont inwestycyjnych */}
       {importModal && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200,
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 200,
           display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0",
             padding: "24px 20px 40px", width: "min(100vw,480px)", maxHeight: "85vh", overflowY: "auto" }}>
@@ -279,7 +279,7 @@ const InvestmentsView = ({ portfolio, setPortfolio, accounts = [] }) => {
 
       {/* Modal dodaj/edytuj */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "min(100vw, 480px)", maxHeight: "85vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <span style={{ fontSize: 17, fontWeight: 700 }}>{editItem ? "Edytuj pozycję" : "Nowa pozycja"}</span>

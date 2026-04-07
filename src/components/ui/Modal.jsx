@@ -1,20 +1,12 @@
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useEffect } from "react";
 import { X } from "lucide-react";
-
-function getAppRect() {
-  const el = document.getElementById("app-root");
-  if (!el) return { left: 0, width: Math.min(window.innerWidth, 480) };
-  const r = el.getBoundingClientRect();
-  return { left: r.left, width: r.width };
-}
 
 const Modal = ({ open, onClose, title, children }) => {
   if (!open) return null;
-  return createPortal((
+  return (
     <div style={{
-      position: "fixed", top: 0, left: getAppRect().left, width: getAppRect().width,
-      bottom: 0, zIndex: 9999,
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+      minHeight: "100%", zIndex: 100,
       background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
       display: "flex", alignItems: "flex-end", justifyContent: "center",
     }} onClick={onClose}>
@@ -36,7 +28,7 @@ const Modal = ({ open, onClose, title, children }) => {
         {children}
       </div>
     </div>
-  ), document.body);
+  );
 };
 
 export { Modal };
