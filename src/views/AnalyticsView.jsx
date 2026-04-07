@@ -20,7 +20,7 @@ import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, I
 const MonthComparison = ({ transactions, month }) => {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
 
-  const cmpKey = `2026-${String(cmpMonth+1).padStart(2,"0")}`;
+  const cmpKey = `${new Date().getFullYear()}-${String(cmpMonth+1).padStart(2,"0")}`;
   const curKey = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}`;
 
   const cmpTx  = transactions.filter(t => t.date.startsWith(cmpKey) && t.cat !== "inne");
@@ -54,7 +54,7 @@ const MonthComparison = ({ transactions, month }) => {
           style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 8,
             padding: "8px 12px", color: "#e2e8f0", fontSize: 14, outline: "none" }}>
           {MONTH_NAMES.map((m, i) => i !== month && (
-            <option key={i} value={i}>{m} 2026</option>
+            <option key={i} value={i}>{m} {new Date().getFullYear()}</option>
           ))}
         </select>
       </div>

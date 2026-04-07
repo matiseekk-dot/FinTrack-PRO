@@ -21,6 +21,7 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
   const TODAY_ISO  = TODAY_FULL.toISOString().split("T")[0]; // "2026-04-01"
   // own month selector - starts at current month, can navigate independently
   const [localMonth, setLocalMonth] = useState(globalMonth);
+  const currentRealMonth = new Date().getMonth();
   // Sync with global month when user switches tabs
   useEffect(() => { setLocalMonth(globalMonth); }, [globalMonth]);
   const month    = localMonth;
@@ -300,7 +301,7 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
               {MONTH_NAMES[month]} {new Date().getFullYear()} {isCurrentMonth && <span style={{ fontSize: 10, color: "#10b981" }}>● teraz</span>}
             </div>
           </div>
-          <button onClick={() => setLocalMonth(m => Math.min(11, m+1))}
+          <button onClick={() => setLocalMonth(m => Math.min(currentRealMonth, m+1))}
             style={{ background: "#1a2744", border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#94a3b8" }}>
             <ChevronRight size={14}/>
           </button>
@@ -436,7 +437,7 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
           <Select label="Pierwszy miesiąc płatności" value={form.startMonth || new Date().getMonth()}
             onChange={e => setForm(f => ({...f, startMonth: parseInt(e.target.value)}))}>
             {MONTH_NAMES.map((m, i) => (
-              <option key={i} value={i}>{m} 2026 (potem co 2 miesiące)</option>
+              <option key={i} value={i}>{m} {new Date().getFullYear()} (potem co 2 miesiące)</option>
             ))}
           </Select>
         )}

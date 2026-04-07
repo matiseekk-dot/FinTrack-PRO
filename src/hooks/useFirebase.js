@@ -41,6 +41,10 @@ export function useFirebase() {
       setSyncError(null);
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
+      // Ignore user-cancelled popup (auth/popup-closed-by-user, auth/cancelled-popup-request)
+      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") {
+        return; // user just closed the popup — no error to show
+      }
       setSyncError("Logowanie nie powiodło się. Spróbuj ponownie.");
       console.error("[FB] signIn error", e);
     }

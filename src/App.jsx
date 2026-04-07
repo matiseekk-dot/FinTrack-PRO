@@ -148,7 +148,8 @@ export default function App() {
     setAccounts(DEMO_ACCOUNTS);
     setTransactions(DEMO_TRANSACTIONS);
     setPayments(DEMO_PAYMENTS);
-    setPaid({ "101_2026-03": true, "102_2026-03": true, "103_2026-03": true });
+    const demoKey = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+    setPaid({ [`101_${demoKey}`]: true, [`102_${demoKey}`]: true, [`103_${demoKey}`]: true });
   };
 
   const currentMonthKey = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}`;
@@ -184,7 +185,7 @@ export default function App() {
   );
 
   // Login
-  if (!user) return <LoginScreen onSignIn={signInGoogle} loading={authLoading}/>;
+  if (!user) return <LoginScreen onSignIn={signInGoogle} loading={authLoading} syncError={syncError}/>;
 
   // Onboarding
   if (!onboarded) return (

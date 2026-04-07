@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FontLoader } from "./FontLoader.jsx";
 
-const LoginScreen = ({ onSignIn, loading }) => {
+const LoginScreen = ({ onSignIn, loading, syncError }) => {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -57,7 +57,7 @@ const LoginScreen = ({ onSignIn, loading }) => {
 
       {/* Google Sign In button */}
       <button
-        onClick={() => { setPressed(true); onSignIn(); }}
+        onClick={() => { setPressed(true); onSignIn().finally(() => setPressed(false)); }}
         disabled={loading || pressed}
         style={{
           width: "100%",
@@ -89,6 +89,12 @@ const LoginScreen = ({ onSignIn, loading }) => {
         )}
       </button>
 
+      {syncError && (
+        <div style={{ fontSize: 13, color: "#ef4444", marginTop: 12, textAlign: "center",
+          background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 10, padding: "10px 16px" }}>
+          {syncError}
+        </div>
+      )}
       <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.6 }}>
         Logując się akceptujesz warunki użytkowania.<br/>
         Nie wysyłamy spamu ani nie sprzedajemy danych.

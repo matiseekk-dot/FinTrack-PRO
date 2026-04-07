@@ -688,7 +688,7 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <button onClick={() => setMonth(m => Math.max(0, m-1))} style={{ background: "#1a2744", border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#94a3b8" }}><ChevronLeft size={14}/></button>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>{cycleDay > 1 ? fmtCycleLabel(month, cycleDay) : MONTH_NAMES[month] + " 2026"}</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{cycleDay > 1 ? fmtCycleLabel(month, cycleDay) : MONTH_NAMES[month] + " " + new Date().getFullYear()}</span>
           <button onClick={() => setMonth(m => Math.min(11, m+1))} style={{ background: "#1a2744", border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#94a3b8" }}><ChevronRight size={14}/></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>

@@ -71,7 +71,15 @@ const AccountsView = ({ accounts, setAccounts }) => {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 600, color: acc.color }}>{fmt(acc.balance)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 600, color: acc.color }}>{fmt(acc.balance)}</div>
+              {acc.balance === 0 && (
+                <span style={{ fontSize: 10, color: "#f59e0b", background: "#78350f22",
+                  border: "1px solid #78350f44", borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>
+                  Ustaw saldo →
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pct}% majątku</div>
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
               <button onClick={() => openEdit(acc)} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#60a5fa", fontSize: 11 }}>Edytuj</button>
