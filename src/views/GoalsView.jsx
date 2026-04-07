@@ -376,7 +376,7 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
     return (stored && stored.dateFrom) || new Date().toISOString().slice(0,10);
   });
   const [editGoal,    setEditGoal]    = useState(null);
-  const EMPTY_FORM = { name: "", target: "", saved: "", accId: 1, color: "#06b6d4", emoji: "🎯" };
+  const EMPTY_FORM = { name: "", target: "", saved: "", accId: 1, color: "#06b6d4", emoji: "💰" };
   const [form,        setForm]        = useState(EMPTY_FORM);
   const [limitForm,   setLimitForm]   = useState({ cat: "bukmacher", limit: "" });
 
@@ -458,7 +458,7 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {goals.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px 16px" }}>
-              <div style={{ fontSize: 40, marginBottom: 14 }}>🎯</div>
+              <div style={{ fontSize: 40, marginBottom: 14 }}>💰</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Brak celów oszczędnościowych</div>
               <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 20 }}>
                 Dodaj cel — wakacje, nowy telefon, poduszka finansowa. Śledź postęp i odkładaj systematycznie.
@@ -497,14 +497,15 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
                   <div style={{ width: `${pct}%`, height: "100%", background: done ? "linear-gradient(90deg,#059669,#10b981)" : `linear-gradient(90deg,${goal.color}99,${goal.color})`, borderRadius: 8, transition: "width 0.8s ease" }}/>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#64748b" }}>
-                    {fmt(goal.saved)} <span style={{ color: "#334155" }}>/ {fmt(goal.target)}</span>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{fmt(goal.saved)}</span>
+                    <span style={{ color: "#334155" }}> / {fmt(goal.target)}</span>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {[100, 500, 1000].map(amt => (
-                      <button key={amt} onClick={() => updateSaved(goal.id, amt)} style={{ background: "#0a1e12", border: "1px solid #14532d55", borderRadius: 7, padding: "4px 10px", cursor: "pointer", color: "#10b981", fontSize: 11, fontWeight: 700 }}>+{amt}</button>
+                      <button key={amt} onClick={() => updateSaved(goal.id, amt)} style={{ background: "#0a1e12", border: "1px solid #14532d55", borderRadius: 7, padding: "4px 10px", cursor: "pointer", color: "#10b981", fontSize: 11, fontWeight: 700 }}>+{amt} zł</button>
                     ))}
-                    <button onClick={() => updateSaved(goal.id, -100)} style={{ background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#f87171", fontSize: 11 }}>−</button>
+                    <button onClick={() => updateSaved(goal.id, -100)} style={{ background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#f87171", fontSize: 11 }}>−100 zł</button>
                   </div>
                 </div>
                 {done
@@ -1107,7 +1108,7 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>Emoji</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["🏖️","💻","🚗","🏠","💍","✈️","📈","🎯","🎸","👶"].map(e => (
+            {["💰","🎯","🏠","🚗","✈️","💍","📱","🎓","🏖️","💪","🌍","🏦","📈","🎸","🐕","👶","🏋️","🎮","🛋️","🌴"].map(e => (
               <button key={e} onClick={() => setForm(f => ({...f, emoji: e}))} style={{ fontSize: 22, background: form.emoji === e ? "#1e3a5f" : "#060b14", border: `1px solid ${form.emoji === e ? "#2563eb" : "#1a2744"}`, borderRadius: 8, padding: "4px 8px", cursor: "pointer" }}>{e}</button>
             ))}
           </div>

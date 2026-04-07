@@ -7,17 +7,19 @@ import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { Onboarding } from "./components/Onboarding.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
-import { Dashboard } from "./views/Dashboard.jsx";
-import { AccountsView } from "./views/AccountsView.jsx";
-import { TransactionsView } from "./views/TransactionsView.jsx";
-import { InvestmentsView } from "./views/InvestmentsView.jsx";
-import { GoalsView } from "./views/GoalsView.jsx";
-import { PaymentsView } from "./views/PaymentsView.jsx";
-import { AnalyticsView } from "./views/AnalyticsView.jsx";
+import { Dashboard } from "./views/Dashboard.jsx"; // eager — first screen
+import { lazy, Suspense } from "react";
+const AccountsView    = lazy(() => import("./views/AccountsView.jsx").then(m => ({ default: m.AccountsView })));
+const TransactionsView = lazy(() => import("./views/TransactionsView.jsx").then(m => ({ default: m.TransactionsView })));
+const InvestmentsView = lazy(() => import("./views/InvestmentsView.jsx").then(m => ({ default: m.InvestmentsView })));
+const GoalsView       = lazy(() => import("./views/GoalsView.jsx").then(m => ({ default: m.GoalsView })));
+const PaymentsView    = lazy(() => import("./views/PaymentsView.jsx").then(m => ({ default: m.PaymentsView })));
+const AnalyticsView   = lazy(() => import("./views/AnalyticsView.jsx").then(m => ({ default: m.AnalyticsView })));
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
+import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
 
@@ -62,6 +64,8 @@ export default function App() {
   const [portfolio,    setPortfolio]    = useState([]);
   const [goals,        setGoals]        = useState(INITIAL_GOALS);
   const [fabOpen,      setFabOpen]      = useState(false);
+  const [fabMenu,      setFabMenu]      = useState(false); // long press menu
+  const fabPressTimer  = useRef(null);
   const [loaded,       setLoaded]       = useState(false);
   const [importErr,    setImportErr]    = useState("");
   const [syncOk,       setSyncOk]       = useState(false);
@@ -77,7 +81,9 @@ export default function App() {
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
 
-  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats, setDefaultAcc, setMonth, setCycleDay, setPartnerName, setPortfolio, setVacationArchive };
+  const capLabel = (c) => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label });
+  const setCustomCatsCap = (cats) => setCustomCats(Array.isArray(cats) ? cats.map(capLabel) : cats);
+  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setPartnerName, setPortfolio, setVacationArchive };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -126,6 +132,30 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
   }, [vacationArchive]);
+
+  // Request notification permission and schedule reminders
+  useEffect(() => {
+    if (!loaded || !user) return;
+    // Request permission once per session
+    const asked = localStorage.getItem("ft_notif_asked");
+    if (!asked) {
+      setTimeout(() => {
+        requestNotificationPermission(user.uid);
+        localStorage.setItem("ft_notif_asked", "1");
+      }, 5000); // ask after 5s so user is already in app
+    }
+    // Schedule local reminders on every load
+    schedulePaymentReminders(payments, paid);
+  }, [loaded, user]);
+
+  // One-time migration: capitalize custom category labels and save back
+  useEffect(() => {
+    if (!loaded || customCats.length === 0) return;
+    const needsFix = customCats.some(c => c.label && c.label[0] !== c.label[0].toUpperCase());
+    if (!needsFix) return;
+    const fixed = customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label }));
+    setCustomCats(fixed);
+  }, [loaded]);
 
   const clearAllData = async () => {
     clearingRef.current = true; // block Firestore saves during clear
@@ -268,12 +298,14 @@ export default function App() {
       {/* Pages */}
       <div style={{ paddingBottom: 20 }}>
         {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
-        {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
-        {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
-        {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
-        {tab === "payments"     && <PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/>}
-        {tab === "goals"        && <GoalsView goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/>}
-        {tab === "analytics"    && <AnalyticsView transactions={transactions} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/>}
+        <Suspense fallback={<div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"#334155", fontSize:13 }}>Ładuję…</div>}>
+          {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
+          {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
+          {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
+          {tab === "payments"     && <PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/>}
+          {tab === "goals"        && <GoalsView goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/>}
+          {tab === "analytics"    && <AnalyticsView transactions={transactions} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/>}
+        </Suspense>
       </div>
 
       {importErr && (
@@ -296,6 +328,7 @@ export default function App() {
       />
 
       {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
+      {fabMenu && <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
 
       {quickAddOpen && (
         <TransactionsView transactions={transactions}

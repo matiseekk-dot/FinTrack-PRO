@@ -693,6 +693,48 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
           {pulling ? "Odświeżam…" : pullY >= PULL_THRESHOLD ? "Puść aby odświeżyć" : "Pociągnij w dół"}
         </div>
       )}
+      {/* TODAY WIDGET — pierwsze co widzi user */}
+      {(() => {
+        const todayTx = transactions.filter(t => t.date === todayISO && t.cat !== "inne");
+        const todayExp = todayTx.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
+        const todayInc = todayTx.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
+        const txCount  = todayTx.length;
+        if (txCount === 0) return null;
+        return (
+          <div style={{
+            background: "linear-gradient(135deg, #0a1628, #0d1f35)",
+            border: "1px solid #1e3a5f44", borderRadius: 16,
+            padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div>
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
+                Dziś · {txCount} {txCount === 1 ? "transakcja" : txCount < 5 ? "transakcje" : "transakcji"}
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                {todayExp > 0 && (
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, color: "#ef4444" }}>
+                    −{fmt(todayExp)}
+                  </span>
+                )}
+                {todayInc > 0 && (
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 600, color: "#10b981" }}>
+                    +{fmt(todayInc)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button onClick={onAddTx} style={{
+              background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+              borderRadius: 10, padding: "8px 14px", color: "white",
+              fontWeight: 700, fontSize: 12, cursor: "pointer",
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              + Dodaj
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Recurring Reminder */}
       <RecurringReminder payments={payments||[]} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
       {/* Daily Reminder */}

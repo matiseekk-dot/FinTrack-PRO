@@ -86,3 +86,26 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Push notification handler
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    event.waitUntil(
+      self.registration.showNotification(data.title || "FinTrack PRO", {
+        body: data.body || "",
+        icon: "/FinTrack-PRO/icon.svg",
+        badge: "/FinTrack-PRO/icon.svg",
+        tag: data.tag || "fintrack",
+        data: { url: data.url || "/FinTrack-PRO/" },
+      })
+    );
+  } catch(_) {}
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/FinTrack-PRO/";
+  event.waitUntil(clients.openWindow(url));
+});

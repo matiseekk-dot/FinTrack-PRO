@@ -22,16 +22,16 @@ const AccountsView = ({ accounts, setAccounts }) => {
 
   const ACC_COLORS = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316"];
   const nextColor = () => ACC_COLORS[accounts.length % ACC_COLORS.length];
-  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor() }); setModal(true); };
-  const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color }); setModal(true); };
+  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor(), currency: "PLN" }); setModal(true); };
+  const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color, currency: acc.currency || "PLN" }); setModal(true); };
 
   const saveAccount = () => {
     if (!form.name || form.balance === "") return;
     if (editAcc) {
-      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: parseFloat(form.balance) } : x));
+      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: parseFloat(form.balance), currency: form.currency || "PLN" } : x));
       showToast("Konto zaktualizowane ✓");
     } else {
-      setAccounts(a => [...a, { id: Date.now(), ...form, balance: parseFloat(form.balance), iban: "" }]);
+      setAccounts(a => [...a, { id: Date.now(), ...form, balance: parseFloat(form.balance), iban: "", currency: form.currency || "PLN" }]);
       showToast("Konto dodane ✓");
     }
     setModal(false);
@@ -145,6 +145,20 @@ const AccountsView = ({ accounts, setAccounts }) => {
       <Modal open={modal} onClose={() => setModal(false)} title={editAcc ? "Edytuj konto" : "Nowe konto"}>
         <Input label="Nazwa konta" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="np. Konto osobiste"/>
         <Input label="Bank" value={form.bank} onChange={e => setForm(f => ({...f, bank: e.target.value}))} placeholder="np. PKO BP"/>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Waluta</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["PLN","EUR","USD","GBP","CHF","CZK"].map(c => (
+              <button key={c} onClick={() => setForm(f => ({...f, currency: c}))} style={{
+                padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                border: `1px solid ${form.currency === c ? "#2563eb" : "#1a2744"}`,
+                background: form.currency === c ? "#1e3a5f" : "#060b14",
+                color: form.currency === c ? "#60a5fa" : "#475569",
+                fontWeight: 600, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+              }}>{c}</button>
+            ))}
+          </div>
+        </div>
         <Input label="Saldo (zł)" type="number" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
         <Select label="Typ konta" value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>
           <option value="checking">Rachunek bieżący</option>

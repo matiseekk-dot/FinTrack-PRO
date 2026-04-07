@@ -276,12 +276,12 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
   );
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.85)",
-                  backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center",
-                  padding: 0 }}
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
+                  background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
+                  display: "flex", alignItems: "flex-end", justifyContent: "center" }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "min(100vw, 480px)", padding: "24px 20px 48px",
+                    width: "100%", padding: "24px 20px 48px",
                     paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
                     maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
