@@ -1,7 +1,7 @@
 // FinTrack PRO — Service Worker
 // Zapewnia podstawową obsługę offline i cache
 
-const CACHE_NAME = "fintrack-pro-v4"; // bumped to clear old cache
+const CACHE_NAME = "fintrack-pro-v5"; // bumped to clear old cache
 const STATIC_ASSETS = [
   "/FinTrack-PRO/",
   "/FinTrack-PRO/index.html",
