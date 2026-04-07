@@ -154,9 +154,40 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
       try {
         const wb = XLSX.read(ev.target.result, { type: "array" });
 
-        let imported = { tx: 0, acc: 0, bud: 0 };
+        // ── Priorytet 1: pełny backup JSON (arkusz _Backup_JSON) ─────────
+        if (wb.SheetNames.includes("_Backup_JSON")) {
+          try {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets["_Backup_JSON"]);
+            if (rows.length > 0 && rows[0].JSON_backup) {
+              const d = JSON.parse(rows[0].JSON_backup);
+              if (d) {
+                // Zastosuj wszystkie dane z pełnego backupu
+                if (Array.isArray(d.accounts))     setAccounts(d.accounts);
+                if (Array.isArray(d.transactions) && d.transactions.length) setTransactions(d.transactions);
+                if (Array.isArray(d.budgets))       setBudgets(d.budgets);
+                if (Array.isArray(d.payments))      setPayments(d.payments);
+                if (d.paid && typeof d.paid === "object") setPaid(d.paid);
+                if (Array.isArray(d.goals))         setGoals(d.goals);
+                if (Array.isArray(d.customCats))    setCustomCats(d.customCats);
+                if (d.cycleDay != null)             setCycleDay(d.cycleDay);
+                if (d.defaultAcc != null)           setDefaultAcc(d.defaultAcc);
+                if (d.templates) try { localStorage.setItem("ft_templates", JSON.stringify(d.templates)); } catch(_) {}
+                if (d.vacation)  try { localStorage.setItem("ft_vacation",  JSON.stringify(d.vacation));  } catch(_) {}
+                setImportStatus("ok");
+                setImportMsg(
+                  `Przywrócono pełny backup: ${(d.transactions||[]).length} transakcji, ` +
+                  `${(d.accounts||[]).length} kont, ${(d.payments||[]).length} płatności, ` +
+                  `${(d.goals||[]).length} celów`
+                );
+                return;
+              }
+            }
+          } catch(_) { /* fallback to sheet parsing */ }
+        }
 
-        // Parse Transakcje sheet
+        // ── Priorytet 2: parsowanie poszczególnych arkuszy ───────────────
+        let imported = { tx: 0, acc: 0, bud: 0, pay: 0 };
+
         if (wb.SheetNames.includes("Transakcje")) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets["Transakcje"]);
           const newTx = rows
@@ -169,13 +200,9 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
               cat:    String(r.Kategoria || "inne"),
               acc:    parseInt(r.Konto_ID) || 1,
             }));
-          if (newTx.length > 0) {
-            setTransactions(newTx);
-            imported.tx = newTx.length;
-          }
+          if (newTx.length > 0) { setTransactions(newTx); imported.tx = newTx.length; }
         }
 
-        // Parse Konta sheet
         if (wb.SheetNames.includes("Konta")) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets["Konta"]);
           const newAcc = rows
@@ -186,38 +213,50 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
               type:    String(r.Typ || "checking"),
               bank:    String(r.Bank || ""),
               balance: parseFloat(r.Saldo),
-              color:   "#3b82f6",
+              color:   r.Kolor || "#3b82f6",
               iban:    String(r.IBAN || ""),
             }));
-          if (newAcc.length > 0) {
-            setAccounts(newAcc);
-            imported.acc = newAcc.length;
-          }
+          if (newAcc.length > 0) { setAccounts(newAcc); imported.acc = newAcc.length; }
         }
 
-        // Parse Bud ety sheet
         if (wb.SheetNames.includes("Budżety")) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets["Budżety"]);
           const newBud = rows
             .filter(r => r.Kategoria && r.Limit_PLN !== undefined)
+            .map(r => ({ cat: String(r.Kategoria), limit: parseFloat(r.Limit_PLN), color: "#3b82f6" }));
+          if (newBud.length > 0) { setBudgets(newBud); imported.bud = newBud.length; }
+        }
+
+        // ── Płatności (wcześniej pomijane!) ───────────────────────────────
+        if (wb.SheetNames.includes("Płatności")) {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets["Płatności"]);
+          const newPay = rows
+            .filter(r => r.Nazwa && r.Kwota !== undefined)
             .map(r => ({
-              cat:   String(r.Kategoria),
-              limit: parseFloat(r.Limit_PLN),
-              color: "#3b82f6",
+              id:       parseInt(r.ID) || Date.now() + Math.random(),
+              name:     String(r.Nazwa),
+              type:     String(r.Typ || "bill"),
+              amount:   parseFloat(r.Kwota),
+              dueDay:   parseInt(r.Termin) || 1,
+              freq:     String(r.Częstotliwość || "monthly"),
+              cat:      String(r.Kategoria || "rachunki"),
+              acc:      parseInt(r.Konto_ID) || 1,
+              color:    "#f59e0b",
+              trackPaid: true,
+              shared:   false,
             }));
-          if (newBud.length > 0) {
-            setBudgets(newBud);
-            imported.bud = newBud.length;
-          }
+          if (newPay.length > 0) { setPayments(newPay); imported.pay = newPay.length; }
         }
 
         setImportStatus("ok");
         setImportMsg(
           `Zaimportowano: ${imported.tx} transakcji` +
-          (imported.acc  ? `, ${imported.acc} kont`    : "") +
-          (imported.bud  ? `, ${imported.bud} budżetów` : "")
+          (imported.acc ? `, ${imported.acc} kont` : "") +
+          (imported.pay ? `, ${imported.pay} płatności` : "") +
+          (imported.bud ? `, ${imported.bud} budżetów` : "")
         );
       } catch (err) {
+        console.error("Import error:", err);
         setImportStatus("err");
         setImportMsg("Błąd wczytywania pliku. Upewnij się, że to plik .xlsx z FinTrack.");
       }

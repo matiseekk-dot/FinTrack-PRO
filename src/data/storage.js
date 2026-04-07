@@ -98,7 +98,12 @@ function downloadJSON(data) {
 }
 
 function loadSnapshotFromJSON(json) {
-  try { const d = JSON.parse(json); return d.v ? d : null; }
+  try {
+    const d = JSON.parse(json);
+    // Akceptuj backup z polem "v" lub bez (stare wersje apki)
+    if (d && (d.v || d.accounts || d.transactions)) return migrateData(d);
+    return null;
+  }
   catch(_) { return null; }
 }
 
