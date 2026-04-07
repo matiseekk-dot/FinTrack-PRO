@@ -28,7 +28,7 @@ const ONBOARDING_SLIDES = [
   },
 ];
 
-const Onboarding = ({ onFinish, onLoadDemo }) => {
+function Onboarding({ onFinish, onLoadDemo }) {
   const [slide, setSlide] = useState(0);
   const current = ONBOARDING_SLIDES[slide];
   const isLast  = slide === ONBOARDING_SLIDES.length - 1;

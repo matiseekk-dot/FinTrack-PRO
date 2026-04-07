@@ -72,7 +72,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 
 
 // ── FINANCIAL SCORE ──────────────────────────────────────────────
-const FinancialScore = ({ income, expense, transactions, month, cycleDay, elapsedDays }) => {
+function FinancialScore({ income, expense, transactions, month, cycleDay, elapsedDays }) {
   const savingsRate = income > 0 ? (income - expense) / income * 100 : 0;
   let scoreS = savingsRate > 20 ? 30 : savingsRate > 10 ? 20 : savingsRate > 0 ? 10 : 0;
 
@@ -189,7 +189,7 @@ const FinancialScore = ({ income, expense, transactions, month, cycleDay, elapse
 };
 
 // ── INSIGHTS ENGINE ───────────────────────────────────────────────
-const Insights = ({ transactions, month, cycleDay, income, expense, catData }) => {
+function Insights({ transactions, month, cycleDay, income, expense, catData }) {
   const insights = useMemo(() => {
     const list = [];
     const curTx = cycleTxs(transactions, month, cycleDay).filter(t => t.cat !== "inne");
@@ -324,7 +324,7 @@ const Insights = ({ transactions, month, cycleDay, income, expense, catData }) =
 };
 
 // ── EXPENSE TYPES BREAKDOWN ──────────────────────────────────────
-const ExpenseTypesBreakdown = ({ monthTx, income }) => {
+function ExpenseTypesBreakdown({ monthTx, income }) {
   const fixed      = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="fixed").reduce((s,t)=>s+Math.abs(t.amount),0);
   const variable   = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="variable").reduce((s,t)=>s+Math.abs(t.amount),0);
   const lifestyle  = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
@@ -393,7 +393,7 @@ const ExpenseTypesBreakdown = ({ monthTx, income }) => {
 };
 
 // ── FORECAST ─────────────────────────────────────────────────────
-const ForecastWidget = ({ income, expense, daysLeft, elapsedDays, transactions, month, cycleDay }) => {
+function ForecastWidget({ income, expense, daysLeft, elapsedDays, transactions, month, cycleDay }) {
   if (elapsedDays < 3 || income === 0) return null;
   if (daysLeft === 0) return (
     <Card style={{ padding: "12px 16px" }}>
@@ -464,7 +464,7 @@ const ForecastWidget = ({ income, expense, daysLeft, elapsedDays, transactions, 
 };
 
 // ── RECOMMENDATIONS ───────────────────────────────────────────────
-const Recommendations = ({ income, expense, catData, monthTx, safeToSpend, daysLeft }) => {
+function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysLeft }) {
   const recs = useMemo(() => {
     const list = [];
     const savingsRate = income > 0 ? (income - expense) / income * 100 : 0;
@@ -528,7 +528,7 @@ const Recommendations = ({ income, expense, catData, monthTx, safeToSpend, daysL
   );
 };
 
-const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, onRefresh }) => {
+function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, onRefresh }) {
   const [pulling, setPulling] = useState(false);
   const [pullY, setPullY] = useState(0);
   const pullStartY = useRef(0);

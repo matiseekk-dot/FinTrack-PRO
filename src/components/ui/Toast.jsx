@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 
-const Toast = ({ message, type = "success", visible }) => {
+function Toast({ message, type = "success", visible }) {
   if (!visible) return null;
   const colors = {
     success: { bg: "#052e16", border: "#16a34a44", color: "#10b981", icon: "✓" },

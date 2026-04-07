@@ -4,7 +4,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import { MONTH_NAMES } from "../constants.js";
 
-const RecurringReminder = ({ payments, transactions, setTransactions, accounts }) => {
+function RecurringReminder({ payments, transactions, setTransactions, accounts }) {
   const today     = new Date();
   const todayStr  = today.toISOString().split("T")[0];
   const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
@@ -68,7 +68,7 @@ const RecurringReminder = ({ payments, transactions, setTransactions, accounts }
   );
 };
 
-const MiniComparison = ({ transactions, month, cycleDay }) => {
+function MiniComparison({ transactions, month, cycleDay }) {
   const prevMonth = month > 0 ? month - 1 : 11;
   const curTx  = cycleTxs(transactions, month, cycleDay);
   const prevTx = cycleTxs(transactions, prevMonth, cycleDay);

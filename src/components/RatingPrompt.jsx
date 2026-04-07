@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const RatingPrompt = ({ onDismiss }) => {
+function RatingPrompt({ onDismiss }) {
   const [stars, setStars] = useState(0);
   const [hovered, setHovered] = useState(0);
 

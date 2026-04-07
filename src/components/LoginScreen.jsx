@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FontLoader } from "./FontLoader.jsx";
 
-const LoginScreen = ({ onSignIn, loading, syncError }) => {
+function LoginScreen({ onSignIn, loading, syncError }) {
   const [pressed, setPressed] = useState(false);
 
   return (

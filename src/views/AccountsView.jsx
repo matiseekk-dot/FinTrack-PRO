@@ -14,7 +14,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
-const AccountsView = ({ accounts, setAccounts }) => {
+function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
   const [editAcc, setEditAcc] = useState(null); // account being edited

@@ -17,7 +17,7 @@ import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
-const MonthComparison = ({ transactions, month }) => {
+function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
 
   const cmpKey = `${new Date().getFullYear()}-${String(cmpMonth+1).padStart(2,"0")}`;
@@ -113,7 +113,7 @@ const MonthComparison = ({ transactions, month }) => {
   );
 };
 
-const TrendKategorii = ({ transactions, month, cycleDay }) => {
+function TrendKategorii({ transactions, month, cycleDay }) {
   const [trendCat, setTrendCat] = useState("jedzenie");
   const trendCats = ["jedzenie","transport","zakupy","rozrywka","rachunki","bukmacher"];
 
@@ -170,7 +170,7 @@ const TrendKategorii = ({ transactions, month, cycleDay }) => {
   );
 };
 
-const AnalyticsView = ({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner" }) => {
+function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner" }) {
   if (transactions.length === 0) return (
     <div style={{ padding: "0 16px 100px", textAlign: "center", paddingTop: 80 }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>

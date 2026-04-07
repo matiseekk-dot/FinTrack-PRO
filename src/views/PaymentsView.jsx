@@ -15,7 +15,7 @@ import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } 
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
-const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setTransactions, accounts, month: globalMonth, partnerName = "Partner" }) => {
+function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setTransactions, accounts, month: globalMonth, partnerName = "Partner" }) {
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, medium: hapticMedium } = useHaptic();
   const TODAY_FULL = new Date();

@@ -19,7 +19,7 @@ import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } 
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
-const BudgetView = ({ transactions, budgets, setBudgets, month, cycleDay = 1 }) => {
+function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ cat: "jedzenie", limit: "" });
 
@@ -125,7 +125,7 @@ const BudgetView = ({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
 
 //    GOALS VIEW                                                                 
 //    FORECAST TAB COMPONENT                                                    
-const ForecastTab = () => {
+function ForecastTab() {
   const [monthly,  setMonthly]  = useState(1000);
   const [years,    setYears]    = useState(10);
   const [rate,     setRate]     = useState(7);
@@ -232,7 +232,7 @@ const ForecastTab = () => {
   );
 };
 
-const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive }) => {
+function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive }) {
   const { toast, showToast } = useToast();
   const [modal,       setModal]       = useState(false);
   const [limitModal,  setLimitModal]  = useState(false);

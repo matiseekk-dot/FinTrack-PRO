@@ -15,11 +15,11 @@ import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INIT
 import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
 
-const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payments, paid,
+function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
                          setTransactions, setAccounts, setBudgets, setCycleDay, setCustomCats,
                          setPayments, setPaid, setGoals,
-                         cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) => {
+                         cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income

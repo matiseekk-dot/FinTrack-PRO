@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 
-const Modal = ({ open, onClose, title, children }) => {
+function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div style={{

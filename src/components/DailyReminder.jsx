@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
 
-const DailyReminder = ({ transactions, onAddTx }) => {
+function DailyReminder({ transactions, onAddTx }) {
   const today = new Date().toISOString().split("T")[0];
   const todayTxs = transactions.filter(t => t.date === today && t.cat !== "inne");
   const [dismissed, setDismissed] = useState(false);

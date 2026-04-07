@@ -17,7 +17,7 @@ import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { useToast } from "../hooks/useToast.js";
-const InvestmentsView = ({ portfolio, setPortfolio, accounts = [] }) => {
+function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];
   const COLORS = ["#8b5cf6","#f59e0b","#10b981","#3b82f6","#ef4444","#06b6d4","#ec4899","#a3e635"];
   const { toast, showToast } = useToast();

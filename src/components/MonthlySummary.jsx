@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 
-const MonthlySummary = ({ transactions, month, cycleDay = 1, onClose }) => {
+function MonthlySummary({ transactions, month, cycleDay = 1, onClose }) {
   const monthNames = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
                       "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
 

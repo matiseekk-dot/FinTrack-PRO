@@ -11,7 +11,7 @@ import { Card } from "./ui/Card.jsx";
 import { Input, Select } from "./ui/Input.jsx";
 import { INITIAL_TEMPLATES, getCat, CATEGORIES, BASE_CATEGORIES } from "../constants.js";
 
-const TemplatesEditor = () => {
+function TemplatesEditor() {
   const [tpls, setTpls] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("ft_templates") || JSON.stringify(INITIAL_TEMPLATES));
