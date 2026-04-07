@@ -403,7 +403,10 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
   const updateSaved = (id, delta) => setGoals(g => g.map(goal => goal.id === id ? { ...goal, saved: Math.max(0, goal.saved + delta) } : goal));
   const deleteGoal  = (id) => setGoals(g => g.filter(x => x.id !== id));
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
-  const totalSaved  = goals.reduce((s,g) => s + g.saved, 0);
+  const totalSaved = goals.reduce((s, g) => {
+    const linkedAcc = accounts.find(a => a.id === g.accId);
+    return s + (linkedAcc ? linkedAcc.balance : g.saved);
+  }, 0);
 
   //    Limits logic                                                           
   // budgets array: { cat, limit, color }
@@ -482,7 +485,15 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
                     <div style={{ fontSize: 28, lineHeight: 1 }}>{goal.emoji}</div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{goal.name}</div>
-                      {acc && <div style={{ fontSize: 11, color: acc.color, marginTop: 2 }}>{acc.name}</div>}
+                      {acc && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <span style={{ fontSize: 11, color: acc.color }}>{acc.name}</span>
+                    <span style={{ fontSize: 9, color: "#10b981", background: "#052e16",
+                      border: "1px solid #16a34a33", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>
+                      ⟳ sync
+                    </span>
+                  </div>
+                )}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -498,19 +509,25 @@ const GoalsView = ({ goals, setGoals, accounts, budgets, setBudgets, transaction
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
-                    <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{fmt(goal.saved)}</span>
+                    <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{fmt(effectiveSaved)}</span>
                     <span style={{ color: "#334155" }}> / {fmt(goal.target)}</span>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[100, 500, 1000].map(amt => (
-                      <button key={amt} onClick={() => updateSaved(goal.id, amt)} style={{ background: "#0a1e12", border: "1px solid #14532d55", borderRadius: 7, padding: "4px 10px", cursor: "pointer", color: "#10b981", fontSize: 11, fontWeight: 700 }}>+{amt} zł</button>
-                    ))}
-                    <button onClick={() => updateSaved(goal.id, -100)} style={{ background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#f87171", fontSize: 11 }}>−100 zł</button>
-                  </div>
+                  {!acc ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {[100, 500, 1000].map(amt => (
+                        <button key={amt} onClick={() => updateSaved(goal.id, amt)} style={{ background: "#0a1e12", border: "1px solid #14532d55", borderRadius: 7, padding: "4px 10px", cursor: "pointer", color: "#10b981", fontSize: 11, fontWeight: 700 }}>+{amt} zł</button>
+                      ))}
+                      <button onClick={() => updateSaved(goal.id, -100)} style={{ background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#f87171", fontSize: 11 }}>−100 zł</button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "#334155" }}>
+                      Saldo aktualizuje się automatycznie
+                    </div>
+                  )}
                 </div>
                 {done
                   ? <div style={{ marginTop: 10, textAlign: "center", fontSize: 13, fontWeight: 700, color: "#10b981" }}>🎉 Cel osiągnięty!</div>
-                  : <div style={{ marginTop: 8, fontSize: 11, color: "#334155", textAlign: "right" }}>brakuje {fmt(goal.target - goal.saved)}</div>
+                  : <div style={{ marginTop: 8, fontSize: 11, color: "#334155", textAlign: "right" }}>brakuje {fmt(goal.target - effectiveSaved)}</div>
                 }
               </Card>
             );

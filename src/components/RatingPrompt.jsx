@@ -6,7 +6,7 @@ const RatingPrompt = ({ onDismiss }) => {
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 500,
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 500,
       background: "#000000aa", backdropFilter: "blur(6px)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: "0 24px", fontFamily: "'Space Grotesk', sans-serif",

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
@@ -14,6 +15,23 @@ import { TemplatesEditor } from "./TemplatesEditor.jsx";
 import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INITIAL_TEMPLATES } from "../constants.js";
 import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
+
+function useAppRect() {
+  const [rect, setRect] = useState({ left: 0, width: typeof window !== "undefined" ? Math.min(window.innerWidth, 480) : 390 });
+  useEffect(() => {
+    function measure() {
+      const el = document.getElementById("app-root");
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setRect({ left: r.left, width: r.width });
+      }
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  return rect;
+}
 
 const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -266,6 +284,103 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
     e.target.value = ""; // reset input
   };
 
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportStatus("loading");
+    setImportMsg("Wczytuję CSV…");
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) throw new Error("Pusty plik");
+
+        // Auto-detect bank format from header
+        const header = lines[0].toLowerCase();
+        let imported = 0;
+        const newTx = [];
+
+        // PKO BP format: "Data operacji";"Opis operacji";"Rachunek";"Kategoria";"Kwota";"Saldo"
+        if (header.includes("data operacji") || header.includes("data księgowania")) {
+          lines.slice(1).forEach((line, i) => {
+            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
+            const date = cols[0]?.slice(0, 10);
+            const desc = cols[1] || cols[2] || "Import PKO";
+            const amt  = parseFloat((cols[4] || cols[3] || "0").replace(",", ".").replace(/\s/g, ""));
+            if (!date || isNaN(amt)) return;
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+          });
+        }
+        // mBank format: "Data operacji";"Data księgowania";"Opis operacji";"Tytuł";"Nadawca/Odbiorca";"Konto";"Kwota";"Saldo po operacji"
+        else if (header.includes("tytuł") || header.includes("nadawca")) {
+          lines.slice(1).forEach((line, i) => {
+            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
+            const date = cols[0]?.slice(0, 10);
+            const desc = cols[3] || cols[2] || "Import mBank";
+            const amt  = parseFloat((cols[6] || "0").replace(",", ".").replace(/\s/g, ""));
+            if (!date || isNaN(amt)) return;
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+          });
+        }
+        // ING format: "Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji";"Saldo po transakcji"
+        else if (header.includes("dane kontrahenta") || header.includes("nr transakcji")) {
+          lines.slice(1).forEach((line, i) => {
+            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
+            const date = cols[0]?.slice(0, 10);
+            const desc = cols[2] || cols[3] || "Import ING";
+            const amt  = parseFloat((cols[8] || "0").replace(",", ".").replace(/\s/g, ""));
+            if (!date || isNaN(amt)) return;
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+          });
+        }
+        // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+        else if (header.includes("started date") || header.includes("completed date")) {
+          lines.slice(1).forEach((line, i) => {
+            const cols = line.split(",").map(c => c.replace(/"/g, "").trim());
+            const date = cols[3]?.slice(0, 10) || cols[2]?.slice(0, 10);
+            const desc = cols[4] || "Import Revolut";
+            const amt  = parseFloat(cols[5] || "0");
+            if (!date || isNaN(amt)) return;
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+          });
+        }
+        else {
+          // Generic CSV — try to detect date, desc, amount columns
+          lines.slice(1).forEach((line, i) => {
+            const sep = line.includes(";") ? ";" : ",";
+            const cols = line.split(sep).map(c => c.replace(/"/g, "").trim());
+            const date = cols.find(c => /^\d{4}-\d{2}-\d{2}/.test(c))?.slice(0, 10);
+            const amtStr = cols.find(c => /^-?\d+[.,]\d{2}$/.test(c.replace(/\s/g, "")));
+            if (!date || !amtStr) return;
+            const amt = parseFloat(amtStr.replace(",", ".").replace(/\s/g, ""));
+            const desc = cols.find(c => c.length > 3 && !/^\d/.test(c) && c !== date) || "Import CSV";
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+          });
+        }
+
+        imported = newTx.filter(t => t.date && !isNaN(t.amount)).length;
+        if (imported === 0) throw new Error("Nie rozpoznano formatu");
+
+        const validTx = newTx.filter(t => t.date && !isNaN(t.amount));
+        setTransactions(prev => {
+          const existingIds = new Set(prev.map(t => t.date + t.desc + t.amount));
+          const unique = validTx.filter(t => !existingIds.has(t.date + t.desc + t.amount));
+          return [...unique, ...prev].sort((a, b) => b.date.localeCompare(a.date));
+        });
+
+        setImportStatus("ok");
+        setImportMsg(`Zaimportowano ${imported} transakcji z CSV. Sprawdź kategorie w zakładce Transakcje.`);
+      } catch (err) {
+        setImportStatus("err");
+        setImportMsg(`Błąd: ${err.message}. Obsługiwane banki: PKO BP, mBank, ING, Revolut.`);
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value = "";
+  };
+
   const Divider = () => (
     <div style={{ height: 1, background: "#1a2744", margin: "18px 0" }}/>
   );
@@ -276,9 +391,12 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
   );
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
+    <div style={{
+                  position: "fixed", top: 0, left: appRect.left, width: appRect.width,
+                  bottom: 0, zIndex: 9999,
                   background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
-                  display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+                  display: "flex", alignItems: "flex-end", justifyContent: "center",
+                }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
                     width: "100%", padding: "24px 20px 48px",
@@ -484,8 +602,19 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
           fontFamily: "'Space Grotesk', sans-serif",
           transition: "border-color 0.2s",
         }}>
-          <span style={{ fontSize: 20 }}>📂</span> Wybierz plik .xlsx
+          <span style={{ fontSize: 20 }}>📂</span> Wybierz plik .xlsx (FinTrack backup)
           <input type="file" accept=".xlsx,.xls" onChange={handleImport}
+                 style={{ display: "none" }}/>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          background: "#060b14", border: "2px dashed #14532d",
+          borderRadius: 12, padding: "14px 0", cursor: "pointer",
+          color: "#10b981", fontWeight: 700, fontSize: 13,
+          fontFamily: "'Space Grotesk', sans-serif", marginTop: 8,
+        }}>
+          <span style={{ fontSize: 18 }}>🏦</span> Import wyciągu CSV (PKO BP / mBank / ING / Revolut)
+          <input type="file" accept=".csv,.txt" onChange={handleImportCSV}
                  style={{ display: "none" }}/>
         </label>
 

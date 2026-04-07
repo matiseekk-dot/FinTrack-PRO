@@ -21,7 +21,9 @@ import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMEN
 import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
+import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
+import { MonthlySummary } from "./components/MonthlySummary.jsx";
 
 function applyData(d, s) {
   if (!d) return;
@@ -45,6 +47,7 @@ function applyData(d, s) {
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore } = useFirebase();
   const { showRatingPrompt, dismissRating } = useSessionTracker();
+  const streak = useStreak(transactions);
 
   const [tab,          setTab]          = useState("dashboard");
   const [onboarded,    setOnboarded]    = useState(false);
@@ -65,6 +68,7 @@ export default function App() {
   const [goals,        setGoals]        = useState(INITIAL_GOALS);
   const [fabOpen,      setFabOpen]      = useState(false);
   const [fabMenu,      setFabMenu]      = useState(false); // long press menu
+  const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const fabPressTimer  = useRef(null);
   const [loaded,       setLoaded]       = useState(false);
   const [importErr,    setImportErr]    = useState("");
@@ -132,6 +136,23 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
   }, [vacationArchive]);
+
+  // Monthly summary — show once at start of new month
+  useEffect(() => {
+    if (!loaded || !user) return;
+    const now = new Date();
+    const summaryKey = `ft_monthly_${now.getFullYear()}_${now.getMonth()}`;
+    const shown = localStorage.getItem(summaryKey);
+    if (!shown && now.getDate() <= 3) { // Show in first 3 days of month
+      const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const prevKey = `${now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear()}-${String(prevMonth+1).padStart(2,"0")}`;
+      const hasPrevData = transactions.some(t => t.date.startsWith(prevKey));
+      if (hasPrevData) {
+        setTimeout(() => setShowMonthlySummary(true), 2000);
+        localStorage.setItem(summaryKey, "1");
+      }
+    }
+  }, [loaded, user]);
 
   // Request notification permission and schedule reminders
   useEffect(() => {
@@ -202,12 +223,13 @@ export default function App() {
   };
 
   const currentMonthKey = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}`;
+  const realMonthKey    = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
   const unpaidBillsCount = payments.filter(p => {
     if (!p.trackPaid || p.freq === "weekly" || p.freq === "daily") return false;
-    if (paid[`${p.id}_${currentMonthKey}`]) return false;
+    if (paid[`${p.id}_${realMonthKey}`]) return false;
     if (p.freq === "bimonthly") {
       const startM = p.startMonth || new Date().getMonth();
-      if (Math.abs(month - startM) % 2 !== 0) return false;
+      if (Math.abs(new Date().getMonth() - startM) % 2 !== 0) return false;
     }
     return true;
   }).length;
@@ -228,7 +250,16 @@ export default function App() {
       <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Wallet size={24} color="white"/>
       </div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>FinTrack PRO</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>FinTrack PRO</div>
+        {streak >= 2 && (
+          <div style={{ background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
+            padding: "2px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 13 }}>🔥</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono', monospace" }}>{streak}</span>
+          </div>
+        )}
+      </div>
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#475569" }}>{authLoading ? "Sprawdzam konto..." : "Wczytuje dane..."}</div>
     </div>
   );
@@ -245,7 +276,7 @@ export default function App() {
   );
 
   return (
-    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100vh", maxWidth: 480, margin: "0 auto", position: "relative", overflowX: "hidden" }}>
+    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden" }}>
       <FontLoader/>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -296,7 +327,7 @@ export default function App() {
       </div>
 
       {/* Pages */}
-      <div style={{ paddingBottom: 20 }}>
+      <div style={{ paddingBottom: 80 }}>
         {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
         <Suspense fallback={<div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"#334155", fontSize:13 }}>Ładuję…</div>}>
           {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
@@ -309,7 +340,7 @@ export default function App() {
       </div>
 
       {importErr && (
-        <div style={{ position: "fixed", top: 70, left: 12, right: 12, zIndex: 300, background: "#1a0808", border: "1px solid #7f1d1d", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ position: "absolute", top: 70, left: 12, right: 12, zIndex: 300, background: "#1a0808", border: "1px solid #7f1d1d", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 16 }}>X</span>
           <span style={{ fontSize: 13, color: "#fca5a5", fontWeight: 600 }}>{importErr}</span>
           <button onClick={() => setImportErr("")} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#ef4444" }}><X size={14}/></button>
@@ -328,7 +359,8 @@ export default function App() {
       />
 
       {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
-      {fabMenu && <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
+      {showMonthlySummary && <MonthlySummary transactions={transactions} month={month} onClose={() => setShowMonthlySummary(false)}/>}
+      {fabMenu && <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
 
       {quickAddOpen && (
         <TransactionsView transactions={transactions}
@@ -339,7 +371,7 @@ export default function App() {
       )}
 
       {/* Bottom nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: 8 }}>
+      <div style={{ position: "sticky", bottom: 0, width: "100%", background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: 8 }}>
         <div style={{ display: "flex", background: "#0a1120", border: "1px solid #1a2744", borderRadius: 20, margin: "0 12px", padding: "5px 3px", alignItems: "center" }}>
           {TABS.slice(0, 3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;

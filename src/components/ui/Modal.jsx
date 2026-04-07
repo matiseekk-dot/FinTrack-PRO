@@ -1,11 +1,20 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+
+function getAppRect() {
+  const el = document.getElementById("app-root");
+  if (!el) return { left: 0, width: Math.min(window.innerWidth, 480) };
+  const r = el.getBoundingClientRect();
+  return { left: r.left, width: r.width };
+}
 
 const Modal = ({ open, onClose, title, children }) => {
   if (!open) return null;
-  return (
+  return createPortal((
     <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
+      position: "fixed", top: 0, left: getAppRect().left, width: getAppRect().width,
+      bottom: 0, zIndex: 9999,
       background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
       display: "flex", alignItems: "flex-end", justifyContent: "center",
     }} onClick={onClose}>
@@ -13,7 +22,7 @@ const Modal = ({ open, onClose, title, children }) => {
         background: "#0d1628",
         border: "1px solid #1a2744",
         borderRadius: "20px 20px 0 0",
-        width: "min(100vw, 480px)",
+        width: "100%",
         padding: "24px 20px 40px",
         paddingBottom: "calc(40px + env(safe-area-inset-bottom, 0px))",
         maxHeight: "90dvh", overflowY: "auto",
@@ -27,7 +36,7 @@ const Modal = ({ open, onClose, title, children }) => {
         {children}
       </div>
     </div>
-  );
+  ), document.body);
 };
 
 export { Modal };
