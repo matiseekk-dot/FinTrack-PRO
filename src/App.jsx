@@ -65,6 +65,7 @@ export default function App() {
 
   const allCategories = useMemo(() => [...BASE_CATEGORIES, ...customCats], [customCats]);
   const stateRef = useRef(null);
+  const clearingRef = useRef(false); // blocks Firestore save during clearAllData
   stateRef.current = {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
@@ -98,8 +99,9 @@ export default function App() {
 
   // Save to Firestore
   useEffect(() => {
-    if (!loaded || !user) return;
+    if (!loaded || !user || clearingRef.current) return;
     const t = setTimeout(() => {
+      if (clearingRef.current) return;
       saveToFirestore(user.uid, stateRef.current).then(() => {
         setSyncOk(true); setTimeout(() => setSyncOk(false), 2500);
       });
@@ -112,7 +114,24 @@ export default function App() {
   }, [vacationArchive]);
 
   const clearAllData = async () => {
-    // Reset all state to initial
+    clearingRef.current = true; // block Firestore saves during clear
+    // 1. Clear Firestore FIRST (before state changes trigger save)
+    if (user) {
+      try {
+        const { doc, deleteDoc } = await import("firebase/firestore");
+        const { db } = await import("./firebase.js");
+        await deleteDoc(doc(db, "users", user.uid, "data", "main"));
+      } catch(e) {
+        console.error("[FT] Firestore clear error", e);
+      }
+    }
+    // 2. Clear localStorage
+    localStorage.removeItem("fintrack_v1");
+    localStorage.removeItem("ft_templates");
+    localStorage.removeItem("ft_vacation");
+    localStorage.removeItem("ft_vacations");
+    localStorage.setItem("ft_onboarded", "1");
+    // 3. Reset all React state to initial values
     setAccounts(INITIAL_ACCOUNTS);
     setTransactions(INITIAL_TRANSACTIONS);
     setBudgets(INITIAL_BUDGETS);
@@ -126,22 +145,8 @@ export default function App() {
     setDefaultAcc(1);
     setMonth(new Date().getMonth());
     setVacationArchive([]);
-    // Clear localStorage
-    localStorage.removeItem("fintrack_v1");
-    localStorage.removeItem("ft_templates");
-    localStorage.removeItem("ft_vacation");
-    localStorage.removeItem("ft_vacations");
-    localStorage.setItem("ft_onboarded", "1");
-    // Clear Firestore if logged in
-    if (user) {
-      try {
-        const { doc, deleteDoc } = await import("firebase/firestore");
-        const { db } = await import("./firebase.js");
-        await deleteDoc(doc(db, "users", user.uid, "data", "main"));
-      } catch(e) {
-        console.error("[FT] Firestore clear error", e);
-      }
-    }
+    // Allow saves again after a short delay (let state settle)
+    setTimeout(() => { clearingRef.current = false; }, 2000);
   };
 
   const loadDemo = () => {

@@ -554,7 +554,7 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
               const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
               if (CATEGORIES.find(c => c.id === id)) { alert("Kategoria o tej nazwie już istnieje"); return; }
               setCustomCats(c => [...c, {
-                id, label: newCatLabel.trim(), icon: Wallet, color: newCatColor,
+                id, label: newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1), icon: Wallet, color: newCatColor,
                 type: newCatType, custom: true,
               }]);
               setNewCatLabel("");

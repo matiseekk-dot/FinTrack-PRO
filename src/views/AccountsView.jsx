@@ -20,7 +20,9 @@ const AccountsView = ({ accounts, setAccounts }) => {
   const [editAcc, setEditAcc] = useState(null); // account being edited
   const [form, setForm] = useState({ name: "", bank: "", balance: "", type: "checking", color: "#3b82f6" });
 
-  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: "#3b82f6" }); setModal(true); };
+  const ACC_COLORS = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316"];
+  const nextColor = () => ACC_COLORS[accounts.length % ACC_COLORS.length];
+  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor() }); setModal(true); };
   const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color }); setModal(true); };
 
   const saveAccount = () => {
