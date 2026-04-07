@@ -13,7 +13,7 @@ const MONTH_NAMES = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Li
 
 // group: "essential" = sta e/wa ne, "lifestyle" = dodatkowe, "income" = przychody
 const BASE_CATEGORIES = [
-  { id: "rząd",        label: "Rząd/Podatki",  icon: Building,   color: "#3b82f6", group: "essential" },
+  { id: "rząd",        label: "Podatki/ZUS",   icon: Building,   color: "#3b82f6", group: "essential" },
   { id: "rachunki",    label: "Rachunki",       icon: Zap,        color: "#f59e0b", group: "essential" },
   { id: "inwestycje",  label: "Inwestycje",     icon: TrendingUp, color: "#8b5cf6", group: "essential" },
   { id: "jedzenie",    label: "Jedzenie",       icon: Utensils,   color: "#ef4444", group: "essential" },
@@ -26,12 +26,12 @@ const BASE_CATEGORIES = [
   { id: "ubrania",     label: "Ubrania",        icon: ShoppingBag,color: "#818cf8", group: "lifestyle" },
   { id: "prezenty",    label: "Prezenty",       icon: Gift,       color: "#e879f9", group: "lifestyle" },
   { id: "alkohol",     label: "Alkohol",        icon: Coffee,     color: "#2563eb", group: "lifestyle" },
-  { id: "bukmacher",   label: "Bukmacher",      icon: TrendingDown,color: "#dc2626", group: "lifestyle" },
+  { id: "bukmacher",   label: "Zakłady",         icon: TrendingDown,color: "#dc2626", group: "lifestyle" },
   { id: "inne",        label: "Inne",           icon: Wallet,     color: "#6b7280", group: "lifestyle" },
   { id: "przychód",    label: "Przychód",       icon: DollarSign, color: "#10b981", group: "income" },
   { id: "sprzedaż",    label: "Sprzedaż",       icon: ArrowUpRight,color: "#34d399", group: "income" },
   { id: "dodatkowe",   label: "Dodatkowe",      icon: Briefcase,  color: "#a3e635", group: "income" },
-  { id: "bukmacherka", label: "Bukmacherka",    icon: TrendingUp, color: "#fb923c", group: "income" },
+  { id: "bukmacherka", label: "Wygrane",         icon: TrendingUp, color: "#fb923c", group: "income" },
 ];
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop

@@ -106,14 +106,22 @@ const FinancialScore = ({ income, expense, transactions, month, cycleDay, elapse
 
   const score = Math.round(scoreS + scoreT + scoreV + scoreE);
   const ring  = score >= 75 ? "#10b981" : score >= 55 ? "#f59e0b" : score >= 35 ? "#f97316" : "#ef4444";
-  const label = score >= 90 ? "Wysmienicie" :
-                score >= 75 ? "Dobrze" :
-                score >= 55 ? "Przejsciowo" :
-                score >= 35 ? "Uwaga" : "Dzialaj teraz";
-  const sub   = score >= 75 ? "Finanse pod kontrola" :
-                score >= 55 ? "Jedna rzecz do poprawy" :
-                score >= 35 ? "Wydatki wymagaja uwagi" :
-                "Wydatki powyzej przychodow";
+  // Konkretne komunikaty — co dokładnie jest nie tak
+  const label = score >= 90 ? "Doskonale 🟢" :
+                score >= 75 ? "Dobrze 🟢" :
+                score >= 55 ? "Uwaga 🟡" :
+                score >= 35 ? "Do poprawy 🟠" : "Krytyczne 🔴";
+
+  // Diagnoza — pierwsza rzecz do naprawy
+  const sub = (() => {
+    if (expRatio >= 1.0)  return "Wydajesz więcej niż zarabiasz";
+    if (savingsRate < 10) return `Oszczędzasz tylko ${savingsRate.toFixed(0)}% — cel to min. 15%`;
+    if (avg3 > 0 && trend > 1.15) return `Wydatki rosną — o ${((trend-1)*100).toFixed(0)}% vs poprzednie mies.`;
+    if (cv > 1.0)         return "Duże skoki wydatków dzień do dnia";
+    if (expRatio > 0.85)  return `Wydano ${(expRatio*100).toFixed(0)}% przychodów — powyżej normy`;
+    if (score >= 75)      return "Finanse pod kontrolą";
+    return "Jedna kategoria do poprawy";
+  })();
 
   const r = 28, circ = 2 * Math.PI * r;
   const dash = circ * score / 100;
@@ -157,20 +165,20 @@ const FinancialScore = ({ income, expense, transactions, month, cycleDay, elapse
           <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }}>{sub}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {[
-              { lbl: "Oszcz.", val: savingsRate >= 0
-                  ? savingsRate.toFixed(0)+"%"
-                  : "deficit",
-                ok: savingsRate >= 15 },
-              { lbl: "Trend",  val: avg3 === 0 ? "brak hist." :
-                                    trend < 1 ? "-"+(Math.min(999,((1-trend)*100)).toFixed(0))+"%"
-                                              : "+"+(Math.min(999,((trend-1)*100)).toFixed(0))+"%",
+              { lbl: "Oszczędności", val: savingsRate >= 0 ? savingsRate.toFixed(0)+"%" : "deficit",
+                ok: savingsRate >= 15, tip: savingsRate < 15 ? "cel: 15%+" : "" },
+              { lbl: "Trend wydatków", val: avg3 === 0 ? "brak danych" :
+                                    trend < 1 ? "▼"+(Math.min(999,((1-trend)*100)).toFixed(0))+"% vs śr."
+                                              : "▲"+(Math.min(999,((trend-1)*100)).toFixed(0))+"% vs śr.",
                                 ok: avg3 === 0 || trend <= 1.05 },
-              { lbl: "Wydat.", val: (expRatio*100).toFixed(0)+"%", ok: expRatio < 0.85 },
-            ].map(({lbl,val,ok}) => (
+              { lbl: "Wydano z przych.", val: (expRatio*100).toFixed(0)+"%", ok: expRatio < 0.85,
+                tip: expRatio >= 0.85 ? "norma: <85%" : "" },
+            ].map(({lbl,val,ok,tip}) => (
               <div key={lbl} style={{ background: "#060b14", borderRadius: 6,
                 padding: "3px 8px", fontSize: 10 }}>
-                <span style={{ color: "#475569" }}>{lbl} </span>
+                <span style={{ color: "#475569" }}>{lbl}: </span>
                 <span style={{ color: ok ? "#10b981" : "#f59e0b", fontWeight: 700 }}>{val}</span>
+                {tip && <span style={{ color: "#334155" }}> ({tip})</span>}
               </div>
             ))}
           </div>
@@ -596,6 +604,47 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
   const safePerDay  = daysLeft > 0 ? safeToSpend / daysLeft : 0;
   const dailyBudget = safePerDay; // use safe-to-spend as the daily budget
 
+  // Empty state — brak transakcji
+  if (transactions.length === 0) return (
+    <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ paddingTop: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 52, marginBottom: 12 }}>👋</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0", marginBottom: 8 }}>Zacznij śledzić finanse</div>
+        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, marginBottom: 28 }}>
+          Dodaj pierwszą transakcję żeby zobaczyć analizę, wykresy i raporty.
+        </div>
+        <button onClick={onAddTx} style={{
+          background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+          borderRadius: 14, padding: "14px 28px", color: "white",
+          fontWeight: 800, fontSize: 15, cursor: "pointer",
+          fontFamily: "'Space Grotesk', sans-serif",
+          boxShadow: "0 0 24px #7c3aed44",
+        }}>
+          + Dodaj pierwszą transakcję
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+        {[
+          { emoji: "💸", title: "Transakcje", desc: "Zapisuj wydatki i przychody w kilka sekund", action: onAddTx, btn: "Dodaj transakcję" },
+          { emoji: "📋", title: "Płatności cykliczne", desc: "Czynsz, prąd, subskrypcje — nigdy nie zapomnisz o terminie", action: null, btn: null },
+          { emoji: "🎯", title: "Cele oszczędnościowe", desc: "Odkładaj na wakacje, nowy telefon czy poduszkę finansową", action: null, btn: null },
+        ].map(({ emoji, title, desc, action, btn }) => (
+          <div key={title} style={{
+            background: "#0a1120", borderRadius: 16, padding: "16px",
+            border: "1px solid #1a2744", display: "flex", gap: 14, alignItems: "flex-start",
+          }}>
+            <div style={{ fontSize: 28, flexShrink: 0 }}>{emoji}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>{title}</div>
+              <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>{desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Recurring Reminder */}
@@ -671,9 +720,6 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
           </BarChart>
         </ResponsiveContainer>
       </Card>
-
-      {/* Porownanie M/M */}
-      <MiniComparison transactions={transactions} month={month} cycleDay={cycleDay}/>
 
       {/* Balance widget */}
       <Card style={{ padding: "16px 18px" }}>
@@ -772,6 +818,11 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
           <span>{fmt(income - expense)} bilans</span>
         </div>
       </Card>
+
+
+
+      {/* Porownanie M/M */}
+      <MiniComparison transactions={transactions} month={month} cycleDay={cycleDay}/>
 
       {/* Forecast */}
       <ForecastWidget income={income} expense={expense} daysLeft={daysLeft}

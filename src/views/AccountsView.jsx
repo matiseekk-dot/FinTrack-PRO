@@ -8,12 +8,15 @@ import {
   ClipboardList, RefreshCw, AlarmClock, Copy
 } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
+import { Toast } from "../components/ui/Toast.jsx";
+import { useToast } from "../hooks/useToast.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 const AccountsView = ({ accounts, setAccounts }) => {
+  const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
   const [editAcc, setEditAcc] = useState(null); // account being edited
   const [form, setForm] = useState({ name: "", bank: "", balance: "", type: "checking", color: "#3b82f6" });
@@ -25,14 +28,16 @@ const AccountsView = ({ accounts, setAccounts }) => {
     if (!form.name || form.balance === "") return;
     if (editAcc) {
       setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: parseFloat(form.balance) } : x));
+      showToast("Konto zaktualizowane ✓");
     } else {
       setAccounts(a => [...a, { id: Date.now(), ...form, balance: parseFloat(form.balance), iban: "" }]);
+      showToast("Konto dodane ✓");
     }
     setModal(false);
   };
 
   const deleteAcc = (id) => {
-    if (window.confirm("Usunąć to konto?")) setAccounts(a => a.filter(x => x.id !== id));
+    setAccounts(a => a.filter(x => x.id !== id)); showToast("Konto usunięte", "error");
   };
 
   const typeLabel = { checking: "Rachunek", savings: "Oszczędności", invest: "Inwestycje" };
@@ -93,6 +98,7 @@ const AccountsView = ({ accounts, setAccounts }) => {
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
+      <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
 
       {/* Header z przyciskiem dodawania */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>

@@ -189,7 +189,7 @@ export default function App() {
   // Onboarding
   if (!onboarded) return (
     <Onboarding
-      onFinish={() => { localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
+      onFinish={() => { localStorage.setItem("ft_onboarded","1"); setOnboarded(true); setTimeout(() => { setFabOpen(true); setTab("transactions"); }, 500); }}
       onLoadDemo={() => { loadDemo(); localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
     />
   );
@@ -295,10 +295,11 @@ export default function App() {
               </button>
             );
           })}
-          <button onClick={() => { setFabOpen(true); setTab("transactions"); }} style={{ width: 46, height: 46, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "2px solid #0a1120", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 16px #7c3aed55", transition: "transform 0.12s ease", margin: "0 2px" }}
+          <button onClick={() => { setFabOpen(true); setTab("transactions"); }} style={{ flexShrink: 0, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "2px solid #0a1120", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, boxShadow: "0 0 16px #7c3aed55", transition: "transform 0.12s ease", margin: "0 2px", borderRadius: 16, padding: "5px 8px", minWidth: 52 }}
             onPointerDown={e => e.currentTarget.style.transform = "scale(0.9)"}
             onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}>
-            <PlusCircle size={20} color="white"/>
+            <PlusCircle size={15} color="white"/>
+            <span style={{ fontSize: 8, fontWeight: 800, color: "white", letterSpacing: "0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>DODAJ</span>
           </button>
           {TABS.slice(3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;

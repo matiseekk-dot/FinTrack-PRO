@@ -21,6 +21,8 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
   const TODAY_ISO  = TODAY_FULL.toISOString().split("T")[0]; // "2026-04-01"
   // own month selector - starts at current month, can navigate independently
   const [localMonth, setLocalMonth] = useState(globalMonth);
+  // Sync with global month when user switches tabs
+  useEffect(() => { setLocalMonth(globalMonth); }, [globalMonth]);
   const month    = localMonth;
   const monthKey = `${new Date().getFullYear()}-${String(month + 1).padStart(2, "0")}`;
   const isCurrentMonth = month === globalMonth;
@@ -158,14 +160,19 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
         borderRadius: 14, padding: "13px 14px", opacity: p ? 0.65 : 1,
         display: "flex", alignItems: "center", gap: 12,
       }}>
-        {/* Checkbox */}
+        {/* Zapłać button — większy, bardziej intuicyjny */}
         <button onClick={() => togglePaid(item)} style={{
-          width: 26, height: 26, borderRadius: 8, flexShrink: 0, cursor: "pointer",
-          background: p ? "#052e16" : "#0d1628",
-          border: `2px solid ${p ? "#16a34a" : overdue ? "#ef4444" : "#1e3a5f"}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, cursor: "pointer",
+          background: p ? "#052e16" : overdue ? "#2d0a0a" : "#0d1628",
+          border: `1px solid ${p ? "#16a34a" : overdue ? "#ef444466" : "#1e3a5f"}`,
+          borderRadius: 10, padding: "6px 10px",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+          minWidth: 58,
         }}>
-          {p ? <Check size={12} color="#10b981"/> : <Circle size={9} color={overdue ? "#ef444488" : "#334155"}/>}
+          {p
+            ? <><Check size={14} color="#10b981"/><span style={{ fontSize: 9, fontWeight: 700, color: "#10b981", fontFamily: "'Space Grotesk', sans-serif" }}>Zapłacono</span></>
+            : <><Circle size={14} color={overdue ? "#ef4444" : "#334155"}/><span style={{ fontSize: 9, fontWeight: 700, color: overdue ? "#ef4444" : "#475569", fontFamily: "'Space Grotesk', sans-serif" }}>Opłać</span></>
+          }
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -290,7 +297,7 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Płatności</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: isCurrentMonth ? "#e2e8f0" : "#60a5fa", marginTop: 2 }}>
-              {MONTH_NAMES[month]} 2026 {isCurrentMonth && <span style={{ fontSize: 10, color: "#10b981" }}>● teraz</span>}
+              {MONTH_NAMES[month]} {new Date().getFullYear()} {isCurrentMonth && <span style={{ fontSize: 10, color: "#10b981" }}>● teraz</span>}
             </div>
           </div>
           <button onClick={() => setLocalMonth(m => Math.min(11, m+1))}
@@ -438,8 +445,8 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
         <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between",
           background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "12px 14px" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Śledź opłacanie</div>
-            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>Checkbox do odznaczania co miesiąc</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>🔔 Przypomnienie o płatności</div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>Pokaż w powiadomieniach i daj możliwość odznaczenia jako zapłacone</div>
           </div>
           <button onClick={() => setForm(f => ({...f, trackPaid: !f.trackPaid}))} style={{
             width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
