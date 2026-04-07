@@ -23,10 +23,10 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Unregister any existing service workers to prevent stale cache issues
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/FinTrack-PRO/sw.js')
-            .catch(err => console.warn('[SW] failed:', err));
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(reg => reg.unregister());
         });
       }
     </script>
