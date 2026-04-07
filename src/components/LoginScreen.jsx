@@ -95,8 +95,16 @@ const LoginScreen = ({ onSignIn, loading, syncError }) => {
           {syncError}
         </div>
       )}
-      <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.6 }}>
-        Logując się akceptujesz warunki użytkowania.<br/>
+      <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.8 }}>
+        Logując się akceptujesz{" "}
+        <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
+          style={{ color: "#475569", textDecoration: "underline" }}>
+          Regulamin
+        </a>{" "}i{" "}
+        <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
+          style={{ color: "#475569", textDecoration: "underline" }}>
+          Politykę prywatności
+        </a>.<br/>
         Nie wysyłamy spamu ani nie sprzedajemy danych.
       </div>
     </div>

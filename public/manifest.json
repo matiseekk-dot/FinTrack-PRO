@@ -1,0 +1,64 @@
+{
+  "name": "FinTrack PRO",
+  "short_name": "FinTrack",
+  "description": "Zaawansowany tracker finansów osobistych. Zero subskrypcji, sync w chmurze.",
+  "start_url": "/FinTrack-PRO/",
+  "scope": "/FinTrack-PRO/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060b14",
+  "theme_color": "#060b14",
+  "lang": "pl",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/FinTrack-PRO/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/FinTrack-PRO/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/FinTrack-PRO/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/FinTrack-PRO/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/FinTrack-PRO/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/FinTrack-PRO/screenshot1.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Dashboard FinTrack PRO"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dodaj transakcję",
+      "short_name": "Dodaj",
+      "description": "Szybko dodaj nową transakcję",
+      "url": "/FinTrack-PRO/?action=add",
+      "icons": [{ "src": "/FinTrack-PRO/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ]
+}

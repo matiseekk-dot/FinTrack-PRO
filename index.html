@@ -6,12 +6,29 @@
     <meta name="theme-color" content="#060b14" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="description" content="FinTrack PRO — zaawansowany tracker finansów osobistych. Zero chmury, zero subskrypcji." />
+    <meta name="apple-mobile-web-app-title" content="FinTrack PRO" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="FinTrack PRO — zaawansowany tracker finansów osobistych. Sync w chmurze, zero subskrypcji." />
+    <meta property="og:title" content="FinTrack PRO" />
+    <meta property="og:description" content="Zaawansowany tracker finansów osobistych. Sync w chmurze, zero subskrypcji." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://matiseekk-dot.github.io/FinTrack-PRO/" />
     <title>FinTrack PRO</title>
+    <link rel="manifest" href="/FinTrack-PRO/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/FinTrack-PRO/icon.svg" />
+    <link rel="apple-touch-icon" href="/FinTrack-PRO/icon.svg" />
+    <style>* { -webkit-tap-highlight-color: transparent; } body { background: #060b14; }</style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/FinTrack-PRO/sw.js')
+            .catch(err => console.warn('[SW] failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>

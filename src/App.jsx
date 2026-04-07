@@ -18,6 +18,8 @@ import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/sto
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
+import { useSessionTracker } from "./hooks/useSessionTracker.js";
+import { RatingPrompt } from "./components/RatingPrompt.jsx";
 
 function applyData(d, s) {
   if (!d) return;
@@ -27,7 +29,7 @@ function applyData(d, s) {
   if (Array.isArray(d.payments))                               s.setPayments(d.payments);
   if (d.paid && typeof d.paid === "object")                    s.setPaid(d.paid);
   if (Array.isArray(d.goals))                                  s.setGoals(d.goals);
-  if (Array.isArray(d.customCats))                             s.setCustomCats(d.customCats);
+  if (Array.isArray(d.customCats))                             s.setCustomCats(d.customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label })));
   if (d.defaultAcc != null)                                    s.setDefaultAcc(d.defaultAcc);
   if (d.month != null && d.month >= 0 && d.month <= 11)        s.setMonth(d.month);
   if (d.cycleDay != null && d.cycleDay >= 1 && d.cycleDay <= 28) s.setCycleDay(d.cycleDay);
@@ -40,6 +42,7 @@ function applyData(d, s) {
 
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore } = useFirebase();
+  const { showRatingPrompt, dismissRating } = useSessionTracker();
 
   const [tab,          setTab]          = useState("dashboard");
   const [onboarded,    setOnboarded]    = useState(false);
@@ -66,6 +69,7 @@ export default function App() {
   const allCategories = useMemo(() => [...BASE_CATEGORIES, ...customCats], [customCats]);
   const stateRef = useRef(null);
   const clearingRef = useRef(false); // blocks Firestore save during clearAllData
+  const skipFirestoreLoad = useRef(false); // blocks Firestore load after onboarding choice
   stateRef.current = {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
@@ -87,7 +91,17 @@ export default function App() {
   // Load from Firestore when user logs in
   useEffect(() => {
     if (!user || !loaded) return;
-    loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); });
+    if (skipFirestoreLoad.current) return; // user just did onboarding — don't overwrite their choice
+    loadFromFirestore(user.uid).then(d => {
+      if (d) {
+        applyData(d, setters);
+        // If device is new (no ft_onboarded) but user has Firestore data → skip onboarding
+        if (!onboarded && (d.transactions?.length > 0 || d.payments?.length > 0)) {
+          localStorage.setItem("ft_onboarded", "1");
+          setOnboarded(true);
+        }
+      }
+    });
   }, [user, loaded]);
 
   // Save to localStorage
@@ -195,13 +209,13 @@ export default function App() {
   // Onboarding
   if (!onboarded) return (
     <Onboarding
-      onFinish={() => { localStorage.setItem("ft_onboarded","1"); setOnboarded(true); setTimeout(() => { setFabOpen(true); setTab("transactions"); }, 500); }}
-      onLoadDemo={() => { loadDemo(); localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
+      onFinish={() => { skipFirestoreLoad.current = true; localStorage.setItem("ft_onboarded","1"); setOnboarded(true); setTimeout(() => { setFabOpen(true); setTab("transactions"); }, 500); }}
+      onLoadDemo={() => { skipFirestoreLoad.current = true; loadDemo(); localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
     />
   );
 
   return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100vh", maxWidth: 480, margin: "0 auto", position: "relative", overflowX: "hidden" }}>
+    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100vh", maxWidth: 480, margin: "0 auto", position: "relative", overflowX: "hidden" }}>
       <FontLoader/>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -253,9 +267,9 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 20 }}>
-        {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay}/>}
+        {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
         {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
-        {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio}/>}
+        {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
         {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
         {tab === "payments"     && <PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/>}
         {tab === "goals"        && <GoalsView goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/>}
@@ -280,6 +294,8 @@ export default function App() {
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
       />
+
+      {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
 
       {quickAddOpen && (
         <TransactionsView transactions={transactions}

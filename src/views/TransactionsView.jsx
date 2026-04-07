@@ -15,8 +15,11 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
+import { useHaptic } from "../hooks/useHaptic.js";
 const TransactionsView = ({ transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) => {
   const { toast, showToast } = useToast();
+  const { success: hapticSuccess, error: hapticError } = useHaptic();
+  const [swipedId, setSwipedId] = useState(null); // id of swiped transaction
   const [modal, setModal] = useState(_forceOpenModal || false);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -85,6 +88,7 @@ const TransactionsView = ({ transactions, setTransactions, accounts, setAccounts
       }
       setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
       showToast(editingId ? "Transakcja zaktualizowana" : "Transakcja dodana ✓");
+      hapticSuccess();
     }
     setForm(f => ({ ...f, currency: 'PLN' }));
     setModal(false);
@@ -226,10 +230,21 @@ const TransactionsView = ({ transactions, setTransactions, accounts, setAccounts
                 const Icon = cat.icon;
                 const acc = accounts.find(a => a.id === tx.acc);
                 return (
-                  <div key={tx.id} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-                    borderBottom: i < txs.length-1 ? "1px solid #0f1a2e" : "none",
-                  }}>
+                  <div key={tx.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+                      borderBottom: i < txs.length-1 ? "1px solid #0f1a2e" : "none",
+                      position: "relative", overflow: "hidden",
+                      transform: swipedId === tx.id ? "translateX(-72px)" : "translateX(0)",
+                      transition: "transform 0.25s ease",
+                    }}
+                    onTouchStart={e => { e.currentTarget._swipeX = e.touches[0].clientX; }}
+                    onTouchEnd={e => {
+                      const dx = e.changedTouches[0].clientX - (e.currentTarget._swipeX || 0);
+                      if (dx < -50) { setSwipedId(tx.id); hapticError(); }
+                      else if (dx > 30) setSwipedId(null);
+                    }}
+                  >
                     {/* Icon */}
                     <div style={{ background: cat.color+"1a", borderRadius: 10, padding: 8, flexShrink: 0 }}>
                       <Icon size={14} color={cat.color}/>
@@ -249,6 +264,30 @@ const TransactionsView = ({ transactions, setTransactions, accounts, setAccounts
                       color: tx.amount > 0 ? "#10b981" : "#ef4444", flexShrink: 0 }}>
                       {tx.amount > 0 ? "+" : "−"}{fmt(Math.abs(tx.amount))}
                     </div>
+
+                    {/* Swipe delete reveal */}
+                    {swipedId === tx.id && (
+                      <button
+                        onClick={() => {
+                          setAccounts(accs => accs.map(a =>
+                            a.id === tx.acc && a.type !== "invest"
+                              ? { ...a, balance: parseFloat((a.balance - tx.amount).toFixed(2)) } : a
+                          ));
+                          setTransactions(t => t.filter(x => x.id !== tx.id));
+                          setSwipedId(null);
+                          showToast(`Usunięto: ${tx.desc}`, "error", 3000);
+                          hapticError();
+                        }}
+                        style={{
+                          position: "absolute", right: -72, top: 0, bottom: 0, width: 64,
+                          background: "#7f1d1d", border: "none", cursor: "pointer",
+                          display: "flex", flexDirection: "column", alignItems: "center",
+                          justifyContent: "center", gap: 2, borderRadius: "0 8px 8px 0",
+                        }}>
+                        <span style={{ fontSize: 16 }}>🗑</span>
+                        <span style={{ fontSize: 9, color: "#fca5a5", fontWeight: 700 }}>Usuń</span>
+                      </button>
+                    )}
 
                     {/* Action buttons   always visible */}
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>

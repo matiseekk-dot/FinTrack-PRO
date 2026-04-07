@@ -17,10 +17,18 @@ import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { useToast } from "../hooks/useToast.js";
-const InvestmentsView = ({ portfolio, setPortfolio }) => {
+const InvestmentsView = ({ portfolio, setPortfolio, accounts = [] }) => {
   const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];
   const COLORS = ["#8b5cf6","#f59e0b","#10b981","#3b82f6","#ef4444","#06b6d4","#ec4899","#a3e635"];
+  const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
+  const [importModal, setImportModal] = useState(false);
+
+  // Konta inwestycyjne które nie mają jeszcze pozycji w portfelu
+  const investAccounts = accounts.filter(a => a.type === "invest");
+  const unlinkedInvestAccounts = investAccounts.filter(acc =>
+    !portfolio.some(p => p.linkedAccId === acc.id)
+  );
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({ ticker:"", name:"", qty:"", avgPrice:"", currentPrice:"", account:"Zwykłe", currency:"PLN" });
 
@@ -59,6 +67,7 @@ const InvestmentsView = ({ portfolio, setPortfolio }) => {
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
+      <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
       <div style={{ paddingTop: 8, paddingBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Portfel inwestycyjny</div>
@@ -78,7 +87,37 @@ const InvestmentsView = ({ portfolio, setPortfolio }) => {
         </button>
       </div>
 
-      {portfolio.length === 0 && (
+      {/* Sugestia importu kont inwestycyjnych */}
+      {unlinkedInvestAccounts.length > 0 && portfolio.length === 0 && (
+        <Card style={{ marginBottom: 12, padding: "14px 16px", background: "#0a1e3a", border: "1px solid #1e40af44" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            💡 Masz konta inwestycyjne
+          </div>
+          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
+            Znaleziono {unlinkedInvestAccounts.length === 1 ? "konto" : "konta"} inwestycyjne:{" "}
+            <strong style={{ color: "#e2e8f0" }}>{unlinkedInvestAccounts.map(a => a.name).join(", ")}</strong>.
+            Chcesz dodać je jako pozycje w portfelu?
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setImportModal(true)} style={{
+              flex: 1, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+              borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700,
+              fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              Dodaj z kont
+            </button>
+            <button onClick={openAdd} style={{
+              flex: 1, background: "#0d1628", border: "1px solid #1a2744",
+              borderRadius: 10, padding: "9px 0", color: "#64748b", fontWeight: 600,
+              fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              Dodaj ręcznie
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {portfolio.length === 0 && unlinkedInvestAccounts.length === 0 && (
         <Card style={{ textAlign: "center", padding: "32px 16px" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📈</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Dodaj swoje inwestycje</div>
@@ -168,10 +207,80 @@ const InvestmentsView = ({ portfolio, setPortfolio }) => {
         </>
       )}
 
+      {/* Modal: importuj z kont inwestycyjnych */}
+      {importModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200,
+          display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0",
+            padding: "24px 20px 40px", width: "min(100vw,480px)", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>Importuj z kont</span>
+              <button onClick={() => setImportModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
+            </div>
+            <div style={{ fontSize: 13, color: "#475569", marginBottom: 16, lineHeight: 1.6 }}>
+              Wybierz konta inwestycyjne do dodania. Wartość zostanie pobrana z salda konta.
+              Możesz później edytować szczegóły (ticker, ilość sztuk).
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+              {unlinkedInvestAccounts.map(acc => (
+                <div key={acc.id} style={{
+                  background: "#060b14", borderRadius: 12, padding: "14px 16px",
+                  border: `1px solid ${acc.color}44`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: acc.color }}/>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{acc.name}</div>
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{acc.bank || "Inwestycje"} · {fmt(acc.balance)}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const item = {
+                        id: Date.now() + acc.id,
+                        ticker: acc.name.toUpperCase().replace(/\s+/g, "").slice(0, 6),
+                        name: acc.name,
+                        qty: 1,
+                        avgPrice: acc.balance,
+                        currentPrice: acc.balance,
+                        valuePLN: acc.balance,
+                        pnlPLN: 0,
+                        pnlPct: 0,
+                        account: "Zwykłe",
+                        currency: "PLN",
+                        linkedAccId: acc.id,
+                      };
+                      setPortfolio(p => [...p, item]);
+                      showToast(`${acc.name} dodane do portfela ✓`);
+                    }}
+                    style={{
+                      background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+                      borderRadius: 8, padding: "7px 14px", color: "white",
+                      fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                    }}>
+                    Dodaj
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setImportModal(false)} style={{
+              width: "100%", background: "#0d1628", border: "1px solid #1a2744",
+              borderRadius: 12, padding: "12px 0", color: "#64748b",
+              fontWeight: 700, fontSize: 14, cursor: "pointer",
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              Gotowe
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal dodaj/edytuj */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }}>
+          <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "min(100vw, 480px)", maxHeight: "85vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <span style={{ fontSize: 17, fontWeight: 700 }}>{editItem ? "Edytuj pozycję" : "Nowa pozycja"}</span>
               <button onClick={() => setModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>

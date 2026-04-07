@@ -277,10 +277,11 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.85)",
-                  backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+                  backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center",
+                  padding: 0 }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "100%", maxWidth: 480, padding: "24px 20px 48px",
+                    width: "min(100vw, 480px)", padding: "24px 20px 48px",
                     paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
                     maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
@@ -663,8 +664,22 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
         </div>
       )}
 
+      {/* Linki prawne */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 20, padding: "16px 0 4px" }}>
+        <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
+          style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
+            textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
+          Polityka prywatności
+        </a>
+        <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
+          style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
+            textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
+          Regulamin
+        </a>
+      </div>
+
       {/* Wersja apki */}
-      <div style={{ textAlign: "center", padding: "16px 0 4px",
+      <div style={{ textAlign: "center", padding: "4px 0 4px",
         fontSize: 11, color: "#1e2d45", fontFamily: "'DM Mono', sans-serif" }}>
         FinTrack PRO · v1.0.0 · 2025–{new Date().getFullYear()}
       </div>

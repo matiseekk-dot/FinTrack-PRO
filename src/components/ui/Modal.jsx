@@ -13,9 +13,10 @@ const Modal = ({ open, onClose, title, children }) => {
         background: "#0d1628",
         border: "1px solid #1a2744",
         borderRadius: "20px 20px 0 0",
-        width: "100%", maxWidth: 480,
+        width: "min(100vw, 480px)",
         padding: "24px 20px 40px",
-        maxHeight: "90vh", overflowY: "auto",
+        paddingBottom: "calc(40px + env(safe-area-inset-bottom, 0px))",
+        maxHeight: "90dvh", overflowY: "auto",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <span style={{ fontWeight: 700, fontSize: 18 }}>{title}</span>

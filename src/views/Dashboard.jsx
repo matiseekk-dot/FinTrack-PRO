@@ -528,7 +528,26 @@ const Recommendations = ({ income, expense, catData, monthTx, safeToSpend, daysL
   );
 };
 
-const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1 }) => {
+const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, onRefresh }) => {
+  const [pulling, setPulling] = useState(false);
+  const [pullY, setPullY] = useState(0);
+  const pullStartY = useRef(0);
+  const PULL_THRESHOLD = 65;
+
+  const handleTouchStart = (e) => { pullStartY.current = e.touches[0].clientY; };
+  const handleTouchMove  = (e) => {
+    const dy = e.touches[0].clientY - pullStartY.current;
+    if (dy > 0 && window.scrollY === 0) setPullY(Math.min(dy * 0.4, PULL_THRESHOLD));
+  };
+  const handleTouchEnd   = () => {
+    if (pullY >= PULL_THRESHOLD) {
+      setPulling(true);
+      if (onRefresh) onRefresh();
+      setTimeout(() => { setPulling(false); setPullY(0); }, 1200);
+    } else {
+      setPullY(0);
+    }
+  };
   const histData = useMemo(() => buildHistData(transactions, cycleDay), [transactions, cycleDay]);
   const [hideBalance, setHideBalance] = useState(false);
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
@@ -606,7 +625,13 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
 
   // Empty state — brak transakcji
   if (transactions.length === 0) return (
-    <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 14,
+        transform: `translateY(${pullY}px)`, transition: pullY === 0 ? "transform 0.3s ease" : "none" }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <div style={{ paddingTop: 24, textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 12 }}>👋</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0", marginBottom: 8 }}>Zacznij śledzić finanse</div>
@@ -646,7 +671,28 @@ const Dashboard = ({ accounts, transactions, setTransactions, payments, paid = {
   );
 
   return (
-    <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 16 }}>
+    <div
+      style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 16,
+        transform: `translateY(${pullY}px)`, transition: pullY === 0 ? "transform 0.3s ease" : "none" }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(pullY > 10 || pulling) && (
+        <div style={{
+          position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)",
+          zIndex: 50, background: "#1e3a5f", borderRadius: 20, padding: "6px 16px",
+          display: "flex", alignItems: "center", gap: 8,
+          fontSize: 12, fontWeight: 700, color: "#60a5fa",
+          fontFamily: "'Space Grotesk', sans-serif",
+          boxShadow: "0 4px 16px #00000066",
+        }}>
+          <span style={{ animation: pulling ? "spin 0.8s linear infinite" : "none",
+            display: "inline-block" }}>↻</span>
+          {pulling ? "Odświeżam…" : pullY >= PULL_THRESHOLD ? "Puść aby odświeżyć" : "Pociągnij w dół"}
+        </div>
+      )}
       {/* Recurring Reminder */}
       <RecurringReminder payments={payments||[]} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
       {/* Daily Reminder */}

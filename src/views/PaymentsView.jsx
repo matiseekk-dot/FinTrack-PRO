@@ -14,8 +14,10 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
+import { useHaptic } from "../hooks/useHaptic.js";
 const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setTransactions, accounts, month: globalMonth, partnerName = "Partner" }) => {
   const { toast, showToast } = useToast();
+  const { success: hapticSuccess, medium: hapticMedium } = useHaptic();
   const TODAY_FULL = new Date();
   const TODAY_DAY  = TODAY_FULL.getDate();
   const TODAY_ISO  = TODAY_FULL.toISOString().split("T")[0]; // "2026-04-01"
@@ -108,11 +110,7 @@ const PaymentsView = ({ payments, setPayments, paid, setPaid, transactions, setT
 
   const isPaid = (item) => !!paid[`${item.id}_${monthKey}`];
 
-  const triggerHaptic = () => {
-    if (window.navigator && window.navigator.vibrate) {
-      window.navigator.vibrate(40);
-    }
-  };
+  const triggerHaptic = hapticMedium;
 
   const togglePaid = (item) => {
     const key = `${item.id}_${monthKey}`;

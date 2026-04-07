@@ -66,6 +66,13 @@ function migrateData(d) {
   }
   // ensure paid is object
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
+  // capitalize custom category labels (migration for old data)
+  if (Array.isArray(d.customCats)) {
+    d.customCats = d.customCats.map(c => ({
+      ...c,
+      label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label,
+    }));
+  }
   return d;
 }
 
