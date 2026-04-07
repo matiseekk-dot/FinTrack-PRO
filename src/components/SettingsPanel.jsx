@@ -18,6 +18,7 @@ import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js
 const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
                          setTransactions, setAccounts, setBudgets, setCycleDay, setCustomCats,
+                         setPayments, setPaid, setGoals,
                          cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) => {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
@@ -279,7 +280,9 @@ const SettingsPanel = ({ open, onClose, accounts, transactions, budgets, payment
                   backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "100%", maxWidth: 480, padding: "24px 20px 48px", maxHeight: "92vh", overflowY: "auto" }}
+                    width: "100%", maxWidth: 480, padding: "24px 20px 48px",
+                    paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
+                    maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
 
         {/* Header */}

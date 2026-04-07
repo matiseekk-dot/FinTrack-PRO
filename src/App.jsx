@@ -274,6 +274,7 @@ export default function App() {
         accounts={accounts} transactions={transactions} budgets={budgets}
         payments={payments} paid={paid} goals={goals} customCats={customCats}
         setTransactions={setTransactions} setAccounts={setAccounts} setBudgets={setBudgets}
+        setPayments={setPayments} setPaid={setPaid} setGoals={setGoals}
         cycleDay={cycleDay} setCycleDay={setCycleDay} setCustomCats={setCustomCats}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
