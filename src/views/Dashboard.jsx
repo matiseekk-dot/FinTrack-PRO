@@ -18,7 +18,7 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
-import { RecurringReminder, MiniComparison } from "./GoalsView.jsx";
+import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
 
 const EXPENSE_TYPES = {
   investment: ["inwestycje"],
