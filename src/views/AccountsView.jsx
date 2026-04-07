@@ -12,7 +12,6 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
-import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 const AccountsView = ({ accounts, setAccounts }) => {
