@@ -7,14 +7,13 @@ import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { Onboarding } from "./components/Onboarding.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
-import { Dashboard } from "./views/Dashboard.jsx"; // eager — first screen
-import { lazy, Suspense } from "react";
-const AccountsView    = lazy(() => import("./views/AccountsView.jsx").then(m => ({ default: m.AccountsView })));
-const TransactionsView = lazy(() => import("./views/TransactionsView.jsx").then(m => ({ default: m.TransactionsView })));
-const InvestmentsView = lazy(() => import("./views/InvestmentsView.jsx").then(m => ({ default: m.InvestmentsView })));
-const GoalsView       = lazy(() => import("./views/GoalsView.jsx").then(m => ({ default: m.GoalsView })));
-const PaymentsView    = lazy(() => import("./views/PaymentsView.jsx").then(m => ({ default: m.PaymentsView })));
-const AnalyticsView   = lazy(() => import("./views/AnalyticsView.jsx").then(m => ({ default: m.AnalyticsView })));
+import { Dashboard } from "./views/Dashboard.jsx";
+import { AccountsView } from "./views/AccountsView.jsx";
+import { TransactionsView } from "./views/TransactionsView.jsx";
+import { InvestmentsView } from "./views/InvestmentsView.jsx";
+import { GoalsView } from "./views/GoalsView.jsx";
+import { PaymentsView } from "./views/PaymentsView.jsx";
+import { AnalyticsView } from "./views/AnalyticsView.jsx";
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
@@ -329,14 +328,12 @@ export default function App() {
       {/* Pages */}
       <div style={{ paddingBottom: 80 }}>
         {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
-        <Suspense fallback={<div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"#334155", fontSize:13 }}>Ładuję…</div>}>
           {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
           {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
           {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
           {tab === "payments"     && <PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/>}
           {tab === "goals"        && <GoalsView goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/>}
           {tab === "analytics"    && <AnalyticsView transactions={transactions} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/>}
-        </Suspense>
       </div>
 
       {importErr && (
