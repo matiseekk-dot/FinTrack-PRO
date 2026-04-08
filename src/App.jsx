@@ -46,7 +46,6 @@ function applyData(d, s) {
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore } = useFirebase();
   const { showRatingPrompt, dismissRating } = useSessionTracker();
-  const streak = useStreak(transactions);
 
   const [tab,          setTab]          = useState("dashboard");
   const [onboarded,    setOnboarded]    = useState(false);
@@ -55,6 +54,7 @@ export default function App() {
   const [vacationArchive, setVacationArchive] = useState(() => JSON.parse(localStorage.getItem("ft_vacations") || "[]"));
   const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
+  const streak = useStreak(transactions);
   const [budgets,      setBudgets]      = useState(INITIAL_BUDGETS);
   const [payments,     setPayments]     = useState(INITIAL_PAYMENTS);
   const [paid,         setPaid]         = useState(INITIAL_PAID);
