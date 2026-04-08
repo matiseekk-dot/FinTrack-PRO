@@ -5,19 +5,9 @@ function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div
-         ref={el => {
-           if (el) {
-             const root = document.getElementById('app-root');
-             if (root) {
-               const r = root.getBoundingClientRect();
-               el.style.left = r.left + 'px';
-               el.style.width = r.width + 'px';
-             }
-           }
-         }}
          style={{
-           position: "fixed", top: 0, bottom: 0,
-           zIndex: 9999,
+           position: "absolute", top: 0, left: 0, right: 0,
+           minHeight: "100%", zIndex: 9999,
            background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
            display: "flex", alignItems: "flex-end", justifyContent: "center",
          }} onClick={onClose}>

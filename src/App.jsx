@@ -280,7 +280,7 @@ export default function App() {
   );
 
   return (
-    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative" }}>
+    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative", overflowX: "clip" }}>
       <FontLoader/>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
