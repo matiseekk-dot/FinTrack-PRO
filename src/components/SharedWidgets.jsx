@@ -4,7 +4,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import { MONTH_NAMES } from "../constants.js";
 
-function RecurringReminder({ payments, transactions, setTransactions, accounts }) {
+function RecurringReminder({ payments, paid = {}, transactions, setTransactions, accounts }) {
   const today     = new Date();
   const todayStr  = today.toISOString().split("T")[0];
   const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
@@ -19,9 +19,19 @@ function RecurringReminder({ payments, transactions, setTransactions, accounts }
     return false;
   });
 
-  const notYetAdded = dueToday.filter(p =>
-    !transactions.some(t => t.desc === p.name && t.date === todayStr && t.amount === p.amount)
-  );
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
+
+  const notYetAdded = dueToday.filter(p => {
+    // Jeśli opłacono przez zakładkę Płatności — nie pokazuj
+    if (paid[`${p.id}_${currentMonthKey}`]) return false;
+    // Jeśli transakcja o tej nazwie istnieje w tym miesiącu — nie pokazuj
+    const alreadyInTx = transactions.some(t =>
+      t.desc === p.name &&
+      t.date.startsWith(currentMonthKey) &&
+      Math.abs(t.amount) === Math.abs(p.amount)
+    );
+    return !alreadyInTx;
+  });
 
   if (notYetAdded.length === 0) return null;
 

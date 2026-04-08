@@ -736,7 +736,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       })()}
 
       {/* Recurring Reminder */}
-      <RecurringReminder payments={payments||[]} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
+      <RecurringReminder payments={payments||[]} paid={paid||{}} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
       {/* Daily Reminder */}
       <DailyReminder transactions={transactions} onAddTx={onAddTx}/>
 

@@ -275,7 +275,7 @@ export default function App() {
   );
 
   return (
-    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", height: "100dvh", width: "100%", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden", overflowY: "auto" }}>
+    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative" }}>
       <FontLoader/>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -326,7 +326,7 @@ export default function App() {
       </div>
 
       {/* Pages */}
-      <div style={{ paddingBottom: 80 }}>
+      <div style={{ paddingBottom: 100 }}>
         {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
           {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
           {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
@@ -368,7 +368,7 @@ export default function App() {
       )}
 
       {/* Bottom nav */}
-      <div style={{ position: "sticky", bottom: 0, width: "100%", background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: 8 }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: 8, zIndex: 50 }}>
         <div style={{ display: "flex", background: "#0a1120", border: "1px solid #1a2744", borderRadius: 20, margin: "0 12px", padding: "5px 3px", alignItems: "center" }}>
           {TABS.slice(0, 3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;

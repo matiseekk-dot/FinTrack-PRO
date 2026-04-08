@@ -5,8 +5,8 @@ function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div style={{
-      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-      minHeight: "100%", zIndex: 100,
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 9999,
       background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
       display: "flex", alignItems: "flex-end", justifyContent: "center",
     }} onClick={onClose}>
@@ -14,7 +14,7 @@ function Modal({ open, onClose, title, children }) {
         background: "#0d1628",
         border: "1px solid #1a2744",
         borderRadius: "20px 20px 0 0",
-        width: "100%",
+        width: "min(100vw, 480px)",
         padding: "24px 20px 40px",
         paddingBottom: "calc(40px + env(safe-area-inset-bottom, 0px))",
         maxHeight: "90dvh", overflowY: "auto",

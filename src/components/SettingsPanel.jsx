@@ -292,7 +292,22 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const desc = cols[1] || cols[2] || "Import PKO";
             const amt  = parseFloat((cols[4] || cols[3] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+            const detectCat = (desc, amt) => {
+              const d = desc.toLowerCase();
+              if (amt > 0) return "inne";
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
+              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
+              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
+              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              return "inne";
+            };
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
         // mBank format: "Data operacji";"Data księgowania";"Opis operacji";"Tytuł";"Nadawca/Odbiorca";"Konto";"Kwota";"Saldo po operacji"
@@ -303,7 +318,22 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const desc = cols[3] || cols[2] || "Import mBank";
             const amt  = parseFloat((cols[6] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+            const detectCat = (desc, amt) => {
+              const d = desc.toLowerCase();
+              if (amt > 0) return "inne";
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
+              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
+              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
+              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              return "inne";
+            };
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
         // ING format: "Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji";"Saldo po transakcji"
@@ -314,7 +344,22 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const desc = cols[2] || cols[3] || "Import ING";
             const amt  = parseFloat((cols[8] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+            const detectCat = (desc, amt) => {
+              const d = desc.toLowerCase();
+              if (amt > 0) return "inne";
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
+              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
+              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
+              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              return "inne";
+            };
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
         // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
@@ -325,7 +370,22 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const desc = cols[4] || "Import Revolut";
             const amt  = parseFloat(cols[5] || "0");
             if (!date || isNaN(amt)) return;
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+            const detectCat = (desc, amt) => {
+              const d = desc.toLowerCase();
+              if (amt > 0) return "inne";
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
+              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
+              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
+              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              return "inne";
+            };
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
         else {
@@ -338,7 +398,22 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             if (!date || !amtStr) return;
             const amt = parseFloat(amtStr.replace(",", ".").replace(/\s/g, ""));
             const desc = cols.find(c => c.length > 3 && !/^\d/.test(c) && c !== date) || "Import CSV";
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: amt < 0 ? "inne" : "inne", acc: 1 });
+            const detectCat = (desc, amt) => {
+              const d = desc.toLowerCase();
+              if (amt > 0) return "inne";
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
+              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
+              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
+              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              return "inne";
+            };
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
 
@@ -374,14 +449,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
   return (
     <div style={{
-                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-                  minHeight: "100%", zIndex: 200,
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                  zIndex: 9999,
                   background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
                   display: "flex", alignItems: "flex-end", justifyContent: "center",
                 }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "100%", padding: "24px 20px 48px",
+                    width: "min(100vw, 480px)", padding: "24px 20px 48px",
                     paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
                     maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
@@ -752,7 +827,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: wyczyść dane */}
       {confirmClear && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Wyczyścić wszystkie dane?</div>
@@ -797,7 +872,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: załaduj demo */}
       {confirmDemo && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100%", background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Załadować dane demo?</div>
