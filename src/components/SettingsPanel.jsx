@@ -305,17 +305,33 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             if (!date || isNaN(amt)) return;
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
-              if (amt > 0) return "inne";
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
-              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
-              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
-              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              if (amt > 0) {
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                return "inne";
+              }
+              // Zakłady / bukmacher
+              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
+              // Jedzenie
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
+              // Restauracje
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
+              // Transport
+              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
+              // Rozrywka/subskrypcje
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
+              // Zakupy
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
+              // Zdrowie
+              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
+              // Rachunki
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
+              // Kawiarnia
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
+              // Transfery wewnętrzne - nie wchodzą w analizę
+              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
+              // Inwestycje
+              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
             newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
@@ -331,17 +347,33 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             if (!date || isNaN(amt)) return;
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
-              if (amt > 0) return "inne";
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
-              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
-              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
-              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              if (amt > 0) {
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                return "inne";
+              }
+              // Zakłady / bukmacher
+              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
+              // Jedzenie
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
+              // Restauracje
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
+              // Transport
+              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
+              // Rozrywka/subskrypcje
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
+              // Zakupy
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
+              // Zdrowie
+              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
+              // Rachunki
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
+              // Kawiarnia
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
+              // Transfery wewnętrzne - nie wchodzą w analizę
+              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
+              // Inwestycje
+              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
             newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
@@ -357,49 +389,91 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             if (!date || isNaN(amt)) return;
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
-              if (amt > 0) return "inne";
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
-              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
-              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
-              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              if (amt > 0) {
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                return "inne";
+              }
+              // Zakłady / bukmacher
+              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
+              // Jedzenie
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
+              // Restauracje
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
+              // Transport
+              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
+              // Rozrywka/subskrypcje
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
+              // Zakupy
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
+              // Zdrowie
+              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
+              // Rachunki
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
+              // Kawiarnia
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
+              // Transfery wewnętrzne - nie wchodzą w analizę
+              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
+              // Inwestycje
+              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
             newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
           });
         }
         // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
-        else if (header.includes("started date") || header.includes("completed date") || header.includes("starteddate") || (header.includes("revolut") && header.includes("amount"))) {
+        else if (header.includes("started date") || header.includes("completed date") || header.includes("data rozpoczęcia") || header.includes("data rozp") || (header.includes("revolut") && (header.includes("amount") || header.includes("kwota")))) {
           lines.slice(1).forEach((line, i) => {
+            // Rozdziel CSV z uwzględnieniem przecinków w cudzysłowach
             const cols = line.split(",").map(c => c.replace(/"/g, "").trim());
-            const date = parseDate(cols[3] || cols[2]);
+            // Data: col[2] = Data rozpoczęcia, col[3] = Data zakończenia
+            const date = parseDate(cols[2] || cols[3]);
+            // Opis: col[4]
             const desc = cols[4] || "Import Revolut";
-            // Revolut: Amount może być bez znaku dla wydatków (zależy od Type)
-            let amt = parseFloat((cols[5] || "0").replace(",","."));
+            // Kwota: col[5], Waluta: col[7]
+            let amt = parseFloat((cols[5] || "0").replace(",", ".").replace(/\s/g, ""));
+            const currency = (cols[7] || "PLN").trim();
             const txType = (cols[0] || "").toUpperCase();
-            // Jeśli Type to CARD_PAYMENT, TOPUP itp i kwota dodatnia - wydatek
-            if (!isNaN(amt) && amt > 0 && ["CARD_PAYMENT","TRANSFER","FEE","EXCHANGE"].includes(txType)) {
-              amt = -amt;
+            const state = (cols[8] || "").toUpperCase();
+            // Pomiń transakcje anulowane/oczekujące
+            if (state === "FAILED" || state === "REVERTED" || state === "PENDING") return;
+            // Revolut daje kwoty z odpowiednim znakiem (-/+)
+            // Jeśli brak znaku i typ to płatność - ustaw ujemne
+            if (!isNaN(amt) && amt > 0 && 
+                (txType.includes("CARD") || txType.includes("PAYMENT") || 
+                 txType.includes("PLATNOSC") || txType.includes("PŁATNOŚĆ"))) {
+              amt = -Math.abs(amt);
             }
             if (!date || isNaN(amt) || amt === 0) return;
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
-              if (amt > 0) return "inne";
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
-              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
-              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
-              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              if (amt > 0) {
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                return "inne";
+              }
+              // Zakłady / bukmacher
+              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
+              // Jedzenie
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
+              // Restauracje
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
+              // Transport
+              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
+              // Rozrywka/subskrypcje
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
+              // Zakupy
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
+              // Zdrowie
+              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
+              // Rachunki
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
+              // Kawiarnia
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
+              // Transfery wewnętrzne - nie wchodzą w analizę
+              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
+              // Inwestycje
+              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
             newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
@@ -417,17 +491,33 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const desc = cols.find(c => c.length > 3 && !/^\d/.test(c) && c !== date) || "Import CSV";
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
-              if (amt > 0) return "inne";
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw")) return "jedzenie";
-              if (d.includes("orlen") || d.includes("bp ") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet")) return "transport";
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("kfc") || d.includes("burger")) return "jedzenie";
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube")) return "rozrywka";
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik")) return "zakupy";
-              if (d.includes("apteka") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta")) return "zdrowie";
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("woda") || d.includes("internet") || d.includes("telefon")) return "rachunki";
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe")) return "kawiarnia";
-              if (d.includes("siłownia") || d.includes("gym") || d.includes("fitness") || d.includes("sport")) return "inne";
+              if (amt > 0) {
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                return "inne";
+              }
+              // Zakłady / bukmacher
+              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
+              // Jedzenie
+              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
+              // Restauracje
+              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
+              // Transport
+              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
+              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
+              // Rozrywka/subskrypcje
+              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
+              // Zakupy
+              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
+              // Zdrowie
+              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
+              // Rachunki
+              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
+              // Kawiarnia
+              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
+              // Transfery wewnętrzne - nie wchodzą w analizę
+              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
+              // Inwestycje
+              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
             newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
