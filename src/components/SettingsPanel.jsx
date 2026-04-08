@@ -467,10 +467,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   return (
     <div
          style={{
-           position: "absolute", top: 0, left: 0, right: 0,
-           minHeight: "100%", zIndex: 9999,
+           position: "fixed", inset: 0, zIndex: 9999,
            background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
-           display: "flex", alignItems: "flex-end", justifyContent: "center",
+           display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-end",
          }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
@@ -845,7 +844,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: wyczyść dane */}
       {confirmClear && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Wyczyścić wszystkie dane?</div>
@@ -890,7 +889,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: załaduj demo */}
       {confirmDemo && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Załadować dane demo?</div>

@@ -6,10 +6,9 @@ function Modal({ open, onClose, title, children }) {
   return (
     <div
          style={{
-           position: "absolute", top: 0, left: 0, right: 0,
-           minHeight: "100%", zIndex: 9999,
+           position: "fixed", inset: 0, zIndex: 9999,
            background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
-           display: "flex", alignItems: "flex-end", justifyContent: "center",
+           display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-end",
          }} onClick={onClose}>
       <div style={{
         background: "#0d1628",

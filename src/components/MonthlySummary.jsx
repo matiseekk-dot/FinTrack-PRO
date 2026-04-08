@@ -26,7 +26,7 @@ function MonthlySummary({ transactions, month, cycleDay = 1, onClose }) {
 
   return (
     <div style={{
-      position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
+      position: "fixed", inset: 0, zIndex: 9999,
       background: "rgba(0,0,0,0.9)", backdropFilter: "blur(10px)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: "0 20px", fontFamily: "'Space Grotesk', sans-serif",
