@@ -276,6 +276,17 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     reader.onload = (ev) => {
       try {
         const text = ev.target.result;
+        // Helper: konwertuj datę do YYYY-MM-DD
+        const parseDate = (raw) => {
+          if (!raw) return '';
+          const s = String(raw).trim();
+          if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+          if (/^\d{2}[.-]\d{2}[.-]\d{4}/.test(s)) {
+            const p = s.split(/[.-]/);
+            return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+          }
+          return s.slice(0,10);
+        };
         const lines = text.split(/\r?\n/).filter(l => l.trim());
         if (lines.length < 2) throw new Error("Pusty plik");
 
@@ -288,7 +299,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         if (header.includes("data operacji") || header.includes("data księgowania")) {
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = cols[0]?.slice(0, 10);
+            const date = parseDate(cols[0]);
             const desc = cols[1] || cols[2] || "Import PKO";
             const amt  = parseFloat((cols[4] || cols[3] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
@@ -314,7 +325,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         else if (header.includes("tytuł") || header.includes("nadawca")) {
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = cols[0]?.slice(0, 10);
+            const date = parseDate(cols[0]);
             const desc = cols[3] || cols[2] || "Import mBank";
             const amt  = parseFloat((cols[6] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
@@ -340,7 +351,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         else if (header.includes("dane kontrahenta") || header.includes("nr transakcji")) {
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = cols[0]?.slice(0, 10);
+            const date = parseDate(cols[0]);
             const desc = cols[2] || cols[3] || "Import ING";
             const amt  = parseFloat((cols[8] || "0").replace(",", ".").replace(/\s/g, ""));
             if (!date || isNaN(amt)) return;
@@ -363,13 +374,19 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           });
         }
         // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
-        else if (header.includes("started date") || header.includes("completed date")) {
+        else if (header.includes("started date") || header.includes("completed date") || header.includes("starteddate") || (header.includes("revolut") && header.includes("amount"))) {
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(",").map(c => c.replace(/"/g, "").trim());
-            const date = cols[3]?.slice(0, 10) || cols[2]?.slice(0, 10);
+            const date = parseDate(cols[3] || cols[2]);
             const desc = cols[4] || "Import Revolut";
-            const amt  = parseFloat(cols[5] || "0");
-            if (!date || isNaN(amt)) return;
+            // Revolut: Amount może być bez znaku dla wydatków (zależy od Type)
+            let amt = parseFloat((cols[5] || "0").replace(",","."));
+            const txType = (cols[0] || "").toUpperCase();
+            // Jeśli Type to CARD_PAYMENT, TOPUP itp i kwota dodatnia - wydatek
+            if (!isNaN(amt) && amt > 0 && ["CARD_PAYMENT","TRANSFER","FEE","EXCHANGE"].includes(txType)) {
+              amt = -amt;
+            }
+            if (!date || isNaN(amt) || amt === 0) return;
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) return "inne";
@@ -393,7 +410,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           lines.slice(1).forEach((line, i) => {
             const sep = line.includes(";") ? ";" : ",";
             const cols = line.split(sep).map(c => c.replace(/"/g, "").trim());
-            const date = cols.find(c => /^\d{4}-\d{2}-\d{2}/.test(c))?.slice(0, 10);
+            const date = parseDate(cols.find(c => /^\d{4}-\d{2}-\d{2}/.test(c) || /^\d{2}[.-]\d{2}[.-]\d{4}/.test(c)));
             const amtStr = cols.find(c => /^-?\d+[.,]\d{2}$/.test(c.replace(/\s/g, "")));
             if (!date || !amtStr) return;
             const amt = parseFloat(amtStr.replace(",", ".").replace(/\s/g, ""));
@@ -448,15 +465,26 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   );
 
   return (
-    <div style={{
-                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-                  zIndex: 9999,
-                  background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
-                  display: "flex", alignItems: "flex-end", justifyContent: "center",
-                }}
+    <div
+         ref={el => {
+           if (el) {
+             const root = document.getElementById('app-root');
+             if (root) {
+               const r = root.getBoundingClientRect();
+               el.style.left = r.left + 'px';
+               el.style.width = r.width + 'px';
+             }
+           }
+         }}
+         style={{
+           position: "fixed", top: 0, bottom: 0,
+           zIndex: 9999,
+           background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
+           display: "flex", alignItems: "flex-end", justifyContent: "center",
+         }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "min(100vw, 480px)", padding: "24px 20px 48px",
+                    width: "100%", padding: "24px 20px 48px",
                     paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
                     maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
@@ -827,7 +855,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: wyczyść dane */}
       {confirmClear && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Wyczyścić wszystkie dane?</div>
@@ -872,7 +900,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Confirm: załaduj demo */}
       {confirmDemo && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Załadować dane demo?</div>

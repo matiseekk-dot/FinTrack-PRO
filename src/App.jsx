@@ -164,8 +164,13 @@ export default function App() {
         localStorage.setItem("ft_notif_asked", "1");
       }, 5000); // ask after 5s so user is already in app
     }
-    // Schedule local reminders on every load
-    schedulePaymentReminders(payments, paid);
+    // Schedule local reminders - tylko raz dziennie
+    const today = new Date().toISOString().split("T")[0];
+    const lastNotif = localStorage.getItem("ft_notif_date");
+    if (lastNotif !== today) {
+      schedulePaymentReminders(payments, paid);
+      localStorage.setItem("ft_notif_date", today);
+    }
   }, [loaded, user]);
 
   // One-time migration: capitalize custom category labels and save back

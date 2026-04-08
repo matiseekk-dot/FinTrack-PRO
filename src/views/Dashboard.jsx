@@ -693,32 +693,36 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           {pulling ? "Odświeżam…" : pullY >= PULL_THRESHOLD ? "Puść aby odświeżyć" : "Pociągnij w dół"}
         </div>
       )}
-      {/* TODAY WIDGET — pierwsze co widzi user */}
+      {/* TODAY WIDGET — bilans dnia */}
       {(() => {
         const todayTx = transactions.filter(t => t.date === todayISO && t.cat !== "inne");
         const todayExp = todayTx.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
         const todayInc = todayTx.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
-        const txCount  = todayTx.length;
+        const todayBalance = todayInc - todayExp;
+        const txCount = todayTx.length;
         if (txCount === 0) return null;
+        const isPositive = todayBalance >= 0;
         return (
           <div style={{
-            background: "linear-gradient(135deg, #0a1628, #0d1f35)",
-            border: "1px solid #1e3a5f44", borderRadius: 16,
+            background: isPositive
+              ? "linear-gradient(135deg, #0a1e12, #052e16)"
+              : "linear-gradient(135deg, #1a0808, #200e0e)",
+            border: `1px solid ${isPositive ? "#16a34a33" : "#7f1d1d33"}`,
+            borderRadius: 16,
             padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <div>
               <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
                 Dziś · {txCount} {txCount === 1 ? "transakcja" : txCount < 5 ? "transakcje" : "transakcji"}
               </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                {todayExp > 0 && (
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, color: "#ef4444" }}>
-                    −{fmt(todayExp)}
-                  </span>
-                )}
-                {todayInc > 0 && (
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 600, color: "#10b981" }}>
-                    +{fmt(todayInc)}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700,
+                  color: isPositive ? "#10b981" : "#ef4444" }}>
+                  {isPositive ? "+" : "−"}{fmt(Math.abs(todayBalance))}
+                </span>
+                {todayExp > 0 && todayInc > 0 && (
+                  <span style={{ fontSize: 11, color: "#334155" }}>
+                    ({fmt(todayInc)} − {fmt(todayExp)})
                   </span>
                 )}
               </div>

@@ -364,9 +364,10 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
             </div>
           )}
           {goals.map(goal => {
-            const pct  = Math.min(100, goal.target > 0 ? (goal.saved / goal.target * 100) : 0);
-            const done = pct >= 100;
             const acc  = accounts.find(a => a.id === goal.accId);
+            const effectiveSaved = acc ? acc.balance : goal.saved;
+            const pct  = Math.min(100, goal.target > 0 ? (effectiveSaved / goal.target * 100) : 0);
+            const done = effectiveSaved >= goal.target;
             return (
               <Card key={goal.id} style={{ padding: "16px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
