@@ -71,6 +71,8 @@ function migrateData(d) {
     d.customCats = d.customCats.map(c => ({
       ...c,
       label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label,
+      // icon jako string - komponent dodawany przy renderowaniu przez getCat/getAllCats
+      iconName: c.iconName || "Wallet",
     }));
   }
   return d;

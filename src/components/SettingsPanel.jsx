@@ -291,12 +291,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         if (lines.length < 2) throw new Error("Pusty plik");
 
         // Auto-detect bank format from header
-        const header = lines[0].toLowerCase();
+        const header = lines[0].replace(/^\uFEFF/, '').toLowerCase().trim();
         let imported = 0;
         const newTx = [];
 
         // PKO BP format: "Data operacji";"Opis operacji";"Rachunek";"Kategoria";"Kwota";"Saldo"
-        if (header.includes("data operacji") || header.includes("data księgowania")) {
+        // Oczyść BOM i whitespace z nagłówka
+        const cleanHeader = lines[0].replace(/^\uFEFF/, '').toLowerCase().trim();
+        if (cleanHeader.includes("data operacji") || (cleanHeader.includes("data księgowania") && !cleanHeader.includes("tytuł"))) {
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
             const date = parseDate(cols[0]);
@@ -890,8 +892,10 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
               if (CATEGORIES.find(c => c.id === id)) { alert("Kategoria o tej nazwie już istnieje"); return; }
               setCustomCats(c => [...c, {
-                id, label: newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1), icon: Wallet, color: newCatColor,
+                id, label: newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1),
+                iconName: "Wallet", color: newCatColor,
                 type: newCatType, custom: true,
+                group: newCatType === "income" ? "income" : "lifestyle",
               }]);
               setNewCatLabel("");
             }}

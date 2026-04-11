@@ -38,7 +38,19 @@ function getCat(id) { return BASE_CATEGORIES.find(c => c.id === id) || { id, lab
 const CATEGORIES = BASE_CATEGORIES;
 
 // Helper used where customCats are available
-function getAllCats(customCats = []) { return [...BASE_CATEGORIES, ...customCats]; }
+const ICON_MAP = {
+  Wallet, TrendingUp, TrendingDown, ShoppingBag, Car, Utensils, Zap, Coffee,
+  Building, Repeat, Gift, Shield, DollarSign, Bell, CreditCard, Briefcase,
+  AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock,
+};
+
+function getAllCats(customCats = []) {
+  const mapped = (customCats || []).map(c => ({
+    ...c,
+    icon: c.icon || ICON_MAP[c.iconName] || Wallet,
+  }));
+  return [...BASE_CATEGORIES, ...mapped];
+}
 
 const INITIAL_ACCOUNTS = [
   { id: 1, name: "Konto główne",  type: "savings", bank: "", balance: 0, color: "#3b82f6", iban: "" },

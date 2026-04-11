@@ -34,9 +34,9 @@ function fmtShort(n) {
 // If cycleDay=1   standard calendar month.
 // If cycleDay=25   25th of prev month to 24th of current month.
 // "month" param is 0-indexed (0=Jan   11=Dec), year hardcoded 2026.
-function getCycleRange(month, cycleDay) {
+function getCycleRange(month, cycleDay, year) {
+  const y = year || new Date().getFullYear();
   if (cycleDay <= 1) {
-    const y = new Date().getFullYear();
     const m = month + 1;
     const lastDay = new Date(y, m, 0).getDate();
     const start = `${y}-${String(m).padStart(2,"0")}-01`;
@@ -44,7 +44,6 @@ function getCycleRange(month, cycleDay) {
     return [start, end];
   }
   // e.g. cycleDay=25, month=2 (March)   25 Feb   24 Mar
-  const y = new Date().getFullYear();
   // start: cycleDay of previous month
   const startMonth = month === 0 ? 12 : month;       // 1-indexed prev month
   const startYear  = month === 0 ? y - 1 : y;
@@ -56,8 +55,8 @@ function getCycleRange(month, cycleDay) {
   return [start, end];
 };
 
-function cycleTxs(transactions, month, cycleDay) {
-  const [start, end] = getCycleRange(month, cycleDay);
+function cycleTxs(transactions, month, cycleDay, year) {
+  const [start, end] = getCycleRange(month, cycleDay, year);
   return transactions.filter(t => t.date >= start && t.date <= end);
 };
 

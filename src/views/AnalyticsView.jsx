@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line
@@ -20,8 +20,20 @@ import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, I
 function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
 
-  const cmpKey = `${new Date().getFullYear()}-${String(cmpMonth+1).padStart(2,"0")}`;
-  const curKey = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}`;
+  // Znajdź lata dostępne w transakcjach
+  const availableYears = [...new Set(transactions.map(t => t.date?.slice(0,4)).filter(Boolean))].sort().reverse();
+  const currentYear = new Date().getFullYear().toString();
+  const [selectedYear, setSelectedYear] = useState(availableYears[0] || currentYear);
+
+  // Sync selectedYear gdy pojawią się nowe transakcje
+  React.useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [availableYears.join(',')]);
+
+  const cmpKey = `${selectedYear}-${String(cmpMonth+1).padStart(2,"0")}`;
+  const curKey = `${selectedYear}-${String(month+1).padStart(2,"0")}`;
 
   const cmpTx  = transactions.filter(t => t.date.startsWith(cmpKey) && t.cat !== "inne");
   const curTx  = transactions.filter(t => t.date.startsWith(curKey) && t.cat !== "inne");
@@ -54,7 +66,7 @@ function MonthComparison({ transactions, month }) {
           style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 8,
             padding: "8px 12px", color: "#e2e8f0", fontSize: 14, outline: "none" }}>
           {MONTH_NAMES.map((m, i) => i !== month && (
-            <option key={i} value={i}>{m} {new Date().getFullYear()}</option>
+            <option key={i} value={i}>{m} {selectedYear}</option>
           ))}
         </select>
       </div>
