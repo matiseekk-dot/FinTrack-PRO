@@ -77,6 +77,8 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
       }
       setTransactions(tx => tx.map(t => t.id === editingId ? { ...t, ...txData } : t));
       setEditingId(null);
+      showToast("Transakcja zaktualizowana ✓");
+      hapticSuccess();
     } else {
       // apply amount to linked account (only savings/checking, not invest)
       if (setAccounts) {
@@ -87,7 +89,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
         }));
       }
       setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
-      showToast(editingId ? "Transakcja zaktualizowana" : "Transakcja dodana ✓");
+      showToast("Transakcja dodana ✓");
       hapticSuccess();
     }
     setForm(f => ({ ...f, currency: 'PLN' }));
@@ -305,10 +307,10 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
                       </button>
                       <button
                         onClick={() => {
+                          setEditingId(tx.id);
                           setForm({ date: tx.date, desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense" });
-                          setEditingId(tx.id);
+                            type: tx.amount > 0 ? "income" : "expense", currency: "PLN" });
                           setModal(true);
                         }}
                         title="Edytuj"

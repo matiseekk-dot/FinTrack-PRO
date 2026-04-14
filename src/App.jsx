@@ -317,12 +317,23 @@ export default function App() {
               <Bell size={11}/> {unpaidBillsCount}
             </button>
           )}
-          <button onClick={signOutUser} title={`Wyloguj (${user.displayName || user.email})`} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-            {user.photoURL
-              ? <img src={user.photoURL} alt="" style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid #1e3a5f" }}/>
-              : <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1e3a5f", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa" }}>{(user.displayName || user.email || "U")[0].toUpperCase()}</span></div>
-            }
-          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => {
+                if (window.confirm(`Wylogować się z konta ${user.displayName || user.email}?`)) signOutUser();
+              }}
+              title={`Wyloguj: ${user.displayName || user.email}`}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 2,
+                borderRadius: "50%", transition: "opacity 0.2s" }}
+            >
+              {user.photoURL
+                ? <img src={user.photoURL} alt="" style={{ width: 34, height: 34, borderRadius: "50%", border: "2px solid #2563eb", display: "block" }}/>
+                : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #2563eb" }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>{(user.displayName || user.email || "U")[0].toUpperCase()}</span>
+                  </div>
+              }
+            </button>
+          </div>
           <button onClick={() => setTab("accounts")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             <CreditCard size={17} color="#475569"/>
           </button>
