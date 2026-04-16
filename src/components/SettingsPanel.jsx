@@ -843,7 +843,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 14px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}</span>
                   <span style={{ fontSize: 11, color: "#334155" }}>{cat.type === "income" ? "przychód" : "wydatek"}</span>
                 </div>
                 <button onClick={() => setCustomCats(c => c.filter(x => x.id !== cat.id))}

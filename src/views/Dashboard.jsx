@@ -678,7 +678,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Pull-to-refresh indicator */}
+{/* Pull-to-refresh indicator */}
       {(pullY > 10 || pulling) && (
         <div style={{
           position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)",
@@ -693,92 +693,6 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           {pulling ? "Odświeżam…" : pullY >= PULL_THRESHOLD ? "Puść aby odświeżyć" : "Pociągnij w dół"}
         </div>
       )}
-      {/* ALERTY BUDŻETU */}
-      {(() => {
-        if (!budgets || budgets.length === 0) return null;
-        const overBudgets = budgets.filter(b => {
-          const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-          return spent >= b.limit * 0.8; // alert od 80% limitu
-        }).map(b => {
-          const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-          return { ...b, spent, over: spent - b.limit };
-        });
-        if (overBudgets.length === 0) return null;
-        return (
-          <div style={{ marginBottom: 14 }}>
-            {overBudgets.map(b => {
-              const cat = getCat(b.cat);
-              const Icon = cat.icon;
-              const isOver = b.spent > b.limit;
-              return (
-                <div key={b.cat} style={{
-                  background: isOver ? "linear-gradient(135deg,#1a0808,#200e0e)" : "linear-gradient(135deg,#1a1200,#221a00)",
-                  border: `1px solid ${isOver ? "#7f1d1d" : "#78350f"}`,
-                  borderRadius: 14, padding: "11px 14px", marginBottom: 8,
-                  display: "flex", alignItems: "center", gap: 10,
-                }}>
-                  <div style={{ background: isOver ? "#ef444422" : "#f59e0b22", borderRadius: 10, padding: 7, flexShrink: 0 }}>
-                    <Icon size={14} color={isOver ? "#ef4444" : "#f59e0b"}/>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: isOver ? "#fca5a5" : "#fcd34d" }}>
-                      {isOver ? "🔴 Limit przekroczony" : "🟡 Zbliżasz się do limitu"} · {cat.label}
-                    </div>
-                    <div style={{ fontSize: 11, color: isOver ? "#7f1d1d" : "#92400e", marginTop: 1 }}>
-                      {isOver
-                        ? `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · +${fmt(b.over)} ponad limit`
-                        : `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · ${((b.spent/b.limit)*100).toFixed(0)}% limitu`
-                      }
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* PROGNOZA MIESIĘCZNA */}
-      {(() => {
-        const today = new Date();
-        const dayOfMonth = today.getDate();
-        const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
-        if (dayOfMonth < 3) return null; // za mało danych
-        const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
-        const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
-        const dailyExp = monthExp / dayOfMonth;
-        const forecastExp = Math.round(dailyExp * daysInMonth);
-        const forecastBalance = Math.round(monthInc - forecastExp);
-        const pct = Math.round(dayOfMonth / daysInMonth * 100);
-        const isGood = forecastBalance > 0;
-        return (
-          <div style={{
-            background: "linear-gradient(135deg,#0a0f1e,#0d1628)",
-            border: "1px solid #1e3a5f44",
-            borderRadius: 14, padding: "12px 16px", marginBottom: 14,
-          }}>
-            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-              📈 Prognoza na koniec miesiąca · {pct}% miesiąca minęło
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Szacowane wydatki</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: "#ef4444" }}>{fmt(forecastExp)}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Prognozowany bilans</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: isGood ? "#10b981" : "#ef4444" }}>
-                  {isGood ? "+" : "−"}{fmt(Math.abs(forecastBalance))}
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: 8, background: "#060b14", borderRadius: 6, height: 4, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#1e40af,#3b82f6)", borderRadius: 6 }}/>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* TODAY WIDGET — bilans dnia */}
       {(() => {
         const todayTx = transactions.filter(t => t.date === todayISO && t.cat !== "inne");
@@ -824,15 +738,6 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           </div>
         );
       })()}
-
-      {/* Recurring Reminder */}
-      <RecurringReminder payments={payments||[]} paid={paid||{}} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
-      {/* Daily Reminder */}
-      <DailyReminder transactions={transactions} onAddTx={onAddTx}/>
-
-      {/* Financial Score */}
-      <FinancialScore income={income} expense={expense} transactions={transactions}
-        month={month} cycleDay={cycleDay} elapsedDays={elapsedCycDays}/>
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: 8 }}>
@@ -1212,7 +1117,102 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           );
         })}
       </Card>
-    </div>
+{/* Recurring Reminder */}
+      <RecurringReminder payments={payments||[]} paid={paid||{}} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
+      {/* PROGNOZA MIESIĘCZNA */}
+      {(() => {
+        const today = new Date();
+        const dayOfMonth = today.getDate();
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+        if (dayOfMonth < 3) return null; // za mało danych
+        const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
+        const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
+        const dailyExp = monthExp / dayOfMonth;
+        const forecastExp = Math.round(dailyExp * daysInMonth);
+        const forecastBalance = Math.round(monthInc - forecastExp);
+        const pct = Math.round(dayOfMonth / daysInMonth * 100);
+        const isGood = forecastBalance > 0;
+        return (
+          <div style={{
+            background: "linear-gradient(135deg,#0a0f1e,#0d1628)",
+            border: "1px solid #1e3a5f44",
+            borderRadius: 14, padding: "12px 16px", marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              📈 Prognoza na koniec miesiąca · {pct}% miesiąca minęło
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Szacowane wydatki</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: "#ef4444" }}>{fmt(forecastExp)}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Prognozowany bilans</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: isGood ? "#10b981" : "#ef4444" }}>
+                  {isGood ? "+" : "−"}{fmt(Math.abs(forecastBalance))}
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, background: "#060b14", borderRadius: 6, height: 4, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#1e40af,#3b82f6)", borderRadius: 6 }}/>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ALERTY BUDŻETU */}
+      {(() => {
+        if (!budgets || budgets.length === 0) return null;
+        const overBudgets = budgets.filter(b => {
+          const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
+          return spent >= b.limit * 0.8; // alert od 80% limitu
+        }).map(b => {
+          const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
+          return { ...b, spent, over: spent - b.limit };
+        });
+        if (overBudgets.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 14 }}>
+            {overBudgets.map(b => {
+              const cat = getCat(b.cat);
+              const Icon = cat.icon;
+              const isOver = b.spent > b.limit;
+              return (
+                <div key={b.cat} style={{
+                  background: isOver ? "linear-gradient(135deg,#1a0808,#200e0e)" : "linear-gradient(135deg,#1a1200,#221a00)",
+                  border: `1px solid ${isOver ? "#7f1d1d" : "#78350f"}`,
+                  borderRadius: 14, padding: "11px 14px", marginBottom: 8,
+                  display: "flex", alignItems: "center", gap: 10,
+                }}>
+                  <div style={{ background: isOver ? "#ef444422" : "#f59e0b22", borderRadius: 10, padding: 7, flexShrink: 0 }}>
+                    <Icon size={14} color={isOver ? "#ef4444" : "#f59e0b"}/>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: isOver ? "#fca5a5" : "#fcd34d" }}>
+                      {isOver ? "🔴 Limit przekroczony" : "🟡 Zbliżasz się do limitu"} · {cat.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: isOver ? "#7f1d1d" : "#92400e", marginTop: 1 }}>
+                      {isOver
+                        ? `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · +${fmt(b.over)} ponad limit`
+                        : `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · ${((b.spent/b.limit)*100).toFixed(0)}% limitu`
+                      }
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Financial Score */}
+      <FinancialScore income={income} expense={expense} transactions={transactions}
+        month={month} cycleDay={cycleDay} elapsedDays={elapsedCycDays}/>
+
+      {/* Daily Reminder */}
+      <DailyReminder transactions={transactions} onAddTx={onAddTx}/>
+
+          </div>
   );
 };
 

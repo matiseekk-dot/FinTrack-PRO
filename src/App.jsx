@@ -16,7 +16,7 @@ import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
-import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
+import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES, getAllCats } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
@@ -75,7 +75,7 @@ export default function App() {
   const [importErr,    setImportErr]    = useState("");
   const [syncOk,       setSyncOk]       = useState(false);
 
-  const allCategories = useMemo(() => [...BASE_CATEGORIES, ...customCats], [customCats]);
+  const allCategories = useMemo(() => getAllCats(customCats), [customCats]);
   const stateRef = useRef(null);
   const clearingRef = useRef(false); // blocks Firestore save during clearAllData
   const skipFirestoreLoad = useRef(false); // blocks Firestore load after onboarding choice
