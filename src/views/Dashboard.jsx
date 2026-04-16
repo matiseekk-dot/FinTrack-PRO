@@ -184,7 +184,7 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -338,7 +338,7 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
   ];
 
   return (
-    <Card style={{ padding: "14px 16px" }}>
+    <div style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.08em", marginBottom: 12 }}>Struktura wydatkow</div>
 
@@ -388,7 +388,7 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
       <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
         Normy: Stale &lt;50% · Zmienne &lt;30% · Lifestyle &lt;20%
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -396,9 +396,9 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
 function ForecastWidget({ income, expense, daysLeft, elapsedDays, transactions, month, cycleDay }) {
   if (elapsedDays < 3 || income === 0) return null;
   if (daysLeft === 0) return (
-    <Card style={{ padding: "12px 16px" }}>
+    <div style={{ padding: "12px 16px" }}>
       <div style={{ fontSize: 11, color: "#475569", textAlign: "center" }}>Okres zakończony</div>
-    </Card>
+    </div>
   );
   const totalDays = Math.max(1, elapsedDays + daysLeft);
 
@@ -439,7 +439,7 @@ function ForecastWidget({ income, expense, daysLeft, elapsedDays, transactions, 
   const sign = v => v >= 0 ? "+" : "";
 
   return (
-    <Card style={{ padding: "14px 16px" }}>
+    <div style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.08em", marginBottom: 10 }}>Prognoza konca cyklu</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -459,7 +459,7 @@ function ForecastWidget({ income, expense, daysLeft, elapsedDays, transactions, 
       <div style={{ marginTop: 8, fontSize: 11, color: "#475569", textAlign: "center" }}>
         Codzienny: {fmt(burnRate)}/dzien · jednorazowe: {fmtShort(alreadyPaidFixed)} zl poza prognoza
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -513,7 +513,7 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
   }, [income, expense, catData, monthTx, safeToSpend, daysLeft]);
 
   return (
-    <Card style={{ padding: "14px 16px" }}>
+    <div style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.08em", marginBottom: 12 }}>Rekomendacje</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -524,7 +524,7 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 };
 
