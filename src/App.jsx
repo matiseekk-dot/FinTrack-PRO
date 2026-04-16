@@ -19,8 +19,7 @@ import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js"
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
-import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
-import { PinLock } from "./components/PinLock.jsx";
+import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
@@ -156,6 +155,18 @@ export default function App() {
     }
   }, [loaded, user]);
 
+  // Zablokuj PIN po powrocie z tła
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const enabled = localStorage.getItem(PIN_ENABLED_KEY) === "1";
+        if (enabled) setPinLocked(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
   // Request notification permission and schedule reminders
   useEffect(() => {
     if (!loaded || !user) return;
@@ -283,7 +294,7 @@ export default function App() {
   );
 
   return (
-    <PinLock>
+    <>
     {pinLocked && (
       <PinScreen onSuccess={() => setPinLocked(false)} title="Wprowadź PIN aby odblokować"/>
     )}
@@ -421,6 +432,7 @@ export default function App() {
           })}
         </div>
       </div>
-    </div>
+    </div>}
+    </>
   );
 }

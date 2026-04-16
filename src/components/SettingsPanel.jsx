@@ -909,6 +909,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <Divider/>
 
+        {/* PIN Lock */}
+        <SectionTitle>🔒 Bezpieczeństwo</SectionTitle>
+        <PinSettings/>
+        <Divider/>
+
         {/* Data reset */}
         {/* PIN / Blokada */}
         <Divider/>
