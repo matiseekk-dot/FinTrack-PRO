@@ -6,7 +6,7 @@ import {
   CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
   Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
   Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
+  ClipboardList, RefreshCw, AlarmClock, Copy, Search
 } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";

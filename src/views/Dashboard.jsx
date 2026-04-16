@@ -137,7 +137,7 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
   const isUnusualMonth = expense > 0 && uncontrolTotal / expense > 0.35;
 
   return (
-    <Card style={{ padding: "14px 16px" }}>
+    <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
       {isUnusualMonth && (
         <div style={{ background: "#0d1f35", border: "1px solid #2563eb33",
           borderRadius: 8, padding: "7px 10px", marginBottom: 10,
@@ -700,38 +700,43 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         const todayInc = todayTx.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
         const todayBalance = todayInc - todayExp;
         const txCount = todayTx.length;
-        if (txCount === 0) return null;
         const isPositive = todayBalance >= 0;
+
         return (
           <div style={{
-            background: isPositive
-              ? "linear-gradient(135deg, #0a1e12, #052e16)"
-              : "linear-gradient(135deg, #1a0808, #200e0e)",
-            border: `1px solid ${isPositive ? "#16a34a33" : "#7f1d1d33"}`,
-            borderRadius: 16,
-            padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "linear-gradient(135deg,#0a1022,#0d1628)",
+            border: "1px solid #1e3a5f55",
+            borderRadius: 18, padding: "16px 18px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <div>
-              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
-                Dziś · {txCount} {txCount === 1 ? "transakcja" : txCount < 5 ? "transakcje" : "transakcji"}
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+                {txCount === 0 ? "Brak transakcji dziś" : `Dziś · ${txCount} ${txCount === 1 ? "transakcja" : txCount < 5 ? "transakcje" : "transakcji"}`}
               </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700,
-                  color: isPositive ? "#10b981" : "#ef4444" }}>
-                  {isPositive ? "+" : "−"}{fmt(Math.abs(todayBalance))}
-                </span>
-                {todayExp > 0 && todayInc > 0 && (
-                  <span style={{ fontSize: 11, color: "#334155" }}>
-                    ({fmt(todayInc)} − {fmt(todayExp)})
+              {txCount === 0 ? (
+                <div style={{ fontSize: 14, color: "#334155" }}>Dotknij + aby dodać</div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 24, fontWeight: 700,
+                    color: isPositive ? "#10b981" : "#ef4444", letterSpacing: "-0.02em" }}>
+                    {isPositive ? "+" : "−"}{fmt(Math.abs(todayBalance))}
                   </span>
-                )}
-              </div>
+                  {todayExp > 0 && todayInc > 0 && (
+                    <span style={{ fontSize: 11, color: "#334155", fontFamily: "'DM Mono', monospace" }}>
+                      {fmt(todayInc)} / {fmt(todayExp)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <button onClick={onAddTx} style={{
-              background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
-              borderRadius: 10, padding: "8px 14px", color: "white",
-              fontWeight: 700, fontSize: 12, cursor: "pointer",
+              background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+              border: "1px solid #3b82f622", borderRadius: 12,
+              padding: "10px 16px", color: "white",
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
               fontFamily: "'Space Grotesk', sans-serif",
+              boxShadow: "0 4px 12px #1e40af33",
             }}>
               + Dodaj
             </button>
@@ -740,28 +745,40 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       })()}
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: 8 }}>
-        <div>
-          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Całkowity Majątek</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 30, fontWeight: 500, color: hideBalance ? "#1a2744" : "#e2e8f0", transition: "color 0.3s", letterSpacing: "-0.03em" }}>
-              {hideBalance ? "●●●●●●" : fmt(totalBalance)}
-            </span>
-            <button onClick={() => setHideBalance(h => !h)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}>
-              {hideBalance ? <Eye size={16}/> : <EyeOff size={16}/>}
-            </button>
+      <div style={{
+        background: "linear-gradient(135deg,#0a1022,#0d1628)",
+        border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Całkowity Majątek</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700,
+                color: hideBalance ? "#1a2744" : "#e2e8f0", transition: "color 0.3s", letterSpacing: "-0.03em" }}>
+                {hideBalance ? "●●●●●●" : fmt(totalBalance)}
+              </span>
+              <button onClick={() => setHideBalance(h => !h)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#334155", padding: 4 }}>
+                {hideBalance ? <Eye size={15}/> : <EyeOff size={15}/>}
+              </button>
+            </div>
           </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Oszczędności</div>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#10b981" }}>{fmt(savings)}</div>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Inwestycje</div>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#8b5cf6" }}>{fmt(invest)}</div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Oszczędności</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#10b981" }}>{hideBalance ? "●●●" : fmt(savings)}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Inwestycje</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#8b5cf6" }}>{hideBalance ? "●●●" : fmt(invest)}</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Month selector + summary — swipe enabled */}
-      <Card
+      <div
+        style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}
         onTouchStart={e => { const x = e.touches[0].clientX; e.currentTarget._tx = x; }}
         onTouchEnd={e => {
           const dx = e.changedTouches[0].clientX - (e.currentTarget._tx || 0);
@@ -802,10 +819,10 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             <Bar dataKey="expense" fill="#ef444444" radius={[4,4,0,0]}/>
           </BarChart>
         </ResponsiveContainer>
-      </Card>
+      </div>
 
       {/* Balance widget */}
-      <Card style={{ padding: "16px 18px" }}>
+      <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
         <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.08em", marginBottom: 12 }}>
           Stan na dzis · {daysLeft} dni do konca cyklu
@@ -900,7 +917,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           <span>Wydano {spendPct.toFixed(0)}% przychodow</span>
           <span>{fmt(income - expense)} bilans</span>
         </div>
-      </Card>
+      </div>
 
 
 
@@ -916,7 +933,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         income={income} expense={expense} catData={catData}/>
 
       {/* Category breakdown   wydatki & wp ywy */}
-      <Card style={{ padding: "18px 18px 14px" }}>
+      <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {[["expense","📉 Wydatki"],["income","📈 Wpływy"]].map(([t,l]) => (
             <button key={t} onClick={() => setCatTab(t)} style={{
@@ -1004,7 +1021,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             })}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Bukmacher P&L */}
       {(() => {
@@ -1015,7 +1032,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         const roi    = stake > 0 ? (pnl / stake * 100) : 0;
         if (stake === 0 && wins === 0) return null;
         return (
-          <Card style={{ marginBottom: 14, padding: "14px 16px" }}>
+          <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
             <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
               letterSpacing: "0.08em", marginBottom: 12 }}>Bukmacher · biezacy cykl</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -1037,7 +1054,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
               ROI {roi >= 0 ? "+" : ""}{roi.toFixed(1)}%
               <span style={{ color: "#334155", fontWeight: 400 }}> · {bukTx.length} transakcji</span>
             </div>
-          </Card>
+          </div>
         );
       })()}
 
@@ -1049,7 +1066,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         monthTx={monthTx} safeToSpend={safeToSpend} daysLeft={daysLeft}/>
 
       {/* Pie chart */}
-      <Card>
+      <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Struktura majątku</div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <PieChart width={120} height={120}>
@@ -1071,10 +1088,10 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             ))}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Account balance history (simple) */}
-      <Card>
+      <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Historia sald</div>
         <ResponsiveContainer width="100%" height={120}>
           <LineChart data={histData}>
@@ -1093,10 +1110,10 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
       {/* Recent transactions */}
-      <Card>
+      <div style={{ background: "linear-gradient(135deg,#0a1022,#0d1628)", border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px" }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Ostatnie transakcje</div>
         {transactions.slice(0, 5).map(tx => {
           const cat = getCat(tx.cat);
@@ -1116,7 +1133,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             </div>
           );
         })}
-      </Card>
+      </div>
 {/* Recurring Reminder */}
       <RecurringReminder payments={payments||[]} paid={paid||{}} transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>
       {/* PROGNOZA MIESIĘCZNA */}
@@ -1124,7 +1141,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         const today = new Date();
         const dayOfMonth = today.getDate();
         const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
-        if (dayOfMonth < 3) return null; // za mało danych
+        if (dayOfMonth < 3) return null;
         const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
         const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
         const dailyExp = monthExp / dayOfMonth;
@@ -1134,27 +1151,26 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         const isGood = forecastBalance > 0;
         return (
           <div style={{
-            background: "linear-gradient(135deg,#0a0f1e,#0d1628)",
-            border: "1px solid #1e3a5f44",
-            borderRadius: 14, padding: "12px 16px", marginBottom: 14,
+            background: "linear-gradient(135deg,#0a1022,#0d1628)",
+            border: "1px solid #1e3a5f55", borderRadius: 18, padding: "16px 18px",
           }}>
-            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-              📈 Prognoza na koniec miesiąca · {pct}% miesiąca minęło
+            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
+              📈 Prognoza · {pct}% miesiąca
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Szacowane wydatki</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: "#ef4444" }}>{fmt(forecastExp)}</div>
+                <div style={{ fontSize: 10, color: "#475569", marginBottom: 3 }}>Szac. wydatki</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: "#ef4444" }}>~{fmt(forecastExp)}</div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>Prognozowany bilans</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700, color: isGood ? "#10b981" : "#ef4444" }}>
+                <div style={{ fontSize: 10, color: "#475569", marginBottom: 3 }}>Prognoza bilansu</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: isGood ? "#10b981" : "#ef4444" }}>
                   {isGood ? "+" : "−"}{fmt(Math.abs(forecastBalance))}
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 8, background: "#060b14", borderRadius: 6, height: 4, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#1e40af,#3b82f6)", borderRadius: 6 }}/>
+            <div style={{ background: "#060b14", borderRadius: 6, height: 4, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#1e40af,#3b82f6)", borderRadius: 6, transition: "width 1s ease" }}/>
             </div>
           </div>
         );
@@ -1165,37 +1181,44 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         if (!budgets || budgets.length === 0) return null;
         const overBudgets = budgets.filter(b => {
           const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-          return spent >= b.limit * 0.8; // alert od 80% limitu
+          return spent >= b.limit * 0.8;
         }).map(b => {
           const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
           return { ...b, spent, over: spent - b.limit };
         });
         if (overBudgets.length === 0) return null;
         return (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {overBudgets.map(b => {
               const cat = getCat(b.cat);
               const Icon = cat.icon;
               const isOver = b.spent > b.limit;
+              const pct = Math.min(100, Math.round(b.spent / b.limit * 100));
               return (
                 <div key={b.cat} style={{
-                  background: isOver ? "linear-gradient(135deg,#1a0808,#200e0e)" : "linear-gradient(135deg,#1a1200,#221a00)",
-                  border: `1px solid ${isOver ? "#7f1d1d" : "#78350f"}`,
-                  borderRadius: 14, padding: "11px 14px", marginBottom: 8,
-                  display: "flex", alignItems: "center", gap: 10,
+                  background: "linear-gradient(135deg,#0a1022,#0d1628)",
+                  border: `1px solid ${isOver ? "#7f1d1d55" : "#78350f55"}`,
+                  borderRadius: 14, padding: "12px 14px",
+                  display: "flex", alignItems: "center", gap: 12,
                 }}>
-                  <div style={{ background: isOver ? "#ef444422" : "#f59e0b22", borderRadius: 10, padding: 7, flexShrink: 0 }}>
+                  <div style={{ background: (isOver ? "#ef4444" : "#f59e0b") + "20", borderRadius: 10, padding: 8, flexShrink: 0 }}>
                     <Icon size={14} color={isOver ? "#ef4444" : "#f59e0b"}/>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: isOver ? "#fca5a5" : "#fcd34d" }}>
-                      {isOver ? "🔴 Limit przekroczony" : "🟡 Zbliżasz się do limitu"} · {cat.label}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isOver ? "#fca5a5" : "#fcd34d" }}>
+                        {isOver ? "⚠️ " : "🔔 "}{cat.label}
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: isOver ? "#ef4444" : "#f59e0b" }}>
+                        {pct}%
+                      </span>
                     </div>
-                    <div style={{ fontSize: 11, color: isOver ? "#7f1d1d" : "#92400e", marginTop: 1 }}>
-                      {isOver
-                        ? `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · +${fmt(b.over)} ponad limit`
-                        : `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · ${((b.spent/b.limit)*100).toFixed(0)}% limitu`
-                      }
+                    <div style={{ background: "#060b14", borderRadius: 4, height: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", borderRadius: 4,
+                        background: isOver ? "linear-gradient(90deg,#ef4444,#f97316)" : "linear-gradient(90deg,#f59e0b,#fbbf24)" }}/>
+                    </div>
+                    <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                      {fmt(b.spent)} / {fmt(b.limit)}{isOver ? ` · +${fmt(b.over)} ponad` : ""}
                     </div>
                   </div>
                 </div>
