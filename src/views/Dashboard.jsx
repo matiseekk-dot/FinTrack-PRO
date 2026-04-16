@@ -709,22 +709,26 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             {overBudgets.map(b => {
               const cat = getCat(b.cat);
               const Icon = cat.icon;
+              const isOver = b.spent > b.limit;
               return (
                 <div key={b.cat} style={{
-                  background: "linear-gradient(135deg,#1a0808,#200e0e)",
-                  border: "1px solid #7f1d1d",
+                  background: isOver ? "linear-gradient(135deg,#1a0808,#200e0e)" : "linear-gradient(135deg,#1a1200,#221a00)",
+                  border: `1px solid ${isOver ? "#7f1d1d" : "#78350f"}`,
                   borderRadius: 14, padding: "11px 14px", marginBottom: 8,
                   display: "flex", alignItems: "center", gap: 10,
                 }}>
-                  <div style={{ background: "#ef444422", borderRadius: 10, padding: 7, flexShrink: 0 }}>
-                    <Icon size={14} color="#ef4444"/>
+                  <div style={{ background: isOver ? "#ef444422" : "#f59e0b22", borderRadius: 10, padding: 7, flexShrink: 0 }}>
+                    <Icon size={14} color={isOver ? "#ef4444" : "#f59e0b"}/>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#fca5a5" }}>
-                      {spent > b.limit ? "🔴" : "🟡"} {spent > b.limit ? "Limit przekroczony" : "Zbliżasz się do limitu"} · {cat.label}
+                    <div style={{ fontSize: 12, fontWeight: 700, color: isOver ? "#fca5a5" : "#fcd34d" }}>
+                      {isOver ? "🔴 Limit przekroczony" : "🟡 Zbliżasz się do limitu"} · {cat.label}
                     </div>
-                    <div style={{ fontSize: 11, color: "#7f1d1d", marginTop: 1 }}>
-                      Wydano {fmt(b.spent)} z {fmt(b.limit)} · +{fmt(b.over)} ponad limit
+                    <div style={{ fontSize: 11, color: isOver ? "#7f1d1d" : "#92400e", marginTop: 1 }}>
+                      {isOver
+                        ? `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · +${fmt(b.over)} ponad limit`
+                        : `Wydano ${fmt(b.spent)} z ${fmt(b.limit)} · ${((b.spent/b.limit)*100).toFixed(0)}% limitu`
+                      }
                     </div>
                   </div>
                 </div>
