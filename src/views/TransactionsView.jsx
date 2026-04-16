@@ -149,24 +149,23 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
               </button>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setShowSearch(s => !s)} style={{ background: showSearch ? "#1e3a5f" : "#0d1628", border: `1px solid ${showSearch ? "#2563eb" : "#1a2744"}`, color: showSearch ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "6px 10px", cursor: "pointer" }}>
-              🔍
-            </button>
-            <button onClick={() => setModal(true)} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
-              <PlusCircle size={13}/> Dodaj
-            </button>
-          </div>
+          <button onClick={() => setModal(true)} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
+            <PlusCircle size={13}/> Dodaj
+          </button>
         </div>
 
-        {showSearch && (
-          <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Wyszukiwanie — zawsze widoczne */}
+        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ position: "relative" }}>
+            <Search size={14} color="#475569" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}/>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Szukaj opisu, tagu, kategorii…"
-              style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 14px", color: "#e2e8f0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif", outline: "none", boxSizing: "border-box", WebkitAppearance: "none" }}
+              placeholder="Szukaj opisu, kategorii…"
+              style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 14px 9px 34px", color: "#e2e8f0", fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", outline: "none", boxSizing: "border-box", WebkitAppearance: "none" }}
             />
+            {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2 }}>✕</button>}
+          </div>
             <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
               <button onClick={() => setFilterCat("all")} style={{ background: filterCat === "all" ? "#1e3a5f" : "#0d1628", border: `1px solid ${filterCat === "all" ? "#2563eb" : "#1a2744"}`, color: filterCat === "all" ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
                 Wszystkie
@@ -177,8 +176,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          </div>        )}
 
         {(search || filterCat !== "all") && (
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>

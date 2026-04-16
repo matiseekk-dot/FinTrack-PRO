@@ -48,6 +48,7 @@ function getAllCats(customCats = []) {
   const mapped = (customCats || []).map(c => ({
     ...c,
     icon: c.icon || ICON_MAP[c.iconName] || Wallet,
+    label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label,
   }));
   return [...BASE_CATEGORIES, ...mapped];
 }

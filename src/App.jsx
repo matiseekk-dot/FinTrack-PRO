@@ -19,6 +19,8 @@ import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js"
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
+import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
+import { PinLock } from "./components/PinLock.jsx";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
@@ -70,6 +72,7 @@ export default function App() {
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const fabPressTimer  = useRef(null);
   const [loaded,       setLoaded]       = useState(false);
+  const [pinLocked,    setPinLocked]    = useState(() => localStorage.getItem(PIN_ENABLED_KEY) === "1");
   const [importErr,    setImportErr]    = useState("");
   const [syncOk,       setSyncOk]       = useState(false);
 
@@ -280,7 +283,11 @@ export default function App() {
   );
 
   return (
-    <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative" }}>
+    <PinLock>
+    {pinLocked && (
+      <PinScreen onSuccess={() => setPinLocked(false)} title="Wprowadź PIN aby odblokować"/>
+    )}
+    {!pinLocked && <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative" }}>
       <FontLoader/>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -343,7 +350,7 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
+        {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
           {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
           {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
           {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
@@ -365,7 +372,7 @@ export default function App() {
         payments={payments} paid={paid} goals={goals} customCats={customCats}
         setTransactions={setTransactions} setAccounts={setAccounts} setBudgets={setBudgets}
         setPayments={setPayments} setPaid={setPaid} setGoals={setGoals}
-        cycleDay={cycleDay} setCycleDay={setCycleDay} setCustomCats={setCustomCats}
+        cycleDay={cycleDay} setCycleDay={setCycleDay} setCustomCats={setCustomCatsCap}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
