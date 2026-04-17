@@ -909,6 +909,21 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <Divider/>
 
+        {/* Język / Language */}
+        <SectionTitle>🌍 Język / Language</SectionTitle>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {[["pl", "🇵🇱 Polski"], ["en", "🇬🇧 English"]].map(([code, label]) => (
+            <button key={code} onClick={() => setLang(code)} style={{
+              flex: 1, padding: "12px 0", borderRadius: 12, cursor: "pointer",
+              fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+              background: getLang() === code ? "linear-gradient(135deg,#1e40af,#3b82f6)" : "#0d1628",
+              border: getLang() === code ? "1px solid #2563eb" : "1px solid #1e3a5f66",
+              color: getLang() === code ? "white" : "#94a3b8",
+            }}>{label}</button>
+          ))}
+        </div>
+        <Divider/>
+
         {/* PIN Lock */}
         <SectionTitle>🔒 Bezpieczeństwo</SectionTitle>
         <PinSettings/>

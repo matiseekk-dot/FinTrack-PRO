@@ -1,144 +1,111 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Polityka Prywatności — FinTrack PRO</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #060b14; color: #e2e8f0;
-      line-height: 1.7; padding: 32px 20px 64px;
-      max-width: 680px; margin: 0 auto;
-    }
-    h1 { font-size: 26px; font-weight: 800; color: #f8fafc; margin-bottom: 6px; }
-    .subtitle { font-size: 13px; color: #475569; margin-bottom: 40px; }
-    h2 { font-size: 16px; font-weight: 700; color: #60a5fa;
-         margin: 32px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-    p { font-size: 14px; color: #94a3b8; margin-bottom: 12px; }
-    ul { padding-left: 20px; margin-bottom: 12px; }
-    li { font-size: 14px; color: #94a3b8; margin-bottom: 6px; }
-    strong { color: #e2e8f0; }
-    a { color: #60a5fa; text-decoration: none; }
-    .badge {
-      display: inline-block; background: #052e16; border: 1px solid #16a34a44;
-      color: #10b981; border-radius: 8px; padding: 4px 12px;
-      font-size: 12px; font-weight: 700; margin-bottom: 32px;
-    }
-    hr { border: none; border-top: 1px solid #1a2744; margin: 32px 0; }
-    .contact { background: #0a1120; border: 1px solid #1a2744; border-radius: 14px;
-               padding: 20px; margin-top: 32px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polityka Prywatności — FinTrack PRO</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #1e293b; background: #f8fafc; }
+  h1 { color: #1e40af; margin-top: 0; }
+  h2 { color: #0f172a; margin-top: 32px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+  h3 { color: #334155; margin-top: 20px; }
+  .meta { color: #64748b; font-size: 13px; margin-bottom: 32px; }
+  .highlight { background: #dbeafe; padding: 16px; border-radius: 8px; border-left: 4px solid #1e40af; margin: 16px 0; }
+  a { color: #1e40af; }
+  ul { padding-left: 24px; }
+  li { margin-bottom: 6px; }
+  code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
 </head>
 <body>
-  <h1>Polityka Prywatności</h1>
-  <div class="subtitle">Ostatnia aktualizacja: kwiecień 2025</div>
-  <div class="badge">✓ RODO / GDPR compliant</div>
+<h1>Polityka Prywatności</h1>
+<p class="meta">FinTrack PRO · Ostatnia aktualizacja: 17 kwietnia 2026</p>
 
-  <h2>1. Administrator danych</h2>
-  <p>
-    Administratorem danych osobowych jest twórca aplikacji FinTrack PRO,
-    dostępnej pod adresem <a href="https://matiseekk-dot.github.io/FinTrack-PRO/">
-    matiseekk-dot.github.io/FinTrack-PRO</a>.
-    Kontakt: <a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a>
-  </p>
+<div class="highlight">
+<strong>W skrócie:</strong> Twoje dane finansowe są przechowywane lokalnie na Twoim urządzeniu. Opcjonalnie synchronizujemy je z Twoim kontem Google przez Firebase — w takim przypadku tylko Ty masz do nich dostęp. Nie sprzedajemy, nie udostępniamy i nie analizujemy Twoich transakcji.
+</div>
 
-  <h2>2. Jakie dane zbieramy</h2>
-  <p>Aplikacja zbiera wyłącznie dane niezbędne do świadczenia usługi:</p>
-  <ul>
-    <li><strong>Dane konta Google</strong> — imię, adres e-mail i zdjęcie profilowe,
-        przekazywane przez Google podczas logowania (Firebase Authentication)</li>
-    <li><strong>Dane finansowe</strong> — transakcje, konta, cele, płatności które
-        samodzielnie wprowadzasz do aplikacji</li>
-    <li><strong>Dane sesji</strong> — liczba otwarć aplikacji, przechowywana lokalnie
-        na urządzeniu (localStorage), nieprzekazywana na serwer</li>
-  </ul>
-  <p>
-    <strong>Nie zbieramy</strong> danych lokalizacyjnych, danych biometrycznych,
-    danych kontaktów ani żadnych innych danych z Twojego urządzenia.
-  </p>
+<h2>1. Administrator danych</h2>
+<p>Administratorem danych osobowych jest twórca aplikacji FinTrack PRO (dalej "Administrator"). Kontakt: <strong>matiseekk@gmail.com</strong>.</p>
 
-  <h2>3. Cel i podstawa przetwarzania</h2>
-  <ul>
-    <li><strong>Świadczenie usługi</strong> — synchronizacja danych między urządzeniami
-        (art. 6 ust. 1 lit. b RODO — wykonanie umowy)</li>
-    <li><strong>Uwierzytelnianie</strong> — weryfikacja tożsamości użytkownika
-        (art. 6 ust. 1 lit. b RODO)</li>
-  </ul>
+<h2>2. Jakie dane zbieramy</h2>
 
-  <h2>4. Gdzie przechowujemy dane</h2>
-  <p>
-    Twoje dane finansowe są przechowywane w <strong>Google Firebase Firestore</strong>
-    (region: europa-zachód3, Frankfurt, Niemcy). Google LLC jest certyfikowanym
-    podmiotem przetwarzającym dane zgodnie z RODO.
-  </p>
-  <p>
-    Dane są <strong>izolowane per użytkownik</strong> — nikt inny (w tym twórca
-    aplikacji) nie ma dostępu do Twoich danych. Dostęp jest możliwy wyłącznie
-    po zalogowaniu na Twoje konto Google.
-  </p>
+<h3>2.1 Dane przechowywane lokalnie</h3>
+<p>Wszystkie dane finansowe (transakcje, konta, kategorie, budżety, cele, płatności cykliczne) są zapisywane w pamięci <code>localStorage</code> Twojej przeglądarki. Nie są wysyłane na żaden serwer dopóki nie włączysz synchronizacji z chmurą.</p>
 
-  <h2>5. Twoje prawa (RODO)</h2>
-  <ul>
-    <li><strong>Dostęp do danych</strong> — możesz pobrać wszystkie swoje dane
-        w formacie XLSX lub JSON przez Ustawienia → Eksport danych</li>
-    <li><strong>Usunięcie danych</strong> — możesz usunąć wszystkie dane przez
-        Ustawienia → Wyczyść wszystkie dane. Powoduje trwałe usunięcie z Firestore.</li>
-    <li><strong>Przenoszenie danych</strong> — eksport do XLSX/JSON dostępny w aplikacji</li>
-    <li><strong>Sprzeciw</strong> — możesz w każdej chwili usunąć konto i dane</li>
-  </ul>
-  <p>
-    Aby skorzystać z praw lub w razie pytań, skontaktuj się:
-    <a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a>
-  </p>
+<h3>2.2 Dane synchronizowane z chmurą (opcjonalnie)</h3>
+<p>Jeśli zalogujesz się przez Google, Twoje dane zostaną zsynchronizowane z Firebase Firestore (Google Cloud, region europe-west3). Obejmuje to:</p>
+<ul>
+  <li>Transakcje (kwoty, daty, opisy, kategorie)</li>
+  <li>Konta bankowe (nazwy, salda — bez numerów IBAN ani danych logowania do banków)</li>
+  <li>Budżety, cele oszczędnościowe, płatności cykliczne</li>
+  <li>Ustawienia aplikacji (cykl rozliczeniowy, preferencje)</li>
+</ul>
+<p><strong>Nie zbieramy:</strong> haseł do banków, numerów kart kredytowych, danych logowania do kont bankowych, numerów PESEL, NIP, ani innych danych identyfikacyjnych.</p>
 
-  <h2>6. Udostępnianie danych</h2>
-  <p>
-    <strong>Nie sprzedajemy, nie wynajmujemy ani nie udostępniamy</strong> Twoich
-    danych podmiotom trzecim w celach marketingowych. Dane są przekazywane wyłącznie:
-  </p>
-  <ul>
-    <li><strong>Google Firebase</strong> — w celu przechowywania i synchronizacji
-        (procesor danych zgodny z RODO)</li>
-    <li><strong>Google Authentication</strong> — w celu weryfikacji tożsamości</li>
-  </ul>
+<h3>2.3 Dane uwierzytelniania</h3>
+<p>Używamy Google Sign-In. Otrzymujemy od Google tylko: Twój identyfikator użytkownika (UID), adres email i opcjonalnie imię/awatar. Nie mamy dostępu do Twojego hasła Google.</p>
 
-  <h2>7. Bezpieczeństwo</h2>
-  <ul>
-    <li>Wszystkie połączenia są szyfrowane (HTTPS / TLS)</li>
-    <li>Dane w Firestore są chronione regułami bezpieczeństwa —
-        każdy użytkownik widzi wyłącznie swoje dane</li>
-    <li>Hasła nie są przechowywane — logowanie wyłącznie przez Google OAuth</li>
-  </ul>
+<h3>2.4 Dane analityczne</h3>
+<p>Używamy narzędzia GoatCounter do zliczania ruchu na stronie. GoatCounter jest zgodny z RODO, nie używa plików cookies i nie zbiera danych osobowych. Zbieramy tylko:</p>
+<ul>
+  <li>Anonimową informację o odwiedzonej podstronie</li>
+  <li>Przybliżony kraj (na podstawie IP, które NIE jest przechowywane)</li>
+  <li>Typ przeglądarki i system operacyjny</li>
+</ul>
 
-  <h2>8. Pliki cookie i localStorage</h2>
-  <p>
-    Aplikacja używa <strong>localStorage</strong> przeglądarki do przechowywania
-    lokalnej kopii danych i ustawień interfejsu. Nie używamy plików cookie ani
-    technologii śledzących.
-  </p>
+<h2>3. Cele przetwarzania danych</h2>
+<ul>
+  <li>Umożliwienie korzystania z funkcji aplikacji (art. 6 ust. 1 lit. b RODO — wykonanie umowy)</li>
+  <li>Synchronizacja danych między Twoimi urządzeniami (art. 6 ust. 1 lit. a — Twoja zgoda przez zalogowanie)</li>
+  <li>Analiza ruchu (art. 6 ust. 1 lit. f — uzasadniony interes: utrzymanie i rozwój aplikacji)</li>
+</ul>
 
-  <h2>9. Dzieci</h2>
-  <p>
-    Aplikacja nie jest skierowana do dzieci poniżej 13 roku życia i świadomie
-    nie zbieramy danych od takich osób.
-  </p>
+<h2>4. Kto ma dostęp do Twoich danych</h2>
+<p>Tylko Ty. Konkretnie:</p>
+<ul>
+  <li><strong>Administrator</strong> — nie ma technicznego dostępu do Twoich danych finansowych. Są przechowywane pod Twoim UID Google w Firestore i nikt poza Tobą ich nie odczyta.</li>
+  <li><strong>Google (Firebase)</strong> — jako podmiot przetwarzający. Firebase jest certyfikowany pod RODO, dane w regionie europe-west3 (Frankfurt). Umowa z Google regulowana przez <a href="https://firebase.google.com/terms/data-processing-terms">Firebase Data Processing Terms</a>.</li>
+  <li><strong>GoatCounter</strong> — tylko anonimowe dane analityczne.</li>
+</ul>
+<p>Nie przekazujemy danych osobom trzecim, reklamodawcom, brokerom danych, ani żadnej innej firmie.</p>
 
-  <h2>10. Zmiany polityki</h2>
-  <p>
-    O istotnych zmianach poinformujemy przez aktualizację daty na tej stronie.
-    Dalsze korzystanie z aplikacji po wprowadzeniu zmian oznacza ich akceptację.
-  </p>
+<h2>5. Jak długo przechowujemy Twoje dane</h2>
+<p>Tak długo jak sam chcesz. Masz pełną kontrolę:</p>
+<ul>
+  <li>Wyczyść dane lokalne — przycisk "Zresetuj dane" w ustawieniach</li>
+  <li>Usuń konto — napisz na email kontaktowy, usuniemy wszystkie Twoje dane z Firebase w ciągu 7 dni</li>
+  <li>Wyloguj się i odinstaluj apkę — dane lokalne pozostają (jeśli nie wyczyściłeś) ale nie są już synchronizowane</li>
+</ul>
 
-  <hr/>
+<h2>6. Twoje prawa (RODO)</h2>
+<p>Masz prawo do:</p>
+<ul>
+  <li>Dostępu do swoich danych (art. 15 RODO) — zobaczysz wszystko w aplikacji + opcja "Eksport do Excela" w ustawieniach</li>
+  <li>Sprostowania danych (art. 16)</li>
+  <li>Usunięcia danych ("prawo do bycia zapomnianym", art. 17)</li>
+  <li>Ograniczenia przetwarzania (art. 18)</li>
+  <li>Przenoszenia danych (art. 20) — eksport do Excela i CSV dostępny w apce</li>
+  <li>Wniesienia sprzeciwu (art. 21)</li>
+  <li>Wniesienia skargi do Prezesa Urzędu Ochrony Danych Osobowych (uodo.gov.pl)</li>
+</ul>
 
-  <div class="contact">
-    <strong style="color:#60a5fa">Kontakt</strong><br/>
-    <p style="margin-top:8px">
-      W sprawach prywatności i ochrony danych:<br/>
-      📧 <a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a>
-    </p>
-  </div>
+<h2>7. Bezpieczeństwo</h2>
+<ul>
+  <li>Połączenie z chmurą szyfrowane (HTTPS/TLS)</li>
+  <li>Dane w Firebase chronione przez reguły bezpieczeństwa — każdy użytkownik ma dostęp tylko do własnych danych</li>
+  <li>Opcjonalna blokada PIN w aplikacji</li>
+  <li>Brak przechowywania danych logowania do banków ani numerów kart</li>
+</ul>
+
+<h2>8. Zmiany w polityce</h2>
+<p>O zmianach poinformujemy w aplikacji. Aktualna wersja jest zawsze dostępna pod tym adresem.</p>
+
+<h2>9. Kontakt</h2>
+<p>W sprawach dotyczących danych osobowych: <strong>matiseekk@gmail.com</strong></p>
+
+<p style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; text-align: center;">
+FinTrack PRO · <a href="/FinTrack-PRO/">Powrót do aplikacji</a> · <a href="terms.html">Regulamin</a>
+</p>
 </body>
 </html>

@@ -20,6 +20,7 @@ import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMEN
 import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
@@ -385,13 +386,13 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/>}
-          {tab === "accounts"     && <AccountsView accounts={accounts} setAccounts={setAccounts}/>}
-          {tab === "investments"  && <InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/>}
-          {tab === "transactions" && <TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/>}
-          {tab === "payments"     && <PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/>}
-          {tab === "goals"        && <GoalsView goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/>}
-          {tab === "analytics"    && <AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+          {tab === "accounts"     && <ErrorBoundary><AccountsView accounts={accounts} setAccounts={setAccounts}/></ErrorBoundary>}
+          {tab === "investments"  && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/></ErrorBoundary>}
+          {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
+          {tab === "goals"        && <ErrorBoundary><GoalsView goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/></ErrorBoundary>}
+          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/></ErrorBoundary>}
       </div>
 
       {importErr && (
