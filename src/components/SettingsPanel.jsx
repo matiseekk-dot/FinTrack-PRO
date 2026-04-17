@@ -932,50 +932,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Data reset */}
-        {/* PIN / Blokada */}
-        <Divider/>
-        <SectionTitle>🔒 Blokada PIN</SectionTitle>
-        {(() => {
-          const pinEnabled = localStorage.getItem(PIN_ENABLED_KEY) === "1";
-          const [showSetPin, setShowSetPin] = useState(false);
-          const [pinStep, setPinStep] = useState("set"); // set | confirm
-          const [firstPin, setFirstPin] = useState("");
-          return (
-            <>
-              {showSetPin ? (
-                <PinScreen
-                  mode="set"
-                  title={pinStep === "set" ? "Ustaw nowy PIN (6 cyfr)" : "Potwierdź PIN"}
-                  onSuccess={() => { setShowSetPin(false); setPinStep("set"); }}
-                  onCancel={() => { setShowSetPin(false); setPinStep("set"); }}
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#0d1628", borderRadius: 12, border: "1px solid #1a2744" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>Blokada PIN</div>
-                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pinEnabled ? "Włączona — odblokuj PINem lub biometrią" : "Wyłączona"}</div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (pinEnabled) {
-                          localStorage.removeItem(PIN_KEY);
-                          localStorage.removeItem(PIN_ENABLED_KEY);
-                          window.location.reload();
-                        } else {
-                          setShowSetPin(true);
-                        }
-                      }}
-                      style={{ background: pinEnabled ? "#1a0808" : "linear-gradient(135deg,#1e40af,#7c3aed)", border: pinEnabled ? "1px solid #7f1d1d" : "none", borderRadius: 10, padding: "8px 16px", color: pinEnabled ? "#f87171" : "white", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      {pinEnabled ? "Wyłącz" : "Włącz"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-
         <Divider/>
         <SectionTitle>️ Resetowanie danych</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
