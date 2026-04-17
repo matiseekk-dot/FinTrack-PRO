@@ -28,10 +28,10 @@ function AccountsView({ accounts, setAccounts }) {
   const saveAccount = () => {
     if (!form.name || form.balance === "") return;
     if (editAcc) {
-      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: parseFloat(form.balance), currency: form.currency || "PLN" } : x));
+      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, currency: form.currency || "PLN" } : x));
       showToast("Konto zaktualizowane ✓");
     } else {
-      setAccounts(a => [...a, { id: Date.now(), ...form, balance: parseFloat(form.balance), iban: "", currency: form.currency || "PLN" }]);
+      setAccounts(a => [...a, { id: Date.now(), ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, iban: "", currency: form.currency || "PLN" }]);
       showToast("Konto dodane ✓");
     }
     setModal(false);
@@ -53,7 +53,7 @@ function AccountsView({ accounts, setAccounts }) {
   const totalOszczInw = oszczInw.reduce((s, a) => s + a.balance, 0);
 
   const AccCard = ({ acc }) => {
-    const pct = ((acc.balance / total) * 100).toFixed(1);
+    const pct = total > 0 ? ((acc.balance / total) * 100).toFixed(1) : "0.0";
     return (
       <Card style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -142,7 +142,7 @@ function AccountsView({ accounts, setAccounts }) {
       </>}
 
       {/* Add / Edit modal */}
-      <Modal open={modal} onClose={() => setModal(false)} title={editAcc ? "Edytuj konto" : "Nowe konto"}>
+      <Modal open={modal} onClose={() => { setModal(false); setEditAcc(null); }} title={editAcc ? "Edytuj konto" : "Nowe konto"}>
         <Input label="Nazwa konta" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="np. Konto osobiste"/>
         <Input label="Bank" value={form.bank} onChange={e => setForm(f => ({...f, bank: e.target.value}))} placeholder="np. PKO BP"/>
         <div style={{ marginBottom: 16 }}>

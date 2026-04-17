@@ -36,7 +36,12 @@ function RecurringReminder({ payments, paid = {}, transactions, setTransactions,
   if (notYetAdded.length === 0) return null;
 
   const addNow = (p) => {
-    setTransactions(tx => [{ id: Date.now(), date: todayStr, desc: p.name, amount: p.amount, cat: p.cat, acc: p.acc }, ...tx]);
+    setTransactions(tx => [{
+      id: Date.now(), date: todayStr,
+      desc: p.name, amount: p.amount, cat: p.cat, acc: p.acc,
+      linkedPaymentId: p.id,
+      linkedMonth: todayStr.substring(0, 7),  // YYYY-MM
+    }, ...tx]);
     setDismissed(d => ({ ...d, [p.id]: true }));
   };
 

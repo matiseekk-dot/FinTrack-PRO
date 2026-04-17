@@ -38,23 +38,36 @@ function fmtShort(n) {
 // If cycleDay=1   standard calendar month.
 // If cycleDay=25   25th of prev month to 24th of current month.
 // "month" param is 0-indexed (0=Jan   11=Dec), year hardcoded 2026.
+// Helper: ostatni dzień danego miesiąca (1-indexed month)
+function daysInMonth(year, month1) {
+  return new Date(year, month1, 0).getDate();
+}
+
+// Helper: clamp day do liczby dni w miesiącu
+function clampDay(day, year, month1) {
+  return Math.min(day, daysInMonth(year, month1));
+}
+
 function getCycleRange(month, cycleDay, year) {
   const y = year || new Date().getFullYear();
   if (cycleDay <= 1) {
     const m = month + 1;
-    const lastDay = new Date(y, m, 0).getDate();
+    const lastDay = daysInMonth(y, m);
     const start = `${y}-${String(m).padStart(2,"0")}-01`;
     const end   = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
     return [start, end];
   }
   // e.g. cycleDay=25, month=2 (March)   25 Feb   24 Mar
-  // start: cycleDay of previous month
+  // start: cycleDay of previous month (clamped)
   const startMonth = month === 0 ? 12 : month;       // 1-indexed prev month
   const startYear  = month === 0 ? y - 1 : y;
-  const start = `${startYear}-${String(startMonth).padStart(2,"0")}-${String(cycleDay).padStart(2,"0")}`;
-  // end: (cycleDay-1) of current month
+  const startDay   = clampDay(cycleDay, startYear, startMonth);
+  const start = `${startYear}-${String(startMonth).padStart(2,"0")}-${String(startDay).padStart(2,"0")}`;
+  // end: (cycleDay-1) of current month, clamped do ostatniego dnia miesiąca
   const endMonth = month + 1; // 1-indexed
-  const endDay   = cycleDay - 1;
+  const endDayRaw = cycleDay - 1;
+  // Jeśli cycleDay-1 > daysInMonth, użyj lastDay (np. cycleDay=31 w lutym → endDay=28)
+  const endDay = Math.min(endDayRaw, daysInMonth(y, endMonth));
   const end = `${y}-${String(endMonth).padStart(2,"0")}-${String(endDay).padStart(2,"0")}`;
   return [start, end];
 };
@@ -65,9 +78,13 @@ function cycleTxs(transactions, month, cycleDay, year) {
 };
 
 function fmtCycleLabel(month, cycleDay) {
-  if (cycleDay <= 1) return MONTH_NAMES[month] + " " + new Date().getFullYear();
+  const y = new Date().getFullYear();
+  if (cycleDay <= 1) return MONTH_NAMES[month] + " " + y;
   const prevMonth = month === 0 ? 11 : month - 1;
-  return `${cycleDay} ${MONTHS[prevMonth]} – ${cycleDay-1} ${MONTHS[month]} ${new Date().getFullYear()}`;
+  // Clamp day do liczby dni w odpowiednim miesiącu dla ładnego wyświetlenia
+  const startDay = Math.min(cycleDay, daysInMonth(month === 0 ? y-1 : y, prevMonth + 1));
+  const endDay   = Math.min(cycleDay - 1, daysInMonth(y, month + 1));
+  return `${startDay} ${MONTHS[prevMonth]} – ${endDay} ${MONTHS[month]} ${y}`;
 };
 
 

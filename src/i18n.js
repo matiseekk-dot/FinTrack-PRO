@@ -89,6 +89,17 @@ const TRANSLATIONS = {
     "day.4": "Czwartek",
     "day.5": "Piątek",
     "day.6": "Sobota",
+
+    // Additional
+    "dash.spent": "Wydano",
+    "dash.todayDate": "Dzisiaj",
+    "dash.daysLeft": "DNI DO KOŃCA CYKLU",
+    "dash.todayStatus": "STAN NA DZIŚ",
+    "dash.budgetExhausted": "Budżet wyczerpany",
+    "dash.monthElapsed": "miesiąca minęło",
+    "dash.transactionsCount": "transakcje",
+    "dash.noTransactions": "Brak transakcji",
+    "tx.addNew": "+ Dodaj",
   },
   en: {
     "nav.start": "Home",
@@ -152,6 +163,17 @@ const TRANSLATIONS = {
     "day.4": "Thursday",
     "day.5": "Friday",
     "day.6": "Saturday",
+
+    // Additional
+    "dash.spent": "Spent",
+    "dash.todayDate": "Today",
+    "dash.daysLeft": "DAYS UNTIL CYCLE END",
+    "dash.todayStatus": "AS OF TODAY",
+    "dash.budgetExhausted": "Budget exhausted",
+    "dash.monthElapsed": "of month elapsed",
+    "dash.transactionsCount": "transactions",
+    "dash.noTransactions": "No transactions",
+    "tx.addNew": "+ Add",
   },
 };
 

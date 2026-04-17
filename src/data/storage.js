@@ -91,6 +91,36 @@ function migrateData(d) {
       return out;
     });
   }
+
+  // Sanitize liczbowe pola - zamień NaN/Infinity/undefined na 0
+  // Chroni przed propagacją NaN w .reduce() sumach
+  const safeNum = (v) => {
+    const n = typeof v === "number" ? v : parseFloat(v);
+    return isFinite(n) ? n : 0;
+  };
+
+  if (Array.isArray(d.transactions)) {
+    d.transactions = d.transactions
+      .map(t => ({ ...t, amount: safeNum(t.amount) }))
+      .filter(t => t.id && t.date);  // usuń transakcje bez ID lub daty
+  }
+  if (Array.isArray(d.accounts)) {
+    d.accounts = d.accounts.map(a => ({ ...a, balance: safeNum(a.balance) }));
+  }
+  if (Array.isArray(d.budgets)) {
+    d.budgets = d.budgets.map(b => ({ ...b, limit: Math.max(0, safeNum(b.limit)) }));
+  }
+  if (Array.isArray(d.goals)) {
+    d.goals = d.goals.map(g => ({
+      ...g,
+      target: Math.max(0, safeNum(g.target)),
+      saved:  safeNum(g.saved),
+    }));
+  }
+  if (Array.isArray(d.payments)) {
+    d.payments = d.payments.map(p => ({ ...p, amount: safeNum(p.amount) }));
+  }
+
   return d;
 }
 

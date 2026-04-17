@@ -199,10 +199,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               id:     r.ID || Date.now() + i,
               date:   String(r.Data).slice(0, 10),
               desc:   String(r.Opis),
-              amount: parseFloat(r.Kwota),
+              amount: isFinite(parseFloat(r.Kwota)) ? parseFloat(r.Kwota) : 0,
               cat:    String(r.Kategoria || "inne"),
               acc:    parseInt(r.Konto_ID) || 1,
-            }));
+            }))
+            .filter(tx => tx.amount !== 0);  // usuń transakcje z zerową kwotą (były NaN)
           if (newTx.length > 0) { setTransactions(newTx); imported.tx = newTx.length; }
         }
 
@@ -210,12 +211,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           const rows = XLSX.utils.sheet_to_json(wb.Sheets["Konta"]);
           const newAcc = rows
             .filter(r => r.Nazwa && r.Saldo !== undefined)
-            .map(r => ({
-              id:      parseInt(r.ID) || Date.now(),
+            .map((r, i) => ({
+              id:      parseInt(r.ID) || (Date.now() + i),
               name:    String(r.Nazwa),
               type:    String(r.Typ || "checking"),
               bank:    String(r.Bank || ""),
-              balance: parseFloat(r.Saldo),
+              balance: isFinite(parseFloat(r.Saldo)) ? parseFloat(r.Saldo) : 0,
               color:   r.Kolor || "#3b82f6",
               iban:    String(r.IBAN || ""),
             }));
@@ -226,7 +227,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           const rows = XLSX.utils.sheet_to_json(wb.Sheets["Budżety"]);
           const newBud = rows
             .filter(r => r.Kategoria && r.Limit_PLN !== undefined)
-            .map(r => ({ cat: String(r.Kategoria), limit: parseFloat(r.Limit_PLN), color: "#3b82f6" }));
+            .map(r => ({ cat: String(r.Kategoria), limit: isFinite(parseFloat(r.Limit_PLN)) ? parseFloat(r.Limit_PLN) : 0, color: "#3b82f6" }));
           if (newBud.length > 0) { setBudgets(newBud); imported.bud = newBud.length; }
         }
 

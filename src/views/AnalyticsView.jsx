@@ -160,7 +160,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
         {cats6.map(({ m, val }, i) => {
-          const pct = (val / maxVal) * 100;
+          const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
           const isLast = i === cats6.length - 1;
           const color = getCat(trendCat).color;
           return (
@@ -245,7 +245,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
       key,
       total: d.total,
       count: d.count,
-      avg:   d.total / d.count,
+      avg:   d.count > 0 ? d.total / d.count : 0,
       cat:   d.cat,
     })).sort((a,b) => {
       if (sortBy === "count") return b.count - a.count;
@@ -377,7 +377,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
               {groupedData.slice(0, 20).map((row, i) => {
                 const cat  = getLocalCat(row.cat);
                 const Icon = cat.icon;
-                const pct  = (row.total / maxVal) * 100;
+                const pct  = maxVal > 0 ? (row.total / maxVal) * 100 : 0;
                 return (
                   <div key={row.key}>
                     <div style={{ display: "flex", justifyContent: "space-between",
@@ -488,7 +488,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {dayData.map(({ d, v }) => {
-                const pct   = (v / maxVal) * 100;
+                const pct   = maxVal > 0 ? (v / maxVal) * 100 : 0;
                 const color = v > avgDaily * 2 ? "#ef4444" : v > avgDaily * 1.3 ? "#f59e0b" : "#10b981";
                 return (
                   <div key={d} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -558,7 +558,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
               {shops.map(([name, data]) => {
                 const cat   = getCat(data.cat);
                 const Icon  = cat.icon;
-                const pct   = (data.total / maxVal) * 100;
+                const pct   = maxVal > 0 ? (data.total / maxVal) * 100 : 0;
                 return (
                   <div key={name}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>

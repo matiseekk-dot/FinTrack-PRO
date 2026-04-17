@@ -79,10 +79,12 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
 
   const save = () => {
     if (!form.name || !form.amount) return;
+    const parsed = parseFloat(String(form.amount).replace(",", "."));
+    if (!isFinite(parsed) || parsed <= 0) return;
     const item = {
       id:         editItem ? editItem.id : Date.now(),
       name:       form.name,
-      amount:     -Math.abs(parseFloat(form.amount)),
+      amount:     -Math.abs(parsed),
       cat:        form.cat,
       acc:        parseInt(form.acc),
       color:      form.color,
@@ -97,6 +99,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
     if (editItem) { setPayments(p => p.map(x => x.id === editItem.id ? item : x)); showToast("Płatność zaktualizowana ✓"); }
     else          { setPayments(p => [...p, item]); showToast("Płatność dodana ✓"); }
     setModal(false);
+    setEditItem(null);
   };
 
   const del = (id) => setPayments(p => p.filter(x => x.id !== id));
@@ -121,13 +124,40 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
       // Use today if in current billing month, else use dueDay of that month
       // Never create a transaction with a future date
       const todayStr = new Date().toISOString().split("T")[0];
-      const dueStr   = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}-${String(item.dueDay||1).padStart(2,"0")}`;
+      // Clamp dueDay do liczby dni w miesiącu (np. 31 w lutym → 28/29)
+      const y = new Date().getFullYear();
+      const lastDay = new Date(y, month + 1, 0).getDate();
+      const safeDueDay = Math.min(item.dueDay || 1, lastDay);
+      const dueStr   = `${y}-${String(month+1).padStart(2,"0")}-${String(safeDueDay).padStart(2,"0")}`;
       const date     = isCurrentMonth ? todayStr : (dueStr <= todayStr ? dueStr : todayStr);
-      setTransactions(tx => [{ id: Date.now(), date, desc: item.name, amount: item.amount, cat: item.cat, acc: item.acc }, ...tx]);
+      // linkedPaymentId + linkedMonth — precyzyjnie wiążą transakcję z płatnością cykliczną
+      setTransactions(tx => [{
+        id: Date.now(), date,
+        desc: item.name, amount: item.amount, cat: item.cat, acc: item.acc,
+        linkedPaymentId: item.id,
+        linkedMonth: monthKey,
+      }, ...tx]);
     } else {
+      // Usuń transakcję po linkedPaymentId + linkedMonth — 100% pewny match
+      // Fallback: stare transakcje bez linkedPaymentId — match po desc+amount+month (legacy)
       setTransactions(tx => {
-        const idx = tx.findIndex(t => t.desc === item.name && t.date.startsWith(monthKey) && t.amount === item.amount);
-        return idx === -1 ? tx : [...tx.slice(0, idx), ...tx.slice(idx+1)];
+        const idxLinked = tx.findIndex(t =>
+          t.linkedPaymentId === item.id && t.linkedMonth === monthKey
+        );
+        if (idxLinked !== -1) {
+          return [...tx.slice(0, idxLinked), ...tx.slice(idxLinked + 1)];
+        }
+        // Legacy fallback dla starych transakcji bez linkedPaymentId
+        const idxLegacy = tx.findIndex(t =>
+          !t.linkedPaymentId &&
+          t.desc === item.name &&
+          t.date.startsWith(monthKey) &&
+          t.amount === item.amount
+        );
+        if (idxLegacy !== -1) {
+          return [...tx.slice(0, idxLegacy), ...tx.slice(idxLegacy + 1)];
+        }
+        return tx; // brak dopasowania — nie usuwaj nic
       });
     }
   };

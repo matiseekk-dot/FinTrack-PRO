@@ -21,6 +21,7 @@ import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { t } from "./i18n.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
@@ -46,14 +47,19 @@ function applyData(d, s) {
 }
 
 export default function App() {
-  const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore } = useFirebase();
+  const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
   const { showRatingPrompt, dismissRating } = useSessionTracker();
 
   const [tab,          setTab]          = useState("dashboard");
   const [onboarded,    setOnboarded]    = useState(false);
   const [month,        setMonth]        = useState(new Date().getMonth());
   const [customCats,   setCustomCats]   = useState([]);
-  const [vacationArchive, setVacationArchive] = useState(() => JSON.parse(localStorage.getItem("ft_vacations") || "[]"));
+  const [vacationArchive, setVacationArchive] = useState(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("ft_vacations") || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) { return []; }
+  });
   const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
   const streak = useStreak(transactions);
@@ -114,6 +120,18 @@ export default function App() {
         }
       }
     });
+  }, [user, loaded]);
+
+  // Real-time sync: subscribe to remote changes od innych urządzeń
+  useEffect(() => {
+    if (!user || !loaded) return;
+    const unsub = subscribeToUpdates(user.uid, (remoteData) => {
+      // Received remote update — merge z lokalnymi danymi
+      const localSnapshot = stateRef.current;
+      const merged = mergeSnapshots(localSnapshot, remoteData);
+      applyData(merged, setters);
+    });
+    return () => { if (unsub) unsub(); };
   }, [user, loaded]);
 
   // Save to localStorage
@@ -278,12 +296,12 @@ export default function App() {
   }).length;
 
   const TABS = [
-    { id: "dashboard",    label: "Start",      Icon: Home },
-    { id: "transactions", label: "Transakcje", Icon: List },
-    { id: "payments",     label: "Platnosci",  Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
-    { id: "goals",        label: "Cele",       Icon: PiggyBank },
-    { id: "analytics",    label: "Analiza",    Icon: BarChart2 },
-    { id: "investments",  label: "Portfel",    Icon: Briefcase },
+    { id: "dashboard",    label: t("nav.start"),        Icon: Home },
+    { id: "transactions", label: t("nav.transactions"), Icon: List },
+    { id: "payments",     label: t("nav.payments"),     Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
+    { id: "goals",        label: t("nav.goals"),        Icon: PiggyBank },
+    { id: "analytics",    label: t("nav.analytics"),    Icon: BarChart2 },
+    { id: "investments",  label: t("nav.accounts"),     Icon: Briefcase },
   ];
 
   // Loading
@@ -445,7 +463,7 @@ export default function App() {
             onPointerDown={e => e.currentTarget.style.transform = "scale(0.9)"}
             onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}>
             <PlusCircle size={15} color="white"/>
-            <span style={{ fontSize: 8, fontWeight: 800, color: "white", letterSpacing: "0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>DODAJ</span>
+            <span style={{ fontSize: 8, fontWeight: 800, color: "white", letterSpacing: "0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>{t("nav.add").toUpperCase()}</span>
           </button>
           {TABS.slice(3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;

@@ -16,6 +16,7 @@ import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } 
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
+import { t } from "../i18n.js";
 function TransactionsView({ transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
@@ -31,17 +32,29 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
   const [filterCat, setFilterCat] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
-  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: "PLN" });
+  const getEmptyForm = () => ({ date: new Date().toISOString().split("T")[0], desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: "PLN" });
+  const [form, setForm] = useState(getEmptyForm);
 
   const addTx = () => {
     if (!form.desc || !form.amount) return;
+    // Walidacja kwoty: nie może być NaN, Infinity, ujemna lub zero
+    const parsedAmount = parseFloat(String(form.amount).replace(",", "."));
+    if (!isFinite(parsedAmount) || parsedAmount <= 0) {
+      showToast("Wprowadź poprawną kwotę", "error");
+      return;
+    }
+    // Walidacja daty: musi być poprawną datą
+    if (!form.date || isNaN(new Date(form.date).getTime())) {
+      showToast("Wprowadź poprawną datę", "error");
+      return;
+    }
     const incomeCategories = ["przychód","sprzedaż","dodatkowe","bukmacherka"];
     const finalCat = form.type === "income"
       ? (incomeCategories.includes(form.cat) ? form.cat : "przychód")
       : form.cat;
     const RATES = { EUR: 4.28, USD: 3.92, GBP: 5.02, CZK: 0.172, HUF: 0.011, PLN: 1 };
     const rate   = RATES[form.currency] || 1;
-    const rawAmt = Math.abs(parseFloat(form.amount)) * rate;
+    const rawAmt = Math.abs(parsedAmount) * rate;
 
     // Internal transfer: create two transactions
     if (form.type === "transfer" && form.toAcc && parseInt(form.toAcc) !== parseInt(form.acc)) {
@@ -148,13 +161,13 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
       <div style={{ paddingTop: 4, paddingBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", gap: 6 }}>
-            {[["all","Wszystkie"],["income","Przychody"],["expense","Wydatki"]].map(([v,l]) => (
+            {[["all",t("tx.all")],["income",t("tx.income")],["expense",t("tx.expense")]].map(([v,l]) => (
               <button key={v} onClick={() => setFilter(v)} style={{ background: filter === v ? "#1e3a5f" : "#0d1628", border: `1px solid ${filter === v ? "#2563eb" : "#1a2744"}`, color: filter === v ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                 {l}
               </button>
             ))}
           </div>
-          <button onClick={() => setModal(true)} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
             <PlusCircle size={13}/> Dodaj
           </button>
         </div>
@@ -166,15 +179,13 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Szukaj opisu, kategorii…"
+              placeholder={t("tx.search")}
               style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 14px 9px 34px", color: "#e2e8f0", fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", outline: "none", boxSizing: "border-box", WebkitAppearance: "none" }}
             />
             {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2 }}>✕</button>}
           </div>
             <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-              <button onClick={() => setFilterCat("all")} style={{ background: filterCat === "all" ? "#1e3a5f" : "#0d1628", border: `1px solid ${filterCat === "all" ? "#2563eb" : "#1a2744"}`, color: filterCat === "all" ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
-                Wszystkie
-              </button>
+              <button onClick={() => setFilterCat("all")} style={{ background: filterCat === "all" ? "#1e3a5f" : "#0d1628", border: `1px solid ${filterCat === "all" ? "#2563eb" : "#1a2744"}`, color: filterCat === "all" ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{t("tx.all")}</button>
               {(allCats||CATEGORIES).map(c => (
                 <button key={c.id} onClick={() => setFilterCat(c.id)} style={{ background: filterCat === c.id ? c.color+"33" : "#0d1628", border: `1px solid ${filterCat === c.id ? c.color : "#1a2744"}`, color: filterCat === c.id ? c.color : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
                   {c.label}
@@ -185,7 +196,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
 
         {(search || filterCat !== "all") && (
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>
-            Znaleziono: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{filtered.length}</span> transakcji
+            {t("tx.foundCount")}: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{filtered.length}</span>
           </div>
         )}
       </div>
@@ -203,7 +214,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
                 : "Dodaj pierwszą transakcję używając przycisku poniżej lub szablonu powyżej"}
             </div>
             {!search && filterCat === "all" && (
-              <button onClick={() => setModal(true)} style={{
+              <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
                 background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
                 borderRadius: 12, padding: "12px 24px", color: "white",
                 fontWeight: 700, fontSize: 14, cursor: "pointer",

@@ -29,8 +29,8 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
     if (!form.limit) return;
     setBudgets(b => {
       const exists = b.findIndex(x => x.cat === form.cat);
-      if (exists >= 0) { const n = [...b]; n[exists] = { ...n[exists], limit: parseFloat(form.limit) }; return n; }
-      return [...b, { cat: form.cat, limit: parseFloat(form.limit), color: getCat(form.cat).color }];
+      if (exists >= 0) { const n = [...b]; n[exists] = { ...n[exists], limit: Math.max(0, parseFloat(String(form.limit).replace(",", ".")) || 0) }; return n; }
+      return [...b, { cat: form.cat, limit: Math.max(0, parseFloat(String(form.limit).replace(",", ".")) || 0), color: getCat(form.cat).color }];
     });
     setModal(false);
   };
@@ -53,7 +53,7 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
             <span style={{ color: "#334155", fontSize: 14 }}> / {fmt(totalBudget)}</span>
           </div>
         </div>
-        <button onClick={() => setModal(true)} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={() => { setLimitForm({ cat: "bukmacher", limit: "" }); setModal(true); }} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
           <PlusCircle size={13}/> Limit
         </button>
       </div>
@@ -109,7 +109,7 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
         })}
       </div>
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Ustaw limit budżetu">
+      <Modal open={modal} onClose={() => { setModal(false); setEditGoal(null); }} title="Ustaw limit budżetu">
         <Select label="Kategoria" value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
           {CATEGORIES.filter(c => c.id !== "przychód" && c.id !== "inne").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </Select>
@@ -242,12 +242,17 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
   const [modal,       setModal]       = useState(false);
   const [limitModal,  setLimitModal]  = useState(false);
   const [activeTab,   setActiveTab]   = useState("goals");
-  const [vacation, setVacation]       = useState(
-    JSON.parse(localStorage.getItem("ft_vacation") || "null") || {
+  const [vacation, setVacation]       = useState((() => {
+    const defaults = {
       name: "", dest: "", dateFrom: "", dateTo: "", budget: "",
       categories: ["zakupy","jedzenie","transport","rozrywka","zdrowie"],
       pinnedTxIds: [],
-    }
+    };
+    try {
+      const parsed = JSON.parse(localStorage.getItem("ft_vacation") || "null");
+      return parsed && typeof parsed === "object" ? { ...defaults, ...parsed } : defaults;
+    } catch (_) { return defaults; }
+  })()
   );
   const saveVacation = (v) => {
     setVacation(v);
@@ -256,18 +261,28 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
   // Pre-trip filter   at component level (no hooks inside JSX)
   const [expandedVacId, setExpandedVacId] = useState(null);
   const [candidateFrom, setCandidateFrom] = useState(() => {
-    const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
-    if ((stored && stored.dateFrom)) {
-      const d = new Date(stored.dateFrom);
-      d.setMonth(d.getMonth() - 3);
-      return d.toISOString().slice(0,10);
-    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
+      if (stored && stored.dateFrom) {
+        const d = new Date(stored.dateFrom);
+        if (!isNaN(d.getTime())) {
+          d.setMonth(d.getMonth() - 3);
+          return d.toISOString().slice(0,10);
+        }
+      }
+    } catch (_) { /* fallback */ }
     const d = new Date(); d.setMonth(d.getMonth() - 3);
     return d.toISOString().slice(0,10);
   });
   const [candidateTo, setCandidateTo] = useState(() => {
-    const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
-    return (stored && stored.dateFrom) || new Date().toISOString().slice(0,10);
+    try {
+      const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
+      if (stored && stored.dateFrom) {
+        const d = new Date(stored.dateFrom);
+        if (!isNaN(d.getTime())) return stored.dateFrom;
+      }
+    } catch (_) { /* fallback */ }
+    return new Date().toISOString().slice(0,10);
   });
   const [editGoal,    setEditGoal]    = useState(null);
   const EMPTY_FORM = { name: "", target: "", saved: "", accId: 1, color: "#06b6d4", emoji: "💰" };
@@ -284,7 +299,10 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
 
   const saveGoal = () => {
     if (!form.name || !form.target) return;
-    const item = { name: form.name, target: parseFloat(form.target), saved: parseFloat(form.saved||0), accId: parseInt(form.accId), color: form.color, emoji: form.emoji };
+    const target = parseFloat(String(form.target).replace(",", "."));
+    if (!isFinite(target) || target <= 0) return;
+    const saved = parseFloat(String(form.saved || 0).replace(",", "."));
+    const item = { name: form.name, target, saved: isFinite(saved) ? saved : 0, accId: parseInt(form.accId), color: form.color, emoji: form.emoji };
     if (editGoal) {
       setGoals(g => g.map(x => x.id === editGoal.id ? { ...x, ...item } : x));
       showToast("Cel zaktualizowany ✓");
@@ -293,6 +311,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
       showToast("Cel dodany ✓");
     }
     setModal(false);
+    setEditGoal(null);
   };
   const updateSaved = (id, delta) => setGoals(g => g.map(goal => goal.id === id ? { ...goal, saved: Math.max(0, goal.saved + delta) } : goal));
   const deleteGoal  = (id) => setGoals(g => g.filter(x => x.id !== id));
@@ -850,7 +869,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                     const isOpen   = expandedVacId === v.id;
                     const saved    = bgt - v.spent;
                     const totalDays = v.dateFrom && v.dateTo
-                      ? Math.max(1, Math.ceil((new Date(v.dateTo) - new Date(v.dateFrom)) / 86400000))
+                      ? (() => { const t = new Date(v.dateTo), f = new Date(v.dateFrom); return isNaN(t) || isNaN(f) ? 1 : Math.max(1, Math.ceil((t - f) / 86400000)); })()
                       : 0;
 
                     // Transactions that belonged to this vacation

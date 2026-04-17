@@ -47,6 +47,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
     if (editItem) setPortfolio(p => p.map(x => x.id === editItem.id ? item : x));
     else          setPortfolio(p => [...p, item]);
     setModal(false);
+    setEditItem(null);
   };
 
   const remove = (id) => setPortfolio(p => p.filter(x => x.id !== id));
@@ -283,7 +284,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
           <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "min(100vw, 480px)", maxHeight: "85vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <span style={{ fontSize: 17, fontWeight: 700 }}>{editItem ? "Edytuj pozycję" : "Nowa pozycja"}</span>
-              <button onClick={() => setModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
+              <button onClick={() => { setModal(false); setEditItem(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <Input label="Ticker / Symbol (np. IWDA, NVDA)" value={form.ticker} onChange={e => setForm(f => ({...f, ticker: e.target.value}))} placeholder="np. IWDA.AS"/>
