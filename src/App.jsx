@@ -403,6 +403,7 @@ export default function App() {
         </div>
       )}
 
+      <ErrorBoundary>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}
         accounts={accounts} transactions={transactions} budgets={budgets}
         payments={payments} paid={paid} goals={goals} customCats={customCats}
@@ -413,6 +414,7 @@ export default function App() {
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
       />
+      </ErrorBoundary>
 
       {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
       {showMonthlySummary && <MonthlySummary transactions={transactions} month={month} onClose={() => setShowMonthlySummary(false)}/>}
