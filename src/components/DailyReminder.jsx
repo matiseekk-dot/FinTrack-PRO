@@ -1,20 +1,12 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
-} from "lucide-react";
-import { Card } from "./ui/Card.jsx";
+import { useState } from "react";
+import { Flame, PlusCircle, X, CheckCircle2, AlarmClock } from "lucide-react";
 
 function DailyReminder({ transactions, onAddTx }) {
   const today = new Date().toISOString().split("T")[0];
   const todayTxs = transactions.filter(t => t.date === today && t.cat !== "inne");
   const [dismissed, setDismissed] = useState(false);
 
-  // streak: consecutive days with at least one transaction
+  // Streak: consecutive days with at least one transaction
   const streak = (() => {
     let s = 0;
     const d = new Date();
@@ -28,14 +20,8 @@ function DailyReminder({ transactions, onAddTx }) {
     return s;
   })();
 
-  const lastDate = transactions
-    .filter(t => t.cat !== "inne")
-    .map(t => t.date)
-    .sort()
-    .reverse()[0];
-  const daysSinceLast = lastDate
-    ? Math.floor((new Date(today) - new Date(lastDate)) / 86400000)
-    : 99;
+  const lastDate = transactions.filter(t => t.cat !== "inne").map(t => t.date).sort().reverse()[0];
+  const daysSinceLast = lastDate ? Math.floor((new Date(today) - new Date(lastDate)) / 86400000) : 99;
 
   if (dismissed) return null;
 
@@ -44,84 +30,55 @@ function DailyReminder({ transactions, onAddTx }) {
 
   return (
     <div style={{
-      marginBottom: 14,
-      background: urgent
-        ? "linear-gradient(135deg, #1a0a0a 0%, #2d1212 100%)"
-        : "linear-gradient(135deg, #0a1a12 0%, #0d2318 100%)",
-      border: `1px solid ${urgent ? "#7f1d1d" : "#14532d"}`,
-      borderRadius: 16,
-      padding: "14px 16px",
-      position: "relative",
-      overflow: "hidden",
+      background: "linear-gradient(135deg,#0d1628,#111827)",
+      border: "1px solid #1e3a5f66",
+      borderRadius: 20,
+      padding: "16px 18px",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
     }}>
-      {/* subtle glow top */}
-      <div style={{
-        position: "absolute", top: -20, right: -20, width: 80, height: 80,
-        borderRadius: "50%",
-        background: urgent ? "#ef444422" : "#10b98122",
-        filter: "blur(20px)",
-        pointerEvents: "none",
-      }}/>
-
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
         <div style={{
-          background: urgent ? "#ef444422" : "#10b98122",
-          border: `1px solid ${urgent ? "#ef444444" : "#10b98144"}`,
+          background: streak >= 3 ? "#f9731622" : "#1e3a5f",
+          border: `1px solid ${streak >= 3 ? "#f9731644" : "#334155"}`,
           borderRadius: 12, padding: 9, flexShrink: 0,
         }}>
-          {urgent ? <AlarmClock size={18} color="#ef4444"/> : <CheckCircle2 size={18} color="#10b981"/>}
+          <Flame size={18} color={streak >= 3 ? "#f97316" : "#64748b"}/>
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: urgent ? "#fca5a5" : "#86efac" }}>
-                {urgent
-                  ? daysSinceLast === 1 ? "Nie dodałeś dziś transakcji!" : `Brak transakcji od ${daysSinceLast} dni!`
-                  : `Dzisiaj: ${todayTxs.length} transakcj${todayTxs.length === 1 ? "a" : "e"}`
-                }
-              </div>
-              <div style={{ fontSize: 11, color: "#475569", marginTop: 3 }}>
-                {urgent
-                  ? "Pamiętaj – każdy wydatek się liczy 💸"
-                  : `Ostatnia: ${(todayTxs[0] ? todayTxs[0].desc : null) || "—"}`
-                }
-              </div>
-            </div>
-            <button onClick={() => setDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "#334155", padding: 2 }}>
-              <X size={14}/>
-            </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: "#475569", fontWeight: 700,
+            textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3 }}>
+            Seria
           </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-            {/* Streak badge */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#1e2d45", borderRadius: 8, padding: "5px 10px" }}>
-              <Flame size={12} color={streak >= 3 ? "#f97316" : "#475569"}/>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: streak >= 3 ? "#f97316" : "#64748b" }}>
-                {streak} dzień z rzędu
-              </span>
-            </div>
-
-            {/* Quick add button */}
-            <button onClick={onAddTx} style={{
-              display: "flex", alignItems: "center", gap: 5,
-              background: urgent ? "#7f1d1d" : "#14532d",
-              border: `1px solid ${urgent ? "#ef444444" : "#22c55e44"}`,
-              borderRadius: 8, padding: "5px 12px",
-              cursor: "pointer", color: urgent ? "#fca5a5" : "#86efac",
-              fontSize: 12, fontWeight: 700,
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}>
-              <PlusCircle size={12}/> Dodaj teraz
-            </button>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700,
+            color: streak >= 3 ? "#f97316" : "#e2e8f0" }}>
+            {streak} {streak === 1 ? "dzień" : streak < 5 ? "dni" : "dni"}
+            <span style={{ fontSize: 11, color: "#475569", marginLeft: 6, fontFamily: "'Space Grotesk', sans-serif" }}>
+              {urgent ? "· dodaj dziś!" : hasToday ? "· świetnie!" : ""}
+            </span>
           </div>
         </div>
       </div>
+
+      {urgent && (
+        <button onClick={onAddTx} style={{
+          background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+          border: "none", borderRadius: 12,
+          padding: "9px 14px", color: "white",
+          fontWeight: 700, fontSize: 12, cursor: "pointer",
+          fontFamily: "'Space Grotesk', sans-serif",
+          whiteSpace: "nowrap",
+        }}>
+          + Dodaj
+        </button>
+      )}
+
+      <button onClick={() => setDismissed(true)}
+        style={{ background: "none", border: "none", cursor: "pointer", color: "#334155", padding: 4, flexShrink: 0 }}>
+        <X size={14}/>
+      </button>
     </div>
   );
 };
-
-
-
 
 export { DailyReminder };

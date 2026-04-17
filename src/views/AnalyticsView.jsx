@@ -446,7 +446,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
       </div>
 
       {/* Financial Score */}
-      {view === "month" && (() => {
+      {activeView === "month" && (() => {
         const monthTx = cycleTxs(transactions, month, cycleDay);
         const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
         const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
