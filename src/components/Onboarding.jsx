@@ -5,7 +5,7 @@ const ONBOARDING_SLIDES = [
   {
     emoji: "👋",
     title: "Witaj w FinTrack PRO!",
-    desc: "Twój osobisty tracker finansów. Zero chmury, zero subskrypcji — dane zostają tylko na Twoim telefonie.",
+    desc: "Twój osobisty tracker finansów. Zero subskrypcji, synchronizacja w chmurze — Twoje dane bezpieczne między urządzeniami.",
     color: "#3b82f6",
   },
   {
@@ -19,6 +19,12 @@ const ONBOARDING_SLIDES = [
     title: "Planuj i oszczędzaj",
     desc: "Ustaw cele oszczędnościowe, śledź rachunki i płatności cykliczne, rozliczaj wspólne wydatki z partnerem.",
     color: "#10b981",
+  },
+  {
+    emoji: "🔒",
+    title: "Bezpieczeństwo",
+    desc: "Włącz blokadę PIN w Ustawieniach — apka zablokuje się automatycznie gdy wyjdziesz z niej. Tylko Ty masz dostęp do swoich finansów.",
+    color: "#7c3aed",
   },
   {
     emoji: "🚀",

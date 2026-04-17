@@ -77,7 +77,7 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {budgets.map(b => {
-          const cat = getCat(b.cat);
+          const cat = getLocalCat(b.cat);
           const Icon = cat.icon;
           const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
           const pct = Math.min(100, b.limit > 0 ? (spent / b.limit) * 100 : 0);
@@ -232,7 +232,12 @@ function ForecastTab() {
   );
 };
 
-function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive }) {
+function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive, allCats = [] }) {
+  const getLocalCat = (id) => {
+    const found = (allCats || []).find(c => c.id === id);
+    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    return getCat(id);
+  };
   const { toast, showToast } = useToast();
   const [modal,       setModal]       = useState(false);
   const [limitModal,  setLimitModal]  = useState(false);
@@ -451,7 +456,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
             const pct    = b.limit > 0 ? Math.min(100, spent / b.limit * 100) : 0;
             const over   = spent > b.limit;
             const warn   = !over && pct >= 80;
-            const cat    = getCat(b.cat);
+            const cat    = getLocalCat(b.cat);
             const Icon   = cat.icon;
             const remain = b.limit - spent;
 
@@ -722,7 +727,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
                 {candidates.slice(0,20).map(t => {
-                  const cat  = getCat(t.cat);
+                  const cat  = getLocalCat(t.cat);
                   const Icon = cat.icon;
                   const on   = (vacation.pinnedTxIds||[]).includes(t.id);
                   return (
@@ -765,7 +770,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                   Wszystkie ({vacTx.length}) · {fmt(spent)}
                 </div>
                 {vacTx.slice(0,10).map(t => {
-                  const cat  = getCat(t.cat);
+                  const cat  = getLocalCat(t.cat);
                   const Icon = cat.icon;
                   const isPinned = pinned.includes(t.id);
                   return (
@@ -936,7 +941,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                                 <div style={{ fontSize: 10, color: "#475569", fontWeight: 700,
                                   textTransform: "uppercase", marginBottom: 8 }}>Wydatki wg kategorii</div>
                                 {catRows.map(([cat, val]) => {
-                                  const c = getCat(cat);
+                                  const c = getLocalCat(cat);
                                   const Icon = c.icon;
                                   const p = v.spent > 0 ? (val / v.spent * 100) : 0;
                                   return (
@@ -970,7 +975,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                                   Transakcje ({vTxs.length})
                                 </div>
                                 {vTxs.slice(0,12).map(t => {
-                                  const cat = getCat(t.cat);
+                                  const cat = getLocalCat(t.cat);
                                   const Icon = cat.icon;
                                   return (
                                     <div key={t.id} style={{ display: "flex", alignItems: "center",

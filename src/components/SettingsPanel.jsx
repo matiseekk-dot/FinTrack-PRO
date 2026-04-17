@@ -1029,7 +1029,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       {/* Wersja apki */}
       <div style={{ textAlign: "center", padding: "4px 0 4px",
         fontSize: 11, color: "#1e2d45", fontFamily: "'DM Mono', sans-serif" }}>
-        FinTrack PRO · v1.0.0 · 2025–{new Date().getFullYear()}
+        FinTrack PRO · v1.1.0 · 2025–{new Date().getFullYear()}
       </div>
 
       {/* Confirm: załaduj demo */}

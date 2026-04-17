@@ -12,6 +12,7 @@ import {
   ClipboardList, RefreshCw, AlarmClock, Copy
 } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
+import { FinancialScore, Insights, ExpenseTypesBreakdown, Recommendations } from "../components/AnalyticsWidgets.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -98,7 +99,7 @@ function MonthComparison({ transactions, month }) {
           <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>Zmiany per kategoria</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {catRows.slice(0, 8).map(row => {
-              const cat  = getCat(row.cat);
+              const cat  = getLocalCat(row.cat);
               const Icon = cat.icon;
               return (
                 <div key={row.cat} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -145,7 +146,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
       <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14,
         scrollbarWidth: "none", msOverflowStyle: "none" }}>
         {trendCats.map(c => {
-          const cat = getCat(c);
+          const cat = getLocalCat(c);
           return (
             <button key={c} onClick={() => setTrendCat(c)} style={{
               padding: "5px 10px", borderRadius: 16, cursor: "pointer",
@@ -161,7 +162,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
         {cats6.map(({ m, val }, i) => {
           const pct = (val / maxVal) * 100;
           const isLast = i === cats6.length - 1;
-          const color = getCat(trendCat).color;
+          const color = getLocalCat(trendCat).color;
           return (
             <div key={m} style={{ flex: 1, display: "flex", flexDirection: "column",
               alignItems: "center", gap: 4 }}>
@@ -182,7 +183,12 @@ function TrendKategorii({ transactions, month, cycleDay }) {
   );
 };
 
-function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner" }) {
+function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner", allCats = [] }) {
+  const getLocalCat = (id) => {
+    const found = (allCats || []).find(c => c.id === id);
+    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    return getCat(id);
+  };
   if (transactions.length === 0) return (
     <div style={{ padding: "0 16px 100px", textAlign: "center", paddingTop: 80 }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
@@ -369,7 +375,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {groupedData.slice(0, 20).map((row, i) => {
-                const cat  = getCat(row.cat);
+                const cat  = getLocalCat(row.cat);
                 const Icon = cat.icon;
                 const pct  = (row.total / maxVal) * 100;
                 return (
@@ -438,6 +444,35 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
           </Card>
         ))}
       </div>
+
+      {/* Financial Score */}
+      {view === "month" && (() => {
+        const monthTx = cycleTxs(transactions, month, cycleDay);
+        const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
+        const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
+        const today = new Date();
+        const { start: cycStartStr } = getCycleRange(month, cycleDay);
+        const cycStart = new Date(cycStartStr);
+        const elapsed = Math.max(1, Math.round((today - cycStart) / 86400000) + 1);
+        const catData = (() => {
+          const map = {};
+          monthTx.filter(t => t.amount < 0 && t.cat !== "inne").forEach(t => {
+            map[t.cat] = (map[t.cat] || 0) + Math.abs(t.amount);
+          });
+          return Object.entries(map).map(([cat, val]) => ({ cat, val, ...getLocalCat(cat) })).sort((a,b) => b.val - a.val);
+        })();
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
+            <FinancialScore income={monthInc} expense={monthExp} transactions={transactions}
+              month={month} cycleDay={cycleDay} elapsedDays={elapsed}/>
+            <ExpenseTypesBreakdown monthTx={monthTx} income={monthInc}/>
+            <Insights transactions={transactions} month={month} cycleDay={cycleDay}
+              income={monthInc} expense={monthExp} catData={catData}/>
+            <Recommendations income={monthInc} expense={monthExp} catData={catData}
+              monthTx={monthTx} safeToSpend={0} daysLeft={0}/>
+          </div>
+        );
+      })()}
 
       {/* Daily spending */}
       <Card style={{ marginBottom: 14 }}>

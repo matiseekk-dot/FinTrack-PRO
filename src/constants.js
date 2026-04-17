@@ -34,7 +34,20 @@ const BASE_CATEGORIES = [
 ];
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop
-function getCat(id) { return BASE_CATEGORIES.find(c => c.id === id) || { id, label: id, icon: Wallet, color: "#6b7280" }; }
+function getCat(id, customCats = []) {
+  const all = [...BASE_CATEGORIES, ...customCats];
+  const found = all.find(c => c.id === id);
+  if (found) {
+    return {
+      ...found,
+      icon: found.icon || ICON_MAP[found.iconName] || Wallet,
+      label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label,
+    };
+  }
+  // Fallback - capitalize the id itself
+  const label = id ? id.charAt(0).toUpperCase() + id.slice(1) : id;
+  return { id, label, icon: Wallet, color: "#6b7280" };
+}
 const CATEGORIES = BASE_CATEGORIES;
 
 // Helper used where customCats are available

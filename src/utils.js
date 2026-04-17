@@ -18,14 +18,18 @@ function buildHistData(transactions, cycleDay = 1) {
 
 //    UTILS                                                                     
 function fmt(n, showSign = false) {
-  const s = Math.abs(n).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (showSign) return (n >= 0 ? "+" : "−") + s + " zł";
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "0,00 zł";
+  const s = Math.abs(num).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (showSign) return (num >= 0 ? "+" : "−") + s + " zł";
   return s + " zł";
 };
 
 function fmtShort(n) {
-  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1) + "k";
-  return n.toFixed(0);
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "0";
+  if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1) + "k";
+  return num.toFixed(0);
 };
 
 

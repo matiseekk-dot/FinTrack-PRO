@@ -1,11 +1,9 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-
 const Card = ({ children, className = "", style = {} }) => (
   <div style={{
-    background: "linear-gradient(145deg, #0f1825 0%, #0a1120 100%)",
-    border: "1px solid #1a2744",
-    borderRadius: 16,
-    padding: 20,
+    background: "linear-gradient(135deg,#0d1628,#111827)",
+    border: "1px solid #1e3a5f66",
+    borderRadius: 20,
+    padding: 18,
     ...style
   }} className={className}>{children}</div>
 );
@@ -23,6 +21,5 @@ const Badge = ({ children, color = "#3b82f6" }) => (
     fontFamily: "'DM Mono', monospace",
   }}>{children}</span>
 );
-
 
 export { Card, Badge };

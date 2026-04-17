@@ -17,6 +17,11 @@ import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, I
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 function TransactionsView({ transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) {
+  const getLocalCat = (id) => {
+    const found = (allCats || []).find(c => c.id === id);
+    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    return getCat(id);
+  };
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
   const [swipedId, setSwipedId] = useState(null); // id of swiped transaction
@@ -104,7 +109,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
     .filter(t => filterCat === "all" ? true : t.cat === filterCat)
     .filter(t => search === "" ? true :
       t.desc.toLowerCase().includes(search.toLowerCase()) ||
-      getCat(t.cat).label.toLowerCase().includes(search.toLowerCase())
+      getLocalCat(t.cat).label.toLowerCase().includes(search.toLowerCase())
     );
 
   const grouped = useMemo(() => {
@@ -121,16 +126,16 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
         <div style={{ display: "inline-flex", gap: 6, paddingLeft: 0 }}>
           {((() => { try { const s = JSON.parse(localStorage.getItem("ft_templates") || JSON.stringify(INITIAL_TEMPLATES)); return s.map(t => ({...t, desc: t.desc === "Zhabka" ? "Zabka" : t.desc})); } catch(_) { return INITIAL_TEMPLATES; } })()).map(tpl => (
             <button key={tpl.id} onClick={() => {
-              const cat = getCat(tpl.cat);
+              const cat = getLocalCat(tpl.cat);
               setForm({ date: new Date().toISOString().split("T")[0], desc: tpl.desc,
                 amount: String(tpl.amount), cat: tpl.cat, acc: tpl.acc || 1,
                 toAcc: 2, type: "expense", currency: "PLN" });
               setModal(true);
             }} style={{
-              background: getCat(tpl.cat).color + "22",
-              border: `1px solid ${getCat(tpl.cat).color}44`,
+              background: getLocalCat(tpl.cat).color + "22",
+              border: `1px solid ${getLocalCat(tpl.cat).color}44`,
               borderRadius: 20, padding: "6px 12px", cursor: "pointer",
-              color: getCat(tpl.cat).color, fontSize: 12, fontWeight: 600,
+              color: getLocalCat(tpl.cat).color, fontSize: 12, fontWeight: 600,
               whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5,
               flexShrink: 0,
             }}>
@@ -176,7 +181,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
                 </button>
               ))}
             </div>
-          </div>        )}
+        </div>
 
         {(search || filterCat !== "all") && (
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>
@@ -226,7 +231,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
             })()}
             <Card style={{ padding: "4px 16px" }}>
               {txs.map((tx, i) => {
-                const cat = getCat(tx.cat);
+                const cat = getLocalCat(tx.cat);
                 const Icon = cat.icon;
                 const acc = accounts.find(a => a.id === tx.acc);
                 return (
@@ -406,7 +411,7 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
                     onMouseEnter={e => e.currentTarget.style.background = "#1a2744"}
                     onMouseLeave={e => e.currentTarget.style.background = "none"}>
                       <span style={{ fontSize: 14, color: "#e2e8f0" }}>{s}</span>
-                      {prev && <span style={{ fontSize: 11, color: "#475569" }}>{getCat(prev.cat).label}</span>}
+                      {prev && <span style={{ fontSize: 11, color: "#475569" }}>{getLocalCat(prev.cat).label}</span>}
                     </button>
                   );
                 })}
