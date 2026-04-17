@@ -79,7 +79,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh }) {
   const getLocalCat = (id) => {
     const found = allCats.find(c => c.id === id) || allCats.find(c => c.id === id);
-    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
     return getCat(id);
   };
   const [pulling, setPulling] = useState(false);

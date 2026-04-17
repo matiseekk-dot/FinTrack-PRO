@@ -19,7 +19,7 @@ import { useHaptic } from "../hooks/useHaptic.js";
 function TransactionsView({ transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
-    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
     return getCat(id);
   };
   const { toast, showToast } = useToast();

@@ -46,7 +46,7 @@ function getCat(id, customCats = []) {
   if (found) {
     return {
       ...found,
-      icon: found.icon || ICON_MAP[found.iconName] || Wallet,
+      icon: (typeof found.icon === "function") ? found.icon : (ICON_MAP[found.iconName] || Wallet),
       label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label,
     };
   }
@@ -60,7 +60,8 @@ const CATEGORIES = BASE_CATEGORIES;
 function getAllCats(customCats = []) {
   const mapped = (customCats || []).map(c => ({
     ...c,
-    icon: c.icon || ICON_MAP[c.iconName] || Wallet,
+    // Icon musi być funkcją (React component). Jeśli jest obiektem (np. po JSON roundtrip) — fallback
+    icon: (typeof c.icon === "function") ? c.icon : (ICON_MAP[c.iconName] || Wallet),
     label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label,
   }));
   return [...BASE_CATEGORIES, ...mapped];

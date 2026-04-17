@@ -4,7 +4,15 @@ const LS_KEY = "fintrack_v1";
 
 function saveToStorage(data) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    // Przed zapisem: usuń icon (React component) z customCats - nie zachowuje się po JSON
+    const safe = { ...data };
+    if (Array.isArray(safe.customCats)) {
+      safe.customCats = safe.customCats.map(c => {
+        const { icon, ...rest } = c;
+        return { ...rest, iconName: rest.iconName || (icon && icon.displayName) || "Wallet" };
+      });
+    }
+    localStorage.setItem(LS_KEY, JSON.stringify(safe));
     return Promise.resolve(true);
   } catch(e) {
     console.error("[FT] save failed", e);
@@ -68,12 +76,20 @@ function migrateData(d) {
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
-    d.customCats = d.customCats.map(c => ({
-      ...c,
-      label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label,
-      // icon jako string - komponent dodawany przy renderowaniu przez getCat/getAllCats
-      iconName: c.iconName || "Wallet",
-    }));
+    d.customCats = d.customCats.map(c => {
+      const out = { ...c };
+      out.label = c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label;
+      // Icon musi być funkcją (React component). Jeśli zepsuty obiekt (np. po JSON stringify) — usuń
+      if (out.icon != null && typeof out.icon !== "function") {
+        // Zachowaj iconName dla ICON_MAP lookup
+        if (!out.iconName && typeof out.icon === "object" && out.icon.displayName) {
+          out.iconName = out.icon.displayName;
+        }
+        delete out.icon;
+      }
+      out.iconName = out.iconName || "Wallet";
+      return out;
+    });
   }
   return d;
 }

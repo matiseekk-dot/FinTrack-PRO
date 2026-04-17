@@ -187,12 +187,36 @@ export default function App() {
     }
   }, [loaded, user]);
 
-  // One-time migration: capitalize custom category labels and save back
+  // Self-healing migration: capitalize labels + napraw zepsuty icon (po JSON roundtrip)
   useEffect(() => {
     if (!loaded || customCats.length === 0) return;
-    const needsFix = customCats.some(c => c.label && c.label[0] !== c.label[0].toUpperCase());
-    if (!needsFix) return;
-    const fixed = customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label }));
+
+    // Sprawdź czy coś wymaga naprawy
+    const needsLabelFix = customCats.some(c => c.label && c.label[0] !== c.label[0].toUpperCase());
+    const needsIconFix  = customCats.some(c => {
+      // Icon jest OK gdy: undefined, null lub function (React component)
+      // Zepsuty: object (np. {displayName: "Wallet"} po JSON.stringify)
+      return c.icon != null && typeof c.icon !== "function";
+    });
+
+    if (!needsLabelFix && !needsIconFix) return;
+
+    const fixed = customCats.map(c => {
+      const out = { ...c };
+      // Kapitalizuj label
+      if (out.label && out.label[0] !== out.label[0].toUpperCase()) {
+        out.label = out.label.charAt(0).toUpperCase() + out.label.slice(1);
+      }
+      // Napraw icon
+      if (out.icon != null && typeof out.icon !== "function") {
+        // Zachowaj iconName dla ICON_MAP lookup, usuń zepsuty icon
+        if (!out.iconName && out.icon && typeof out.icon === "object" && out.icon.displayName) {
+          out.iconName = out.icon.displayName;
+        }
+        delete out.icon;
+      }
+      return out;
+    });
     setCustomCats(fixed);
   }, [loaded]);
 

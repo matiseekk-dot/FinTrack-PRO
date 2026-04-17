@@ -186,7 +186,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
 function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner", allCats = [] }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
-    if (found) return { ...found, icon: found.icon || Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
+    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
     return getCat(id);
   };
   if (transactions.length === 0) return (
