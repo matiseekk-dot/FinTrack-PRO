@@ -567,9 +567,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
          }}
          onClick={onClose}>
       <div style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: "20px 20px 0 0",
-                    width: "100%", padding: "24px 20px 48px",
+                    width: "100%",
+                    paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
+                    paddingLeft: 20, paddingRight: 20,
                     paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
-                    maxHeight: "92dvh", overflowY: "auto", boxSizing: "border-box" }}
+                    maxHeight: "100dvh", overflowY: "auto", boxSizing: "border-box" }}
            onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -581,9 +583,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </div>
             <span style={{ fontWeight: 800, fontSize: 18 }}>Ustawienia</span>
           </div>
-          <button onClick={onClose} style={{ background: "#1a2744", border: "none", borderRadius: 8,
-                                             padding: 6, cursor: "pointer", color: "#94a3b8" }}>
-            <X size={16}/>
+          <button onClick={onClose} style={{ background: "#1a2744", border: "none", borderRadius: 10,
+                                             padding: 10, cursor: "pointer", color: "#94a3b8",
+                                             minWidth: 40, minHeight: 40,
+                                             display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={18}/>
           </button>
         </div>
 
