@@ -34,6 +34,12 @@ const BASE_CATEGORIES = [
 ];
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop
+const ICON_MAP = {
+  Wallet, TrendingUp, TrendingDown, ShoppingBag, Car, Utensils, Zap, Coffee,
+  Building, Repeat, Gift, Shield, DollarSign, Bell, CreditCard, Briefcase,
+  AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock,
+};
+
 function getCat(id, customCats = []) {
   const all = [...BASE_CATEGORIES, ...customCats];
   const found = all.find(c => c.id === id);
@@ -51,12 +57,6 @@ function getCat(id, customCats = []) {
 const CATEGORIES = BASE_CATEGORIES;
 
 // Helper used where customCats are available
-const ICON_MAP = {
-  Wallet, TrendingUp, TrendingDown, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Bell, CreditCard, Briefcase,
-  AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock,
-};
-
 function getAllCats(customCats = []) {
   const mapped = (customCats || []).map(c => ({
     ...c,

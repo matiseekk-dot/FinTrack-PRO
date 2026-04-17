@@ -99,7 +99,7 @@ function MonthComparison({ transactions, month }) {
           <div style={{ fontSize: 10, color: "#334155", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>Zmiany per kategoria</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {catRows.slice(0, 8).map(row => {
-              const cat  = getLocalCat(row.cat);
+              const cat  = getCat(row.cat);
               const Icon = cat.icon;
               return (
                 <div key={row.cat} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -146,7 +146,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
       <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14,
         scrollbarWidth: "none", msOverflowStyle: "none" }}>
         {trendCats.map(c => {
-          const cat = getLocalCat(c);
+          const cat = getCat(c);
           return (
             <button key={c} onClick={() => setTrendCat(c)} style={{
               padding: "5px 10px", borderRadius: 16, cursor: "pointer",
@@ -162,7 +162,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
         {cats6.map(({ m, val }, i) => {
           const pct = (val / maxVal) * 100;
           const isLast = i === cats6.length - 1;
-          const color = getLocalCat(trendCat).color;
+          const color = getCat(trendCat).color;
           return (
             <div key={m} style={{ flex: 1, display: "flex", flexDirection: "column",
               alignItems: "center", gap: 4 }}>
