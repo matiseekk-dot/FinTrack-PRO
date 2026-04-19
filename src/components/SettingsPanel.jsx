@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import * as XLSX from "xlsx";
 import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
   Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
@@ -16,6 +15,8 @@ import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
 import { PinSettings, PIN_ENABLED_KEY } from "./PinLock.jsx";
 import { getLang, setLang } from "../i18n.js";
+import { getProStatus, deactivatePro } from "../lib/tier.js";
+import { Crown } from "lucide-react";
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -32,8 +33,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
   if (!open) return null;
 
-  //    EXPORT                                                                  
-  const handleExport = () => {
+  //    EXPORT (lazy-load XLSX - 137KB gzipped, 415KB raw)
+  const handleExport = async () => {
+    const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Transakcje
@@ -146,11 +148,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   };
 
   //    IMPORT                                                                  
-  const handleImport = (e) => {
+  const handleImport = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setImportStatus("loading");
     setImportMsg("Wczytuję plik…");
+
+    // Lazy-load XLSX (137 KB gzipped)
+    const XLSX = await import("xlsx");
 
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -591,6 +596,59 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             <X size={18}/>
           </button>
         </div>
+
+        {/* PRO Status Card */}
+        {(() => {
+          const pro = getProStatus();
+          if (pro.isPro) {
+            return (
+              <div style={{
+                background: "linear-gradient(135deg,#1e40af 0%,#7c3aed 100%)",
+                border: "1px solid #60a5fa",
+                borderRadius: 16, padding: "16px 18px",
+                marginBottom: 22,
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <Crown size={14} color="#fbbf24"/>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "white", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      FinTrack PRO
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                    {pro.type === "lifetime" && "Dożywotni dostęp · dziękuję za wsparcie!"}
+                    {pro.type === "yearly" && pro.expiresAt && `Ważny do ${new Date(pro.expiresAt).toLocaleDateString("pl-PL")}`}
+                    {pro.type === "trial" && "Wersja próbna"}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <button onClick={() => { onClose(); setTimeout(() => { if (window.__openUpgrade) window.__openUpgrade("settings"); }, 300); }} style={{
+              width: "100%", background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+              border: "none", borderRadius: 16, padding: "16px 18px",
+              marginBottom: 22, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            }}>
+              <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <Crown size={14} color="#fbbf24"/>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
+                    Upgrade do PRO
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                  99 zł/rok · bez limitów · bez reklam
+                </div>
+              </div>
+              <div style={{ background: "white", color: "#1e40af", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 800 }}>
+                Kup
+              </div>
+            </button>
+          );
+        })()}
 
         {/* CYCLE SECTION */}
         {/* ── DOMYSLNE KONTO ── */}

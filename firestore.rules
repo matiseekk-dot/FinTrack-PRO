@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User data - tylko właściciel może czytać/pisać swoje dane
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Sub-kolekcje (transactions, accounts, etc.) - dziedziczą
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Public: licensing (future) - tylko read
+    match /licenses/{licenseId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // tylko backend może zmieniać
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

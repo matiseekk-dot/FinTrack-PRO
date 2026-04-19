@@ -104,15 +104,36 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
   };
   const histData = useMemo(() => buildHistData(transactions, cycleDay), [transactions, cycleDay]);
   const [hideBalance, setHideBalance] = useState(false);
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
-  const savings = accounts.filter(a => a.type === "savings").reduce((s, a) => s + a.balance, 0);
-  const invest = accounts.filter(a => a.type === "invest").reduce((s, a) => s + a.balance, 0);
 
-  const monthTx = cycleTxs(transactions, month, cycleDay);
+  // Memoized aggregations - jedna pętla per kategoria, zamiast 3x .filter.reduce
+  const accountSums = useMemo(() => {
+    let total = 0, savings = 0, invest = 0;
+    for (const a of accounts) {
+      total += a.balance;
+      if (a.type === "savings") savings += a.balance;
+      else if (a.type === "invest") invest += a.balance;
+    }
+    return { total, savings, invest };
+  }, [accounts]);
+  const totalBalance = accountSums.total;
+  const savings = accountSums.savings;
+  const invest = accountSums.invest;
+
+  const cycleSums = useMemo(() => {
+    const monthTx = cycleTxs(transactions, month, cycleDay);
+    let income = 0, expense = 0;
+    for (const t of monthTx) {
+      if (t.cat === "inne") continue;
+      if (t.amount > 0) income += t.amount;
+      else expense += Math.abs(t.amount);
+    }
+    return { monthTx, income, expense, balance: income - expense };
+  }, [transactions, month, cycleDay]);
+  const monthTx = cycleSums.monthTx;
+  const income = cycleSums.income;
+  const expense = cycleSums.expense;
+  const balance = cycleSums.balance;
   const cycleLabel = fmtCycleLabel(month, cycleDay);
-  const income = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
-  const expense = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
-  const balance = income - expense;
 
   const catData = useMemo(() => {
     const map = {};
@@ -497,6 +518,12 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           </div>
         );
       })()}
+
+      {/* Power user storage warning */}
+      <StorageWarning transactions={transactions} setTransactions={setTransactions}/>
+
+      {/* ═══ INSIGHTS ═══ */}
+      <InsightsCard transactions={transactions} budgets={budgets}/>
 
       {/* ═══ OSTATNIE TRANSAKCJE ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>

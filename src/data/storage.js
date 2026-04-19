@@ -1,8 +1,8 @@
-import * as XLSX from "xlsx";
+import { encryptString, decryptString } from "../lib/crypto.js";
 
 const LS_KEY = "fintrack_v1";
 
-function saveToStorage(data) {
+async function saveToStorage(data) {
   try {
     // Przed zapisem: usuń icon (React component) z customCats - nie zachowuje się po JSON
     const safe = { ...data };
@@ -12,11 +12,23 @@ function saveToStorage(data) {
         return { ...rest, iconName: rest.iconName || (icon && icon.displayName) || "Wallet" };
       });
     }
-    localStorage.setItem(LS_KEY, JSON.stringify(safe));
-    return Promise.resolve(true);
+
+    const serialized = JSON.stringify(safe);
+    const encrypted = await encryptString(serialized);
+
+    try {
+      localStorage.setItem(LS_KEY, encrypted);
+      return true;
+    } catch (quotaErr) {
+      if (quotaErr.name === "QuotaExceededError" || quotaErr.code === 22) {
+        console.error("[FT] Quota exceeded - użyj StorageWarning w Dashboard by zarchiwizować");
+        return false;
+      }
+      throw quotaErr;
+    }
   } catch(e) {
     console.error("[FT] save failed", e);
-    return Promise.resolve(false);
+    return false;
   }
 }
 
@@ -124,10 +136,15 @@ function migrateData(d) {
   return d;
 }
 
-function loadFromStorage() {
+async function loadFromStorage() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    let raw = localStorage.getItem(LS_KEY);
     if (raw) {
+      // Deszyfruj jeśli zaszyfrowane
+      if (raw.startsWith("enc:v1:")) {
+        raw = await decryptString(raw);
+        if (!raw) { console.warn("[FT] Failed to decrypt, using defaults"); return null; }
+      }
       const parsed = JSON.parse(raw);
       return Promise.resolve(migrateData(parsed));
     }

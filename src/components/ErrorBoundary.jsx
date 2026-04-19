@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { reportError } from "../lib/errorTracking.js";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,6 +14,11 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error("[FinTrack] ErrorBoundary caught:", error, errorInfo);
+    // Log do error tracking
+    reportError(error, {
+      type: "react_boundary",
+      componentStack: errorInfo?.componentStack?.substring(0, 500),
+    });
     // Log do analityki jeśli dostępne
     if (window.plausible) {
       window.plausible("error", { props: { message: String(error).substring(0, 100) } });

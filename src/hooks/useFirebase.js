@@ -7,29 +7,27 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase.js";
 
-// Debounce helper
 function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-// Keys we sync to Firestore (everything except UI state)
+// Sync kluczy - wszystko w jednym dokumencie users/{uid}/data/main
+// Przy realnej skali (1-10k userów, do 5000 tx per user) to działa bez problemu.
 const SYNC_KEYS = [
   "accounts", "transactions", "budgets", "payments", "paid",
   "goals", "customCats", "cycleDay", "defaultAcc", "partnerName",
   "portfolio", "month", "vacationArchiveData"
 ];
 
-// Arrays z ID - merge po ID (lepszy konflikt resolution)
+// Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
 const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals", "portfolio", "customCats"];
 
 /**
  * Merge dwóch snapshotów danych z preferencją lokalnych zmian.
- * - Dla tablic z ID: union po ID, zachowuje lokalnie nowsze
- * - Dla obiektów: shallow merge
- * - Dla prymitywów: bierze local jeśli zmienione, inaczej remote
+ * Używane przy real-time sync (onSnapshot) żeby nie tracić zmian.
  */
-function mergeSnapshots(local, remote, localLastWrite) {
+function mergeSnapshots(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
   
@@ -41,24 +39,23 @@ function mergeSnapshots(local, remote, localLastWrite) {
     
     if (localVal === undefined) return;
     
-    // Tablice z ID — union po ID
     if (ARRAY_KEYS_WITH_ID.includes(key) && Array.isArray(localVal) && Array.isArray(remoteVal)) {
+      // Tablice z ID - union po ID, lokalne wygrywają dla duplikatów
       const map = new Map();
-      // Najpierw remote (mają być nadpisane przez local jeśli ID się powtarza)
       remoteVal.forEach(item => { if (item && item.id != null) map.set(item.id, item); });
       localVal.forEach(item => { if (item && item.id != null) map.set(item.id, item); });
       merged[key] = Array.from(map.values());
     }
-    // Tablice bez ID (np. vacationArchiveData) — jeśli local zmienione po sync, bierz local
     else if (Array.isArray(localVal)) {
+      // Tablice bez ID (vacationArchiveData) - bierz dłuższą
       merged[key] = localVal.length >= (remoteVal?.length || 0) ? localVal : remoteVal;
     }
-    // Obiekty (np. paid) — merge kluczy
     else if (typeof localVal === "object" && localVal !== null && typeof remoteVal === "object" && remoteVal !== null) {
+      // Obiekty (paid) - shallow merge
       merged[key] = { ...remoteVal, ...localVal };
     }
-    // Prymitywy — bierz local jeśli localLastWrite istnieje (oznacza że user zmienił)
     else {
+      // Prymitywy (cycleDay, defaultAcc) - lokalne wygrywają
       merged[key] = localVal;
     }
   });
@@ -71,13 +68,12 @@ export function useFirebase() {
   const [authLoading, setAuthLoading] = useState(true);
   const [syncing,     setSyncing]     = useState(false);
   const [syncError,   setSyncError]   = useState(null);
-  const [remoteUpdate, setRemoteUpdate] = useState(null); // Payload od onSnapshot
   
-  const lastLocalSaveRef = useRef(null);   // Timestamp ostatniego lokalnego save
-  const snapshotUnsubRef = useRef(null);   // Odpis od onSnapshot
-  const isSavingRef      = useRef(false);  // Flag: jestem w trakcie zapisywania?
+  const lastLocalSaveRef = useRef(null);
+  const snapshotUnsubRef = useRef(null);
+  const isSavingRef      = useRef(false);
 
-  // Listen to auth state
+  // Auth listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -86,7 +82,6 @@ export function useFirebase() {
     return unsub;
   }, []);
 
-  // Sign in with Google
   const signInGoogle = useCallback(async () => {
     try {
       setSyncError(null);
@@ -100,10 +95,8 @@ export function useFirebase() {
     }
   }, []);
 
-  // Sign out
   const signOutUser = useCallback(async () => {
     try {
-      // Odłącz snapshot przed wylogowaniem
       if (snapshotUnsubRef.current) {
         snapshotUnsubRef.current();
         snapshotUnsubRef.current = null;
@@ -114,7 +107,6 @@ export function useFirebase() {
     }
   }, []);
 
-  // Load user data from Firestore (one-time on login)
   const loadFromFirestore = useCallback(async (uid) => {
     try {
       const snap = await getDoc(doc(db, "users", uid, "data", "main"));
@@ -126,19 +118,16 @@ export function useFirebase() {
     }
   }, []);
 
-  // Subscribe to real-time updates — wywoływane przez App po loginie
+  // Real-time sync dla userów z 2+ urządzeń
   const subscribeToUpdates = useCallback((uid, onRemoteChange) => {
     if (!uid) return;
-    // Cleanup poprzedniej subskrypcji
     if (snapshotUnsubRef.current) snapshotUnsubRef.current();
 
     snapshotUnsubRef.current = onSnapshot(
       doc(db, "users", uid, "data", "main"),
       (snap) => {
         if (!snap.exists()) return;
-        // Ignoruj własne zapisy (hasPendingWrites = true gdy to nasza modyfikacja)
         if (snap.metadata.hasPendingWrites) return;
-        // Ignoruj jeśli właśnie zapisujemy (czasowe okno)
         if (isSavingRef.current) return;
         
         const data = snap.data();
@@ -146,11 +135,9 @@ export function useFirebase() {
           ? Date.now() - lastLocalSaveRef.current 
           : Infinity;
         
-        // Jeśli lokalny zapis był < 3s temu, prawdopodobnie echo naszego zapisu — ignoruj
+        // Ignoruj echo < 3s od własnego save
         if (timeSinceLocalSave < 3000) return;
         
-        // To jest prawdziwy remote update (inne urządzenie) — wyślij do App
-        setRemoteUpdate({ data, receivedAt: Date.now() });
         if (onRemoteChange) onRemoteChange(data);
       },
       (err) => {
@@ -167,7 +154,6 @@ export function useFirebase() {
     };
   }, []);
 
-  // Save user data to Firestore (debounced) z conflict resolution
   const saveToFirestore = useCallback(
     debounce(async (uid, data) => {
       if (!uid) return;
@@ -176,25 +162,33 @@ export function useFirebase() {
       try {
         const payload = {};
         SYNC_KEYS.forEach(k => { if (data[k] !== undefined) payload[k] = data[k]; });
-        // Dodaj timestamp ostatniej modyfikacji po stronie serwera
         payload._lastModified = serverTimestamp();
+        
+        // Warning jeśli dokument robi się duży (90% limit) - prosta prewencja
+        const size = JSON.stringify(payload).length;
+        if (size > 900000) {
+          console.warn(`[FT] Document size ${(size/1024).toFixed(0)}KB - approaching 1MB limit`);
+          // User dostanie warning w UI, ale nadal zapisze
+        }
         
         await setDoc(doc(db, "users", uid, "data", "main"), payload, { merge: true });
         lastLocalSaveRef.current = Date.now();
         setSyncError(null);
       } catch (e) {
-        setSyncError("Błąd synchronizacji. Sprawdź połączenie.");
+        if (e.code === "resource-exhausted" || e.message?.includes("exceeded")) {
+          setSyncError("Dokument za duży. Usuń stare transakcje lub wyeksportuj do pliku.");
+        } else {
+          setSyncError("Błąd synchronizacji. Sprawdź połączenie.");
+        }
         console.error("[FB] save error", e);
       } finally {
         setSyncing(false);
-        // Delay resetu flagi żeby nie złapać własnego echo
         setTimeout(() => { isSavingRef.current = false; }, 500);
       }
     }, 1500),
     []
   );
 
-  // Cleanup na unmount
   useEffect(() => {
     return () => {
       if (snapshotUnsubRef.current) snapshotUnsubRef.current();
@@ -211,7 +205,6 @@ export function useFirebase() {
     loadFromFirestore,
     saveToFirestore,
     subscribeToUpdates,
-    remoteUpdate,
-    mergeSnapshots,   // Eksport helper dla App do użycia
+    mergeSnapshots,
   };
 }

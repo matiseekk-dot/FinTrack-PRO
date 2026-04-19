@@ -302,15 +302,26 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
   };
 
   const activeFilter = (p) => showAll || isActiveThisMonth(p);
-  const credits  = payments.filter(p => p.type === "credit"  && activeFilter(p));
-  const bills    = payments.filter(p => p.type === "bill"     && activeFilter(p));
-  const subs     = payments.filter(p => p.type === "sub"      && activeFilter(p));
-  const savings  = payments.filter(p => p.type === "savings"  && activeFilter(p));
+  // Single-pass grupowanie + agregacja (O(N) zamiast O(4N))
+  const grouped = useMemo(() => {
+    const credits = [], bills = [], subs = [], savings = [];
+    let allMthTotal = 0, allMthPaid = 0;
+    for (const p of payments) {
+      if (!activeFilter(p)) continue;
+      const abs = Math.abs(p.amount);
+      allMthTotal += abs;
+      if (isPaid(p)) allMthPaid += abs;
+      if (p.type === "credit")       credits.push(p);
+      else if (p.type === "bill")    bills.push(p);
+      else if (p.type === "sub")     subs.push(p);
+      else if (p.type === "savings") savings.push(p);
+    }
+    return { credits, bills, subs, savings, allMthTotal, allMthPaid };
+  }, [payments, showAll, month, paid, monthKey]);
 
-  const allItems    = [...credits, ...bills, ...subs, ...savings];
-  const allMthTotal = allItems.reduce((s, x) => s + Math.abs(x.amount), 0);
-  const allMthPaid  = allItems.filter(isPaid).reduce((s, x) => s + Math.abs(x.amount), 0);
-  const totalPct    = allMthTotal > 0 ? (allMthPaid / allMthTotal * 100) : 0;
+  const { credits, bills, subs, savings, allMthTotal, allMthPaid } = grouped;
+  const allItems = [...credits, ...bills, ...subs, ...savings];
+  const totalPct = allMthTotal > 0 ? (allMthPaid / allMthTotal * 100) : 0;
 
   const FREQ_LABELS = { monthly: "Miesięcznie", bimonthly: "Co 2 miesiące", weekly: "Tygodniowo", daily: "Codziennie" };
 

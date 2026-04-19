@@ -36,10 +36,17 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
   };
 
   const totalBudget = budgets.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = budgets.reduce((s, b) => {
-    const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((ss, t) => ss + Math.abs(t.amount), 0);
-    return s + spent;
-  }, 0);
+  // Pre-compute spent per kategoria - jedna pętla O(N) zamiast O(N*M)
+  const spentByCategory = useMemo(() => {
+    const map = {};
+    for (const t of monthTx) {
+      if (t.amount < 0) {
+        map[t.cat] = (map[t.cat] || 0) + Math.abs(t.amount);
+      }
+    }
+    return map;
+  }, [monthTx]);
+  const totalSpent = budgets.reduce((s, b) => s + (spentByCategory[b.cat] || 0), 0);
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
@@ -79,7 +86,7 @@ function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) 
         {budgets.map(b => {
           const cat = getLocalCat(b.cat);
           const Icon = cat.icon;
-          const spent = monthTx.filter(t => t.cat === b.cat && t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+          const spent = spentByCategory[b.cat] || 0;
           const pct = Math.min(100, b.limit > 0 ? (spent / b.limit) * 100 : 0);
           const over = spent > b.limit;
           return (
@@ -345,7 +352,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
     <div style={{ padding: "0 16px 100px" }}>
       {/* Tab switcher */}
       <div style={{ display: "flex", gap: 6, paddingTop: 8, paddingBottom: 14 }}>
-        {[["goals","🎯 Cele"],["limits","🚦 Limity"],["vacation","🏖️ Wakacje"]].map(([t,l]) => (
+        {[["goals","🎯 Cele"],["limits","🚦 Limity"]].map(([t,l]) => (
           <button key={t} onClick={() => setActiveTab(t)} style={{
             flex: 1, padding: "9px 0", borderRadius: 12, cursor: "pointer", fontWeight: 700, fontSize: 12,
             fontFamily: "'Space Grotesk', sans-serif",

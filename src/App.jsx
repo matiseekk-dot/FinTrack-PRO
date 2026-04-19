@@ -6,6 +6,7 @@ import {
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { Onboarding } from "./components/Onboarding.jsx";
+import { EmptyStateSetup } from "./components/EmptyStateSetup.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
 import { AccountsView } from "./views/AccountsView.jsx";
@@ -21,6 +22,9 @@ import { useFirebase } from "./hooks/useFirebase.js";
 import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
 import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { UpgradeModal } from "./components/UpgradeModal.jsx";
+import { FeedbackButton } from "./components/FeedbackButton.jsx";
+import { getProStatus } from "./lib/tier.js";
 import { t } from "./i18n.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
@@ -51,9 +55,14 @@ export default function App() {
   const { showRatingPrompt, dismissRating } = useSessionTracker();
 
   const [tab,          setTab]          = useState("dashboard");
+  const openUpgrade = (trigger) => setUpgradeModal({ open: true, trigger });
+  // Expose globalnie dla komponentów które nie mają props (np. SettingsPanel close → upgrade)
+  if (typeof window !== "undefined") window.__openUpgrade = openUpgrade;
   const [onboarded,    setOnboarded]    = useState(false);
   const [month,        setMonth]        = useState(new Date().getMonth());
   const [customCats,   setCustomCats]   = useState([]);
+  const [proStatus,    setProStatus]    = useState(() => getProStatus());
+  const [upgradeModal, setUpgradeModal] = useState({ open: false, trigger: null });
   const [vacationArchive, setVacationArchive] = useState(() => {
     try {
       const parsed = JSON.parse(localStorage.getItem("ft_vacations") || "[]");
@@ -99,36 +108,39 @@ export default function App() {
 
   // Load from localStorage on mount
   useEffect(() => {
+    let cancelled = false;
     if (localStorage.getItem("ft_onboarded") === "1") setOnboarded(true);
     loadFromStorage().then(d => {
+      if (cancelled) return;
       try { applyData(d, setters); } catch(e) { console.error("[FT] restore error", e); }
       setLoaded(true);
-    }).catch(() => setLoaded(true));
+    }).catch(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
   }, []);
 
   // Load from Firestore when user logs in
   useEffect(() => {
     if (!user || !loaded) return;
-    if (skipFirestoreLoad.current) return; // user just did onboarding — don't overwrite their choice
+    if (skipFirestoreLoad.current) return;
+    let cancelled = false;
     loadFromFirestore(user.uid).then(d => {
+      if (cancelled) return;
       if (d) {
         applyData(d, setters);
-        // If device is new (no ft_onboarded) but user has Firestore data → skip onboarding
         if (!onboarded && (d.transactions?.length > 0 || d.payments?.length > 0)) {
           localStorage.setItem("ft_onboarded", "1");
           setOnboarded(true);
         }
       }
     });
+    return () => { cancelled = true; };
   }, [user, loaded]);
 
-  // Real-time sync: subscribe to remote changes od innych urządzeń
+  // Real-time sync (dla userów z 2+ urządzeń)
   useEffect(() => {
     if (!user || !loaded) return;
     const unsub = subscribeToUpdates(user.uid, (remoteData) => {
-      // Received remote update — merge z lokalnymi danymi
-      const localSnapshot = stateRef.current;
-      const merged = mergeSnapshots(localSnapshot, remoteData);
+      const merged = mergeSnapshots(stateRef.current, remoteData);
       applyData(merged, setters);
     });
     return () => { if (unsub) unsub(); };
@@ -144,13 +156,14 @@ export default function App() {
   // Save to Firestore
   useEffect(() => {
     if (!loaded || !user || clearingRef.current) return;
+    let cancelled = false;
     const t = setTimeout(() => {
-      if (clearingRef.current) return;
-      saveToFirestore(user.uid, stateRef.current).then(() => {
-        setSyncOk(true); setTimeout(() => setSyncOk(false), 2500);
-      });
+      if (clearingRef.current || cancelled) return;
+      saveToFirestore(user.uid, stateRef.current);
+      // saveToFirestore jest debounced - nie czekamy na .then żeby uniknąć race
+      setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName]);
 
   useEffect(() => {
@@ -331,8 +344,26 @@ export default function App() {
   // Onboarding
   if (!onboarded) return (
     <Onboarding
-      onFinish={() => { skipFirestoreLoad.current = true; localStorage.setItem("ft_onboarded","1"); setOnboarded(true); setTimeout(() => { setFabOpen(true); setTab("transactions"); }, 500); }}
+      onFinish={() => { skipFirestoreLoad.current = true; localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
       onLoadDemo={() => { skipFirestoreLoad.current = true; loadDemo(); localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
+    />
+  );
+
+  // Empty state setup - po onboardingu, jeśli user nie dodał jeszcze konta
+  const needsSetup = loaded && onboarded &&
+    transactions.length === 0 &&
+    accounts.every(a => !a.balance || a.balance === 0) &&
+    localStorage.getItem("ft_setup_done") !== "1";
+
+  if (needsSetup) return (
+    <EmptyStateSetup
+      onComplete={(accData) => {
+        // Zastąp domyślne konta pierwszym userskim kontem
+        const newAcc = { id: Date.now(), ...accData };
+        setAccounts([newAcc, { id: Date.now()+1, name: "Oszczędności", type: "savings", bank: "", balance: 0, color: "#10b981", iban: "" }]);
+        setDefaultAcc(newAcc.id);
+        localStorage.setItem("ft_setup_done", "1");
+      }}
     />
   );
 
@@ -352,7 +383,7 @@ export default function App() {
             <Wallet size={14} color="white"/>
           </div>
           <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>FinTrack PRO</span>
-          {cycleDay > 1 && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 700, color: "#f59e0b", background: "#78350f22", border: "1px solid #78350f66", borderRadius: 6, padding: "2px 6px" }}>/{cycleDay}</span>}
+          {cycleDay > 1 && <span title={`Cykl rozliczeniowy: od ${cycleDay}. dnia miesiąca`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#78350f22", border: "1px solid #78350f66", borderRadius: 6, padding: "2px 6px" }}>Cykl {cycleDay}.</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {syncing && (
@@ -404,12 +435,12 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
-          {tab === "accounts"     && <ErrorBoundary><AccountsView accounts={accounts} setAccounts={setAccounts}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+          {tab === "accounts"     && <ErrorBoundary><AccountsView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts}/></ErrorBoundary>}
           {tab === "investments"  && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "goals"        && <ErrorBoundary><GoalsView goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/></ErrorBoundary>}
+          {tab === "goals"        && <ErrorBoundary><GoalsView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/></ErrorBoundary>}
           {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/></ErrorBoundary>}
       </div>
 
@@ -437,6 +468,15 @@ export default function App() {
       {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
       {showMonthlySummary && <MonthlySummary transactions={transactions} month={month} onClose={() => setShowMonthlySummary(false)}/>}
       {fabMenu && <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
+
+      <UpgradeModal
+        open={upgradeModal.open}
+        trigger={upgradeModal.trigger}
+        onClose={() => setUpgradeModal({ open: false, trigger: null })}
+        onActivated={() => { setProStatus(getProStatus()); }}
+      />
+
+      <FeedbackButton/>
 
       {quickAddOpen && (
         <TransactionsView transactions={transactions}

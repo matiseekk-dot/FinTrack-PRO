@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import * as XLSX from "xlsx";
 import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
   Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
@@ -17,6 +16,8 @@ import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, I
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 import { t } from "../i18n.js";
+import { canAddTransaction } from "../lib/tier.js";
+import { checkLimit } from "../lib/rateLimit.js";
 function TransactionsView({ transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
@@ -37,6 +38,22 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
 
   const addTx = () => {
     if (!form.desc || !form.amount) return;
+    // Rate limit - zapobiega przypadkowym pętlom / atakom
+    if (!editingId) {
+      const rateCheck = checkLimit("addTransaction");
+      if (!rateCheck.allowed) {
+        alert(`Zbyt wiele transakcji naraz. Poczekaj ${Math.ceil(rateCheck.resetIn/1000)}s.`);
+        return;
+      }
+    }
+    // Paywall: sprawdź limit transakcji dla Free userów (tylko dla nowych, nie edycji)
+    if (!editingId) {
+      const check = canAddTransaction(transactions, proStatus?.isPro);
+      if (!check.allowed) {
+        if (openUpgrade) openUpgrade("limit");
+        return;
+      }
+    }
     // Walidacja kwoty: nie może być NaN, Infinity, ujemna lub zero
     const parsedAmount = parseFloat(String(form.amount).replace(",", "."));
     if (!isFinite(parsedAmount) || parsedAmount <= 0) {
@@ -116,23 +133,70 @@ function TransactionsView({ transactions, setTransactions, accounts, setAccounts
   };
 
   const todayStr2 = new Date().toISOString().split("T")[0];
-  const filtered = transactions
-    .filter(t => t.date <= todayStr2) // nie pokazuj przyszlych transakcji
-    .filter(t => filter === "all" ? true : filter === "income" ? t.amount > 0 : t.amount < 0)
-    .filter(t => filterCat === "all" ? true : t.cat === filterCat)
-    .filter(t => search === "" ? true :
-      t.desc.toLowerCase().includes(search.toLowerCase()) ||
-      getLocalCat(t.cat).label.toLowerCase().includes(search.toLowerCase())
-    );
 
-  const grouped = useMemo(() => {
-    const g = {};
-    filtered.forEach(t => { if (!g[t.date]) g[t.date] = []; g[t.date].push(t); });
-    return Object.entries(g).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [filtered]);
+  // Memoized filter + grouping - jedna pętla zamiast 4 filter + forEach
+  const { filtered, grouped } = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    const result = [];
+    const groupMap = {};
+
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      // Single-pass filter
+      if (t.date > todayStr2) continue;
+      if (filter === "income" && t.amount <= 0) continue;
+      if (filter === "expense" && t.amount >= 0) continue;
+      if (filterCat !== "all" && t.cat !== filterCat) continue;
+      if (searchLower !== "") {
+        const descMatch = t.desc && t.desc.toLowerCase().includes(searchLower);
+        const catLabel = getLocalCat(t.cat).label;
+        const catMatch = catLabel && catLabel.toLowerCase().includes(searchLower);
+        if (!descMatch && !catMatch) continue;
+      }
+      result.push(t);
+      if (!groupMap[t.date]) groupMap[t.date] = [];
+      groupMap[t.date].push(t);
+    }
+
+    const sorted = Object.entries(groupMap).sort((a, b) => b[0].localeCompare(a[0]));
+    return { filtered: result, grouped: sorted };
+  }, [transactions, filter, filterCat, search, todayStr2]);
+
+  // Free tier warning - pokaż gdy blisko limitu
+  const tierCheck = canAddTransaction(transactions, proStatus?.isPro);
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
+      {/* Free tier limit warning */}
+      {!proStatus?.isPro && tierCheck.count >= 30 && (
+        <div style={{
+          background: tierCheck.warning || !tierCheck.allowed
+            ? "linear-gradient(135deg,#7f1d1d,#991b1b)"
+            : "linear-gradient(135deg,#1e3a8a,#312e81)",
+          border: "1px solid " + (tierCheck.warning || !tierCheck.allowed ? "#ef444444" : "#3b82f644"),
+          borderRadius: 14, padding: "12px 14px", marginTop: 10, marginBottom: 4,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 2 }}>
+              {tierCheck.allowed
+                ? `${tierCheck.count} / ${tierCheck.limit} transakcji w tym miesiącu`
+                : `Limit ${tierCheck.limit} transakcji osiągnięty`}
+            </div>
+            <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+              {tierCheck.allowed ? "Pozostało " + tierCheck.remaining : "Upgrade aby dodawać dalej"}
+            </div>
+          </div>
+          <button onClick={() => openUpgrade && openUpgrade("limit")} style={{
+            background: "white", color: "#1e40af", border: "none",
+            borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 800,
+            cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+          }}>
+            Upgrade
+          </button>
+        </div>
+      )}
+
       {/* Quick templates */}
       <div style={{ overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 8, paddingTop: 8,
         scrollbarWidth: "none", msOverflowStyle: "none" }}>
