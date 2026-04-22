@@ -18,6 +18,7 @@ import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { RetirementCalculator } from "../components/RetirementCalculator.jsx";
 function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
 
@@ -285,7 +286,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
 
       {/* View switcher */}
       <div style={{ display: "flex", gap: 8, paddingTop: 8, paddingBottom: 14 }}>
-        {[["month","Biezacy"],["period","Okresy"]].map(([v,l]) => (
+        {[["month","Bieżący"],["period","Okresy"],["retirement","Emerytura"]].map(([v,l]) => (
           <button key={v} onClick={() => setActiveView(v)} style={{
             flex: 1, padding: "10px 0", borderRadius: 12, cursor: "pointer",
             fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
@@ -295,6 +296,17 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
           }}>{l}</button>
         ))}
       </div>
+
+      {/* Retirement/Emerytura view */}
+      {activeView === "retirement" && (
+        <div>
+          <RetirementCalculator/>
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "#0a1a2e", border: "1px solid #1e3a5f44", borderRadius: 12, fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
+            💡 <strong style={{ color: "#94a3b8" }}>Limity 2026</strong> są szacunkami (publikowane przez MPiPS w listopadzie 2025).
+            IKE: 26 019 zł · IKZE: 10 407 zł (15 611 zł dla samozatrudnionych)
+          </div>
+        </div>
+      )}
 
       {/* Okresy view */}
       {activeView === "period" && (

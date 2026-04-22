@@ -7,6 +7,8 @@ import {
   Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
   ClipboardList, RefreshCw, AlarmClock, Copy
 } from "lucide-react";
+import { ACCOUNT_TYPES, ACCOUNT_GROUPS, groupAccountsByCategory, sumByGroup, getAccountType } from "../lib/accountTypes.js";
+import { Shield as ShieldIcon, Landmark as LandmarkIcon, Wallet as WalletIcon } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
@@ -18,39 +20,35 @@ function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
   const [editAcc, setEditAcc] = useState(null); // account being edited
-  const [form, setForm] = useState({ name: "", bank: "", balance: "", type: "checking", color: "#3b82f6" });
+  const [form, setForm] = useState({ name: "", bank: "", balance: "", type: "checking", color: "#3b82f6", annualContribution: "", employerContribution: "" });
 
   const ACC_COLORS = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316"];
   const nextColor = () => ACC_COLORS[accounts.length % ACC_COLORS.length];
-  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor(), currency: "PLN" }); setModal(true); };
-  const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color, currency: acc.currency || "PLN" }); setModal(true); };
+  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor(), currency: "PLN", annualContribution: "", employerContribution: "" }); setModal(true); };
+  const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color, currency: acc.currency || "PLN", annualContribution: acc.annualContribution ? String(acc.annualContribution) : "", employerContribution: acc.employerContribution ? String(acc.employerContribution) : "" }); setModal(true); };
 
   const saveAccount = () => {
     if (!form.name || form.balance === "") return;
     if (editAcc) {
-      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, currency: form.currency || "PLN" } : x));
+      setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, currency: form.currency || "PLN", annualContribution: form.annualContribution ? parseFloat(String(form.annualContribution).replace(",", ".")) || 0 : 0, employerContribution: form.employerContribution ? parseFloat(String(form.employerContribution).replace(",", ".")) || 0 : 0 } : x));
       showToast("Konto zaktualizowane ✓");
     } else {
-      setAccounts(a => [...a, { id: Date.now(), ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, iban: "", currency: form.currency || "PLN" }]);
+      setAccounts(a => [...a, { id: Date.now(), ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, iban: "", currency: form.currency || "PLN", annualContribution: form.annualContribution ? parseFloat(String(form.annualContribution).replace(",", ".")) || 0 : 0, employerContribution: form.employerContribution ? parseFloat(String(form.employerContribution).replace(",", ".")) || 0 : 0 }]);
       showToast("Konto dodane ✓");
     }
     setModal(false);
+    setEditAcc(null);
   };
 
   const deleteAcc = (id) => {
     setAccounts(a => a.filter(x => x.id !== id)); showToast("Konto usunięte", "error");
   };
 
-  const typeLabel = { checking: "Rachunek", savings: "Oszczędności", invest: "Inwestycje" };
-  const total     = accounts.reduce((s, a) => s + a.balance, 0);
-  const biezace   = accounts.filter(a => a.type === "checking");
-  const oszcz     = accounts.filter(a => a.type === "savings");
-  const inwest    = accounts.filter(a => a.type === "invest");
-  const oszczInw  = accounts.filter(a => a.type !== "checking");
-  const totalBiezace  = biezace.reduce((s, a) => s + a.balance, 0);
-  const totalOszcz    = oszcz.reduce((s, a) => s + a.balance, 0);
-  const totalInwest   = inwest.reduce((s, a) => s + a.balance, 0);
-  const totalOszczInw = oszczInw.reduce((s, a) => s + a.balance, 0);
+  const typeLabel = (type) => (ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking).label;
+  // Grupowanie po ACCOUNT_GROUPS (liquid/invest/retirement/longterm)
+  const grouped = groupAccountsByCategory(accounts);
+  const sums = sumByGroup(accounts);
+  const total = sums.total;
 
   const AccCard = ({ acc }) => {
     const pct = total > 0 ? ((acc.balance / total) * 100).toFixed(1) : "0.0";
@@ -60,14 +58,19 @@ function AccountsView({ accounts, setAccounts }) {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 42, height: 42, borderRadius: 12, background: acc.color + "22",
               border: `1px solid ${acc.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {acc.type === "invest"  ? <TrendingUp size={17} color={acc.color}/> :
-               acc.type === "savings" ? <PiggyBank  size={17} color={acc.color}/> :
-               <CreditCard size={17} color={acc.color}/>}
+              {(() => {
+                const t = getAccountType(acc.type);
+                if (t.group === "retirement") return <ShieldIcon size={17} color={acc.color}/>;
+                if (t.group === "longterm") return <LandmarkIcon size={17} color={acc.color}/>;
+                if (acc.type === "invest") return <TrendingUp size={17} color={acc.color}/>;
+                if (acc.type === "savings") return <PiggyBank size={17} color={acc.color}/>;
+                return <CreditCard size={17} color={acc.color}/>;
+              })()}
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15 }}>{acc.name}</div>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-                {acc.bank} · <Badge color={acc.color}>{typeLabel[acc.type]}</Badge>
+                {acc.bank} · <Badge color={acc.color}>{typeLabel(acc.type)}</Badge>
               </div>
             </div>
           </div>
@@ -117,29 +120,30 @@ function AccountsView({ accounts, setAccounts }) {
         </button>
       </div>
 
-      {/* Konta bie  ce   tylko je li istniej  */}
-      {biezace.length > 0 && <>
-        <SectionHeader label="💳 Konta bieżące" total={totalBiezace} color="#3b82f6"/>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-          {biezace.map(acc => <AccCard key={acc.id} acc={acc}/>)}
-        </div>
-      </>}
-
-      {/* Konta oszcz dno ciowe */}
-      {oszcz.length > 0 && <>
-        <SectionHeader label="🏦 Oszczędności" total={totalOszcz} color="#06b6d4"/>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-          {oszcz.map(acc => <AccCard key={acc.id} acc={acc}/>)}
-        </div>
-      </>}
-
-      {/* Inwestycje */}
-      {inwest.length > 0 && <>
-        <SectionHeader label="📈 Inwestycje" total={totalInwest} color="#8b5cf6"/>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {inwest.map(acc => <AccCard key={acc.id} acc={acc}/>)}
-        </div>
-      </>}
+      {/* Grupy kont - iteracja w kolejności priority */}
+      {Object.entries(ACCOUNT_GROUPS)
+        .sort((a, b) => a[1].priority - b[1].priority)
+        .map(([groupKey, groupInfo]) => {
+          const items = grouped[groupKey] || [];
+          if (items.length === 0) return null;
+          const emoji = groupKey === "liquid" ? "💳" : groupKey === "invest" ? "📈" : groupKey === "retirement" ? "🏛️" : "🏦";
+          return (
+            <div key={groupKey} style={{ marginBottom: 24 }}>
+              <SectionHeader
+                label={`${emoji} ${groupInfo.label}`}
+                total={sums[groupKey]}
+                color={groupInfo.color}
+              />
+              <div style={{ fontSize: 10, color: "#475569", marginBottom: 10, marginTop: -6 }}>
+                {groupInfo.subtitle}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {items.map(acc => <AccCard key={acc.id} acc={acc}/>)}
+              </div>
+            </div>
+          );
+        })
+      }
 
       {/* Add / Edit modal */}
       <Modal open={modal} onClose={() => { setModal(false); setEditAcc(null); }} title={editAcc ? "Edytuj konto" : "Nowe konto"}>
@@ -161,10 +165,59 @@ function AccountsView({ accounts, setAccounts }) {
         </div>
         <Input label="Saldo (zł)" type="number" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
         <Select label="Typ konta" value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>
-          <option value="checking">Rachunek bieżący</option>
-          <option value="savings">Oszczędności</option>
-          <option value="invest">Inwestycje</option>
+          <optgroup label="Gotówka dostępna">
+            <option value="checking">Rachunek bieżący</option>
+            <option value="savings">Oszczędności</option>
+          </optgroup>
+          <optgroup label="Inwestycje">
+            <option value="invest">Inwestycje (brokerage)</option>
+          </optgroup>
+          <optgroup label="Emerytura długoterminowa">
+            <option value="ppk">PPK — Pracownicze Plany Kapitałowe</option>
+            <option value="ike">IKE — Indywidualne Konto Emerytalne</option>
+            <option value="ikze">IKZE — Indywidualne Konto Zabezp. Emerytalnego</option>
+          </optgroup>
+          <optgroup label="Majątek długoterminowy">
+            <option value="bonds">Obligacje skarbowe</option>
+          </optgroup>
         </Select>
+
+        {/* Dodatkowe pola dla kont emerytalnych */}
+        {["ike", "ikze", "ppk"].includes(form.type) && (
+          <div style={{
+            background: "#0a1a2e",
+            border: "1px solid #1e3a5f44",
+            borderRadius: 10,
+            padding: "12px 14px",
+            marginBottom: 16,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#06b6d4", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+              💡 Dane dla kalkulatora {form.type.toUpperCase()}
+            </div>
+            <Input
+              label="Wpłata roczna (zł)"
+              type="number"
+              value={form.annualContribution}
+              onChange={e => setForm(f => ({...f, annualContribution: e.target.value}))}
+              placeholder={form.type === "ikze" ? "np. 7500" : form.type === "ike" ? "np. 15000" : "np. 2400"}
+            />
+            {form.type === "ppk" && (
+              <Input
+                label="Dopłata pracodawcy rocznie (zł)"
+                type="number"
+                value={form.employerContribution}
+                onChange={e => setForm(f => ({...f, employerContribution: e.target.value}))}
+                placeholder="np. 1800"
+              />
+            )}
+            <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.4, marginTop: 6 }}>
+              {form.type === "ikze" && "Limit 2026: 10 407 zł (15 611 zł dla samozatrudnionych)"}
+              {form.type === "ike" && "Limit 2026: 26 019 zł"}
+              {form.type === "ppk" && "Typowo 2% Twojej pensji + 1.5% od pracodawcy + 240 zł/rok od państwa"}
+            </div>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>Kolor</div>
           <div style={{ display: "flex", gap: 8 }}>

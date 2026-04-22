@@ -57,7 +57,9 @@ function spendByWeekday(transactions) {
 }
 
 // Główny generator — zwraca TOP 3 insight'y dla Dashboardu
-function generateInsights(transactions, budgets = []) {
+import { generateRetirementInsights } from "./retirementCalc.js";
+
+function generateInsights(transactions, budgets = [], accounts = []) {
   if (!Array.isArray(transactions) || transactions.length === 0) return [];
 
   const insights = [];
@@ -179,6 +181,10 @@ function generateInsights(transactions, budgets = []) {
       }
     }
   }
+
+  // Dodaj retirement insights
+  const retirementIns = generateRetirementInsights(accounts);
+  insights.push(...retirementIns);
 
   // Sortuj po priorytecie i zwróć top 3
   return insights.sort((a, b) => b.priority - a.priority).slice(0, 3);

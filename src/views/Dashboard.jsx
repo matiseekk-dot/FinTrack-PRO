@@ -105,19 +105,29 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
   const histData = useMemo(() => buildHistData(transactions, cycleDay), [transactions, cycleDay]);
   const [hideBalance, setHideBalance] = useState(false);
 
-  // Memoized aggregations - jedna pętla per kategoria, zamiast 3x .filter.reduce
+  // Memoized aggregations - grupuje po liquid/invest/retirement/longterm
   const accountSums = useMemo(() => {
-    let total = 0, savings = 0, invest = 0;
+    const sums = sumByGroup(accounts);
+    // Dla kompatybilności wstecznej
+    let savingsOnly = 0;
     for (const a of accounts) {
-      total += a.balance;
-      if (a.type === "savings") savings += a.balance;
-      else if (a.type === "invest") invest += a.balance;
+      if (a.type === "savings") savingsOnly += a.balance;
     }
-    return { total, savings, invest };
+    return {
+      total: sums.total,
+      liquid: sums.liquid,             // gotówka dostępna (checking + savings)
+      savings: savingsOnly,             // tylko savings
+      invest: sums.invest,              // inwestycje płynne
+      retirement: sums.retirement,      // PPK + IKE + IKZE
+      longterm: sums.longterm,          // obligacje, nieruchomości
+      netWorth: sums.total,             // suma wszystkiego
+    };
   }, [accounts]);
-  const totalBalance = accountSums.total;
+  const totalBalance = accountSums.liquid;        // "Gotówka dostępna" jako główna
+  const netWorth = accountSums.netWorth;          // "Majątek" jako druga
   const savings = accountSums.savings;
   const invest = accountSums.invest;
+  const retirement = accountSums.retirement;
 
   const cycleSums = useMemo(() => {
     const monthTx = cycleTxs(transactions, month, cycleDay);
@@ -374,15 +384,16 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         );
       })()}
 
-      {/* ═══ MAJĄTEK ═══ */}
+      {/* ═══ GOTÓWKA DOSTĘPNA (główna karta) ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{t("dash.totalWealth")}</div>
+            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Gotówka dostępna</div>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700,
               color: hideBalance ? "#1a2744" : "#e2e8f0", letterSpacing: "-0.03em" }}>
               {hideBalance ? "●●●●●" : fmt(totalBalance)}
             </span>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>płynne, dostępne od ręki</div>
           </div>
           <button onClick={() => setHideBalance(h => !h)}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#334155", marginTop: 4 }}>
@@ -406,6 +417,44 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           </div>
         )}
       </div>
+
+      {/* ═══ MAJĄTEK (net worth z emeryturą) ═══ */}
+      {(retirement > 0 || accountSums.longterm > 0 || invest > 0) && !hideBalance && (
+        <div style={{ background: "linear-gradient(135deg,#0a1a2e,#0d1628)", border: "1px solid #1e3a5f44", borderRadius: 20, padding: "16px 20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Majątek łączny</div>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: "#cbd5e1", letterSpacing: "-0.02em" }}>
+                {fmt(netWorth)}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, paddingTop: 10, borderTop: "1px solid #1e3a5f44" }}>
+            <div>
+              <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Gotówka</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>{fmt(accountSums.liquid)}</div>
+            </div>
+            {invest > 0 && (
+              <div>
+                <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Inwestycje</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#8b5cf6" }}>{fmt(invest)}</div>
+              </div>
+            )}
+            {retirement > 0 && (
+              <div>
+                <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Emerytura</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#06b6d4" }}>{fmt(retirement)}</div>
+              </div>
+            )}
+            {accountSums.longterm > 0 && (
+              <div>
+                <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Długoterminowy</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#eab308" }}>{fmt(accountSums.longterm)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══ MIESIĄC ═══ */}
       <div
@@ -523,7 +572,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       <StorageWarning transactions={transactions} setTransactions={setTransactions}/>
 
       {/* ═══ INSIGHTS ═══ */}
-      <InsightsCard transactions={transactions} budgets={budgets}/>
+      <InsightsCard transactions={transactions} budgets={budgets} accounts={accounts}/>
 
       {/* ═══ OSTATNIE TRANSAKCJE ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>
