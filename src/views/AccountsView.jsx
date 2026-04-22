@@ -46,7 +46,7 @@ function AccountsView({ accounts, setAccounts }) {
 
   const typeLabel = (type) => (ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking).label;
   // Grupowanie po ACCOUNT_GROUPS (liquid/invest/retirement/longterm)
-  const grouped = groupAccountsByCategory(accounts);
+  const grouped = groupAccountsByCategory(accounts.filter(a => a.type !== "invest"));
   const sums = sumByGroup(accounts);
   const total = sums.total;
 

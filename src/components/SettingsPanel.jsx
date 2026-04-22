@@ -690,24 +690,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           ))}
         </div>
 
-        <SectionTitle>👫 Nazwa partnera / partnerki</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-          Wyświetlana w module wspólnych rachunków.
-        </p>
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
-          <input
-            value={partnerName}
-            onChange={e => setPartnerName && setPartnerName(e.target.value)}
-            placeholder="np. Anna, Marek, Partner…"
-            maxLength={30}
-            style={{
-              flex: 1, background: "#0a1120", border: "1px solid #1a2744",
-              borderRadius: 10, padding: "10px 14px", color: "#e2e8f0",
-              fontSize: 16, fontFamily: "inherit",
-            }}
-          />
-        </div>
-
         <SectionTitle>📅 Cykl rozliczeniowy</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
           Ustaw dzień miesiąca, od którego zaczyna się Twój cykl. Dzień <strong style={{color:"#e2e8f0"}}>1</strong> = standardowy miesiąc kalendarzowy.
@@ -751,6 +733,86 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* EXPORT SECTION */}
+        <SectionTitle>🏷️ Moje kategorie</SectionTitle>
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
+          Dodaj własne kategorie wydatków lub przychodów.
+        </p>
+
+        {/* Existing custom cats */}
+        {customCats.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {customCats.map(cat => (
+              <div key={cat.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}</span>
+                  <span style={{ fontSize: 11, color: "#334155" }}>{cat.type === "income" ? "przychód" : "wydatek"}</span>
+                </div>
+                <button onClick={() => setCustomCats(c => c.filter(x => x.id !== cat.id))}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}>
+                  <Trash2 size={13}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new custom cat */}
+        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[["expense","Wydatek"],["income","Przychód"]].map(([v,l]) => (
+              <button key={v} onClick={() => setNewCatType(v)} style={{
+                flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
+                fontFamily: "'Space Grotesk', sans-serif",
+                background: newCatType === v ? "#1e3a5f" : "transparent",
+                border: `1px solid ${newCatType === v ? "#2563eb" : "#1a2744"}`,
+                color: newCatType === v ? "#60a5fa" : "#475569",
+              }}>{l}</button>
+            ))}
+          </div>
+          <input
+            value={newCatLabel}
+            onChange={e => setNewCatLabel(e.target.value)}
+            placeholder="Nazwa kategorii (np. Siłownia)"
+            style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
+              padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif",
+              outline: "none", marginBottom: 10, WebkitAppearance: "none" }}
+          />
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase" }}>Kolor</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
+                <div key={c} onClick={() => setNewCatColor(c)}
+                  style={{ width: 28, height: 28, borderRadius: 8, background: c, cursor: "pointer",
+                    border: newCatColor === c ? "2px solid white" : "2px solid transparent" }}/>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (!newCatLabel.trim()) return;
+              const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
+              if (CATEGORIES.find(c => c.id === id)) { alert("Kategoria o tej nazwie już istnieje"); return; }
+              const capLabel = newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1);
+              setCustomCats(c => [...c, {
+                id, label: capLabel,
+                iconName: "Wallet", color: newCatColor,
+                type: newCatType, custom: true,
+                group: newCatType === "income" ? "income" : "lifestyle",
+              }]);
+              setNewCatLabel("");
+            }}
+            style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
+              borderRadius: 10, padding: "11px 0", color: "white", fontWeight: 700, fontSize: 14,
+              cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
+            + Dodaj kategorię
+          </button>
+        </div>
+
+        <Divider/>
+
+        {/* Język / Language */}
         <SectionTitle>📤 Eksport danych</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
           Pobierz wszystkie swoje dane jako plik Excel (.xlsx) z 7 arkuszami:
@@ -909,86 +971,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         </p>
         <TemplatesEditor/>
 
-        <SectionTitle>🏷️ Moje kategorie</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          Dodaj własne kategorie wydatków lub przychodów.
-        </p>
-
-        {/* Existing custom cats */}
-        {customCats.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {customCats.map(cat => (
-              <div key={cat.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}</span>
-                  <span style={{ fontSize: 11, color: "#334155" }}>{cat.type === "income" ? "przychód" : "wydatek"}</span>
-                </div>
-                <button onClick={() => setCustomCats(c => c.filter(x => x.id !== cat.id))}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}>
-                  <Trash2 size={13}/>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add new custom cat */}
-        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {[["expense","Wydatek"],["income","Przychód"]].map(([v,l]) => (
-              <button key={v} onClick={() => setNewCatType(v)} style={{
-                flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
-                fontFamily: "'Space Grotesk', sans-serif",
-                background: newCatType === v ? "#1e3a5f" : "transparent",
-                border: `1px solid ${newCatType === v ? "#2563eb" : "#1a2744"}`,
-                color: newCatType === v ? "#60a5fa" : "#475569",
-              }}>{l}</button>
-            ))}
-          </div>
-          <input
-            value={newCatLabel}
-            onChange={e => setNewCatLabel(e.target.value)}
-            placeholder="Nazwa kategorii (np. Siłownia)"
-            style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
-              padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif",
-              outline: "none", marginBottom: 10, WebkitAppearance: "none" }}
-          />
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase" }}>Kolor</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
-                <div key={c} onClick={() => setNewCatColor(c)}
-                  style={{ width: 28, height: 28, borderRadius: 8, background: c, cursor: "pointer",
-                    border: newCatColor === c ? "2px solid white" : "2px solid transparent" }}/>
-              ))}
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              if (!newCatLabel.trim()) return;
-              const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
-              if (CATEGORIES.find(c => c.id === id)) { alert("Kategoria o tej nazwie już istnieje"); return; }
-              const capLabel = newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1);
-              setCustomCats(c => [...c, {
-                id, label: capLabel,
-                iconName: "Wallet", color: newCatColor,
-                type: newCatType, custom: true,
-                group: newCatType === "income" ? "income" : "lifestyle",
-              }]);
-              setNewCatLabel("");
-            }}
-            style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
-              borderRadius: 10, padding: "11px 0", color: "white", fontWeight: 700, fontSize: 14,
-              cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-            + Dodaj kategorię
-          </button>
-        </div>
-
-        <Divider/>
-
-        {/* Język / Language */}
         <SectionTitle>🌍 Język / Language</SectionTitle>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {[["pl", "🇵🇱 Polski"], ["en", "🇬🇧 English"]].map(([code, label]) => (
@@ -1007,6 +989,24 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <SectionTitle>🔒 Bezpieczeństwo</SectionTitle>
         <PinSettings/>
         <Divider/>
+
+        <SectionTitle>👫 Nazwa partnera / partnerki</SectionTitle>
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
+          Wyświetlana w module wspólnych rachunków.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
+          <input
+            value={partnerName}
+            onChange={e => setPartnerName && setPartnerName(e.target.value)}
+            placeholder="np. Anna, Marek, Partner…"
+            maxLength={30}
+            style={{
+              flex: 1, background: "#0a1120", border: "1px solid #1a2744",
+              borderRadius: 10, padding: "10px 14px", color: "#e2e8f0",
+              fontSize: 16, fontFamily: "inherit",
+            }}
+          />
+        </div>
 
         {/* Data reset */}
         <Divider/>
