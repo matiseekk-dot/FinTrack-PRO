@@ -657,7 +657,21 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           Konto wypełniane automatycznie przy dodawaniu transakcji.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {accounts.map(acc => (
+          {accounts.filter(acc => acc.type === "checking").length === 0 && (
+            <div style={{
+              padding: "14px 16px",
+              background: "#1a1208",
+              border: "1px solid #78350f",
+              borderRadius: 12,
+              fontSize: 12,
+              color: "#fbbf24",
+              lineHeight: 1.5,
+              marginBottom: 8,
+            }}>
+              Brak konta osobistego. Dodaj konto typu "Rachunek bieżący" w zakładce Portfel.
+            </div>
+          )}
+          {accounts.filter(acc => acc.type === "checking").map(acc => (
             <button key={acc.id} onClick={() => setCycleDay && setDefaultAcc && setDefaultAcc(acc.id)} style={{
               display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
               background: defaultAcc === acc.id ? acc.color + "22" : "#060b14",

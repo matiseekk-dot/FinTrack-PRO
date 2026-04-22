@@ -3,11 +3,16 @@
 
 import { fmt } from "../utils.js";
 
-// Helper: grupa transakcji per kategoria
+// Kategorie pomijane w insightach - user nie ma na nie bezpośredniego wpływu
+// (rachunki, podatki, inwestycje są "fixed cost" - insighty o nich są bezużyteczne)
+const INSIGHT_IGNORED_CATS = ["rachunki", "rząd", "inwestycje", "inne"];
+
+// Helper: grupa transakcji per kategoria (z pominięciem stałych)
 function groupByCategory(transactions) {
   const map = {};
   transactions.forEach(t => {
-    if (t.amount >= 0 || t.cat === "inne") return;
+    if (t.amount >= 0) return;
+    if (INSIGHT_IGNORED_CATS.includes(t.cat)) return;
     if (!map[t.cat]) map[t.cat] = { total: 0, count: 0, cat: t.cat };
     map[t.cat].total += Math.abs(t.amount);
     map[t.cat].count++;
@@ -19,7 +24,8 @@ function groupByCategory(transactions) {
 function groupByMerchant(transactions) {
   const map = {};
   transactions.forEach(t => {
-    if (t.amount >= 0 || !t.desc || t.cat === "inne") return;
+    if (t.amount >= 0 || !t.desc) return;
+    if (INSIGHT_IGNORED_CATS.includes(t.cat)) return;
     const key = t.desc.toLowerCase().trim();
     if (!map[key]) map[key] = { name: t.desc, total: 0, count: 0 };
     map[key].total += Math.abs(t.amount);

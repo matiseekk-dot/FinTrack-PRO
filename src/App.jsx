@@ -12,6 +12,7 @@ import { Dashboard } from "./views/Dashboard.jsx";
 import { AccountsView } from "./views/AccountsView.jsx";
 import { TransactionsView } from "./views/TransactionsView.jsx";
 import { InvestmentsView } from "./views/InvestmentsView.jsx";
+import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
 import { GoalsView } from "./views/GoalsView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
@@ -314,7 +315,7 @@ export default function App() {
     { id: "payments",     label: t("nav.payments"),     Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
     { id: "goals",        label: t("nav.goals"),        Icon: PiggyBank },
     { id: "analytics",    label: t("nav.analytics"),    Icon: BarChart2 },
-    { id: "investments",  label: t("nav.accounts"),     Icon: Briefcase },
+    { id: "portfolio",    label: t("nav.accounts"),     Icon: Briefcase },
   ];
 
   // Loading
@@ -426,9 +427,6 @@ export default function App() {
               }
             </button>
           </div>
-          <button onClick={() => setTab("accounts")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-            <CreditCard size={17} color="#475569"/>
-          </button>
           <Settings size={17} color="#475569" style={{ cursor: "pointer" }} onClick={() => setSettingsOpen(true)}/>
         </div>
       </div>
@@ -436,8 +434,7 @@ export default function App() {
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
         {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
-          {tab === "accounts"     && <ErrorBoundary><AccountsView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts}/></ErrorBoundary>}
-          {tab === "investments"  && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolio} accounts={accounts}/></ErrorBoundary>}
+          {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts} portfolio={portfolio} setPortfolio={setPortfolio}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
           {tab === "goals"        && <ErrorBoundary><GoalsView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/></ErrorBoundary>}
