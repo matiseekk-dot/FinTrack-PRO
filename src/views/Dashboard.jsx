@@ -20,6 +20,9 @@ import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, I
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
+import { sumByGroup } from "../lib/accountTypes.js";
+import { InsightsCard } from "../components/InsightsCard.jsx";
+import { StorageWarning } from "../components/StorageWarning.jsx";
 
 const EXPENSE_TYPES = {
   investment: ["inwestycje"],
