@@ -15,7 +15,7 @@ import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
+import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
@@ -80,7 +80,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 
 
 
-function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh }) {
+function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh, portfolio = [] }) {
   const getLocalCat = (id) => {
     const found = allCats.find(c => c.id === id) || allCats.find(c => c.id === id);
     if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
@@ -109,8 +109,10 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
   const [hideBalance, setHideBalance] = useState(false);
 
   // Memoized aggregations - grupuje po liquid/invest/retirement/longterm
+  // Saldo invest accounts wyliczane z portfolio[] (suma valuePLN linkowanych pozycji),
+  // bo balance konta invest jest zarządzany osobno (Inwestycje), nie przez transakcje.
   const accountSums = useMemo(() => {
-    const sums = sumByGroup(accounts);
+    const sums = sumByGroup(accounts, portfolio);
     // Dla kompatybilności wstecznej
     let savingsOnly = 0;
     for (const a of accounts) {
@@ -120,12 +122,12 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       total: sums.total,
       liquid: sums.liquid,             // gotówka dostępna (checking + savings)
       savings: savingsOnly,             // tylko savings
-      invest: sums.invest,              // inwestycje płynne
+      invest: sums.invest,              // inwestycje (z portfolio gdy linked)
       retirement: sums.retirement,      // PPK + IKE + IKZE
       longterm: sums.longterm,          // obligacje, nieruchomości
       netWorth: sums.total,             // suma wszystkiego
     };
-  }, [accounts]);
+  }, [accounts, portfolio]);
   const totalBalance = accountSums.liquid;        // "Gotówka dostępna" jako główna
   const netWorth = accountSums.netWorth;          // "Majątek" jako druga
   const savings = accountSums.savings;
@@ -178,7 +180,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
 
   //    Balance widget: days left + daily budget                               
   const today = new Date();
-  const todayISO = today.toISOString().split("T")[0];
+  const todayISO = todayLocal();
   const [cycStartStr, cycEndStr] = getCycleRange(month, cycleDay);
   const cycStart = new Date(cycStartStr);
   const cycEnd   = new Date(cycEndStr);
@@ -534,17 +536,19 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         </div>
       </div>
 
-      {/* ═══ PROGNOZA ═══ */}
+      {/* ═══ PROGNOZA — opiera się na cyklu rozliczeniowym, nie kalendarzowym ═══ */}
       {(() => {
-        const today = new Date();
-        const dom = today.getDate();
-        const dim = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
-        if (dom < 4) return null;
-        const mExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
-        const mInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
-        const fExp = Math.round(mExp / dom * dim);
-        const fBal = Math.round(mInc - fExp);
-        const pct = Math.round(dom / dim * 100);
+        // Pokazuj prognozę tylko dla bieżącego cyklu (oglądanie historii nie ma sensu
+        // - prognoza dla minionego miesiąca to nieporozumienie).
+        const isCurrentCycle = month === new Date().getMonth();
+        if (!isCurrentCycle) return null;
+        // Minimum 4 dni cyklu by mieć sensowną ekstrapolację
+        if (elapsedCycDays < 4) return null;
+
+        // Ekstrapolacja na podstawie tempa wydatków w bieżącym cyklu
+        const fExp = Math.round(expense / elapsedCycDays * totalCycDays);
+        const fBal = Math.round(income - fExp);
+        const pct = Math.round(monthPct);
         const isGood = fBal > 0;
         return (
           <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>
@@ -566,7 +570,9 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
                 background: isGood ? "linear-gradient(90deg,#1e40af,#3b82f6)" : "linear-gradient(90deg,#7f1d1d,#ef4444)",
                 borderRadius: 6, transition: "width 1s ease" }}/>
             </div>
-            <div style={{ fontSize: 10, color: "#334155", marginTop: 6 }}>{pct}% miesiąca minęło</div>
+            <div style={{ fontSize: 10, color: "#334155", marginTop: 6 }}>
+              {pct}% {cycleDay > 1 ? "cyklu" : "miesiąca"} minęło · do końca {daysLeft} {daysLeft === 1 ? "dzień" : "dni"}
+            </div>
           </div>
         );
       })()}

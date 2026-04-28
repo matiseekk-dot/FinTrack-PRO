@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
-import { fmt, fmtShort, cycleTxs } from "../utils.js";
+import { fmt, fmtShort, cycleTxs, dateToLocal } from "../utils.js";
 import { MONTH_NAMES } from "../constants.js";
 
 function RecurringReminder({ payments, paid = {}, transactions, setTransactions, accounts }) {
   const today     = new Date();
-  const todayStr  = today.toISOString().split("T")[0];
+  const todayStr  = dateToLocal(today);
   const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
   const dayOfMonth = today.getDate();
   const [dismissed, setDismissed] = useState({});

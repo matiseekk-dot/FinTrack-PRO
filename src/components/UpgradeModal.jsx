@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Check, Sparkles, Zap, Crown } from "lucide-react";
 import { activatePro } from "../lib/tier.js";
+import { validateLicense, ERROR_MESSAGES } from "../lib/license.js";
+import { auth, db } from "../firebase.js";
 
 const TIER_FEATURES = [
   { label: "Bez limitu transakcji", free: "50/mies", pro: "∞" },
@@ -19,12 +21,14 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
   const [showLicenseInput, setShowLicenseInput] = useState(false);
   const [licenseKey, setLicenseKey] = useState("");
   const [error, setError] = useState("");
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setShowLicenseInput(false);
       setLicenseKey("");
       setError("");
+      setValidating(false);
     }
   }, [open]);
 
@@ -38,25 +42,31 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
     window.open(urls[plan], "_blank");
   };
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     const key = licenseKey.trim();
-    if (!key || key.length < 8) {
-      setError("Nieprawidłowy klucz licencji");
+    if (!key) {
+      setError("Wpisz klucz licencji");
       return;
     }
-    // Tu normalnie byłaby weryfikacja przez webhook Gumroad.
-    // Na teraz: prefix "FT-Y-" = yearly, "FT-L-" = lifetime, "FT-T-" = trial
-    let type = "yearly";
-    if (key.startsWith("FT-L-")) type = "lifetime";
-    else if (key.startsWith("FT-T-")) type = "trial";
-    else if (key.startsWith("FT-Y-")) type = "yearly";
-    else {
-      setError("Nieznany format klucza. Format: FT-Y-xxxxx lub FT-L-xxxxx");
-      return;
+    setValidating(true);
+    setError("");
+    try {
+      const uid = auth?.currentUser?.uid || null;
+      const result = await validateLicense(key, { db, uid });
+      if (!result.valid) {
+        setError(ERROR_MESSAGES[result.error] || "Nieznany błąd weryfikacji.");
+        setValidating(false);
+        return;
+      }
+      // Sukces - zaktywuj lokalnie
+      activatePro(result.type, result.canonical);
+      if (onActivated) onActivated(result.type);
+      onClose();
+    } catch (e) {
+      console.error("[UpgradeModal] activation error", e);
+      setError("Coś poszło nie tak. Spróbuj ponownie.");
+      setValidating(false);
     }
-    activatePro(type, key);
-    if (onActivated) onActivated(type);
-    onClose();
   };
 
   return (
@@ -208,14 +218,16 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
                 type="text"
                 value={licenseKey}
                 onChange={e => { setLicenseKey(e.target.value); setError(""); }}
-                placeholder="FT-Y-XXXXX-XXXXX lub FT-L-XXXXX-XXXXX"
+                placeholder="FT-Y-XXXXX-XXXXX-XXXX"
                 autoFocus
+                disabled={validating}
                 style={{
                   width: "100%", marginTop: 8, padding: "14px 16px",
                   background: "#0a1120", border: "1px solid #1e3a5f",
                   borderRadius: 12, color: "#e2e8f0", fontSize: 14,
                   fontFamily: "'DM Mono', monospace",
                   boxSizing: "border-box",
+                  textTransform: "uppercase",
                 }}
               />
               {error && (
@@ -223,20 +235,25 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
               )}
             </div>
 
-            <button onClick={handleActivate} style={{
+            <button onClick={handleActivate} disabled={validating} style={{
               width: "100%", padding: 14, marginBottom: 10,
-              background: "linear-gradient(135deg,#10b981,#059669)",
+              background: validating
+                ? "#1e3a5f"
+                : "linear-gradient(135deg,#10b981,#059669)",
               border: "none", borderRadius: 14, color: "white",
-              fontWeight: 700, fontSize: 14, cursor: "pointer",
+              fontWeight: 700, fontSize: 14,
+              cursor: validating ? "wait" : "pointer",
               fontFamily: "'Space Grotesk', sans-serif",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              opacity: validating ? 0.7 : 1,
             }}>
-              <Check size={16}/> Aktywuj PRO
+              <Check size={16}/> {validating ? "Sprawdzam klucz..." : "Aktywuj PRO"}
             </button>
 
-            <button onClick={() => setShowLicenseInput(false)} style={{
+            <button onClick={() => setShowLicenseInput(false)} disabled={validating} style={{
               width: "100%", padding: 10, background: "none",
-              border: "none", color: "#64748b", fontSize: 13, cursor: "pointer",
+              border: "none", color: "#64748b", fontSize: 13,
+              cursor: validating ? "wait" : "pointer",
               fontFamily: "'Space Grotesk', sans-serif",
             }}>
               ← Powrót do planów

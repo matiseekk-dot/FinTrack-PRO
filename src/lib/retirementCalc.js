@@ -1,37 +1,39 @@
 /**
  * Kalkulatory polskiego systemu emerytalnego - limity 2026.
  * 
- * Źródło limitów: ustawy podatkowe + komunikaty GUS (przeciętne wynagrodzenie).
- * Limity są corocznie aktualizowane - trzeba odświeżać co rok!
+ * Źródło limitów:
+ * - IKE/IKZE: obwieszczenie Ministra Rodziny, Pracy i Polityki Społecznej
+ *   z 10/17 listopada 2025 (Monitor Polski). Limit obowiązuje od 1 stycznia 2026.
+ * - Minimum wynagrodzenie 2026: rozporządzenie Rady Ministrów z 11 września 2025
+ *   (Dz.U. 2025 poz. 1242), 4806 zł brutto/mies.
+ * - Limity zmieniają się co rok - aktualizuj w listopadzie po obwieszczeniu MRPiPS.
  */
 
-// === LIMITY 2026 ===
-// UWAGA: To są szacunki. Aktualne limity publikuje MPiPS w listopadzie każdego roku.
-// Zaktualizuj gdy GUS ogłosi ostateczne przeciętne wynagrodzenie.
-
+// === LIMITY 2026 === (oficjalne wartości z Monitora Polskiego)
 const LIMITS_2026 = {
-  // IKE = 3x przeciętne miesięczne wynagrodzenie w gospodarce narodowej
-  ike: 26019,        // szacunek 2026 (było 23 472 w 2025)
-  
-  // IKZE standardowy = 1.2x przeciętne miesięczne wynagrodzenie
-  ikze: 10407,       // szacunek 2026 (było 9 388,80 w 2025)
-  
-  // IKZE dla samozatrudnionych = 1.8x przeciętne
-  ikzeSelfEmployed: 15611,  // szacunek 2026 (było 14 083,20 w 2025)
-  
+  // IKE = 3x prognozowane przeciętne miesięczne wynagrodzenie (9420 zł × 3)
+  ike: 28260,        // 2025 było 26 019
+
+  // IKZE standardowy = 1.2x przeciętne miesięczne wynagrodzenie (9420 × 1.2)
+  ikze: 11304,       // 2025 było 10 407,60
+
+  // IKZE dla samozatrudnionych = 1.8x przeciętne (9420 × 1.8)
+  ikzeSelfEmployed: 16956,  // 2025 było 15 611,40
+
   // PPK - państwo dokłada rocznie
   ppkGovAnnual: 240,  // "dopłata roczna" - stała kwota
   ppkGovWelcome: 250, // "wpłata powitalna" - jednorazowo po 3 msc
-  
-  // Progi podatkowe 2026
+
+  // Progi podatkowe 2026 (bez zmian od 2022)
   taxLow: 0.12,       // 12% do 120k
   taxHigh: 0.32,      // 32% powyżej 120k
   ikzeTaxOnWithdrawal: 0.10,  // zryczałtowany 10% przy wypłacie z IKZE po 65 r.ż.
 };
 
-// Minimalne wymagane wpłaty żeby dostać dopłatę roczną PPK
-// 3,5% × 6x minimalne wynagrodzenie (założenie: min wynagrodzenie 2026 ~ 4666 zł)
-const PPK_MIN_FOR_BONUS = Math.round(0.035 * 6 * 4666);  // ~980 zł/rok
+// Minimum wynagrodzenie 2026 = 4806 zł brutto (Dz.U. 2025 poz. 1242).
+// Minimalne wymagane wpłaty żeby dostać dopłatę roczną PPK = 3,5% × 6 × min wynagrodzenie.
+const MIN_WAGE_2026 = 4806;
+const PPK_MIN_FOR_BONUS = Math.round(0.035 * 6 * MIN_WAGE_2026);  // ~1009 zł/rok
 
 /**
  * Kalkulator oszczędności podatkowej z IKZE.

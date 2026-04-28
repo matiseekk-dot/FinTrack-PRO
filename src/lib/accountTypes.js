@@ -109,11 +109,30 @@ function groupAccountsByCategory(accounts) {
   return groups;
 }
 
-function sumByGroup(accounts) {
+/**
+ * Saldo "efektywne" konta:
+ * - dla typów liquid/retirement/longterm = a.balance (źródło prawdy = transakcje)
+ * - dla typu invest = suma valuePLN portfolio pozycji powiązanych z tym kontem,
+ *   bo balance konta invest jest aktualizowany OSOBNO (Inwestycje → wpisz qty/cenę)
+ *   - transakcje na konto invest są pomijane w aktualizacji balance.
+ *
+ * Jeśli portfolio[] nie zostanie podane, fallback do a.balance dla wszystkich.
+ * Jeśli invest account nie ma żadnych pozycji portfolio - fallback do a.balance.
+ */
+function getEffectiveBalance(account, portfolio) {
+  const baseBalance = Number(account.balance) || 0;
+  if (!account || account.type !== "invest") return baseBalance;
+  if (!Array.isArray(portfolio) || portfolio.length === 0) return baseBalance;
+  const linked = portfolio.filter(p => p && p.linkedAccId === account.id);
+  if (linked.length === 0) return baseBalance;
+  return linked.reduce((s, p) => s + (Number(p.valuePLN) || 0), 0);
+}
+
+function sumByGroup(accounts, portfolio = null) {
   const grouped = groupAccountsByCategory(accounts);
   const sums = {};
   Object.keys(grouped).forEach(g => {
-    sums[g] = grouped[g].reduce((s, a) => s + (Number(a.balance) || 0), 0);
+    sums[g] = grouped[g].reduce((s, a) => s + getEffectiveBalance(a, portfolio), 0);
   });
   sums.total = sums.liquid + sums.invest + sums.retirement + sums.longterm;
   return sums;
@@ -129,5 +148,6 @@ export {
   ACCOUNT_TYPES, ACCOUNT_GROUPS,
   getAccountType, getAccountGroup,
   groupAccountsByCategory, sumByGroup,
+  getEffectiveBalance,
   isLongTerm,
 };

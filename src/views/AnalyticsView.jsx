@@ -12,7 +12,7 @@ import {
   ClipboardList, RefreshCw, AlarmClock, Copy
 } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
-import { FinancialScore, Insights, ExpenseTypesBreakdown, Recommendations } from "../components/AnalyticsWidgets.jsx";
+import { FinancialScore, Insights, ExpenseTypesBreakdown, IncomeTypesBreakdown, Recommendations } from "../components/AnalyticsWidgets.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -463,7 +463,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
         const monthExp = monthTx.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
         const monthInc = monthTx.filter(t => t.amount > 0 && t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
         const today = new Date();
-        const { start: cycStartStr } = getCycleRange(month, cycleDay);
+        const [cycStartStr] = getCycleRange(month, cycleDay);
         const cycStart = new Date(cycStartStr);
         const elapsed = Math.max(1, Math.round((today - cycStart) / 86400000) + 1);
         const catData = (() => {
@@ -478,6 +478,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             <FinancialScore income={monthInc} expense={monthExp} transactions={transactions}
               month={month} cycleDay={cycleDay} elapsedDays={elapsed}/>
             <ExpenseTypesBreakdown monthTx={monthTx} income={monthInc}/>
+            <IncomeTypesBreakdown monthTx={monthTx}/>
             <Insights transactions={transactions} month={month} cycleDay={cycleDay}
               income={monthInc} expense={monthExp} catData={catData}/>
             <Recommendations income={monthInc} expense={monthExp} catData={catData}

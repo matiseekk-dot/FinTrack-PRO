@@ -11,7 +11,7 @@ import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
+import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
@@ -20,7 +20,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
   const { success: hapticSuccess, medium: hapticMedium } = useHaptic();
   const TODAY_FULL = new Date();
   const TODAY_DAY  = TODAY_FULL.getDate();
-  const TODAY_ISO  = TODAY_FULL.toISOString().split("T")[0]; // "2026-04-01"
+  const TODAY_ISO  = todayLocal(); // "2026-04-01"
   // own month selector - starts at current month, can navigate independently
   const [localMonth, setLocalMonth] = useState(globalMonth);
   const currentRealMonth = new Date().getMonth();
@@ -123,7 +123,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
     if (nowPaid) {
       // Use today if in current billing month, else use dueDay of that month
       // Never create a transaction with a future date
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = todayLocal();
       // Clamp dueDay do liczby dni w miesiącu (np. 31 w lutym → 28/29)
       const y = new Date().getFullYear();
       const lastDay = new Date(y, month + 1, 0).getDate();

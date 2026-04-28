@@ -17,11 +17,13 @@ function debounce(fn, ms) {
 const SYNC_KEYS = [
   "accounts", "transactions", "budgets", "payments", "paid",
   "goals", "customCats", "cycleDay", "defaultAcc", "partnerName",
-  "portfolio", "month", "vacationArchiveData"
+  "portfolio", "month", "vacationArchiveData",
+  "trips", "hobbies",
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
-const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals", "portfolio", "customCats"];
+const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals",
+  "portfolio", "customCats", "trips", "hobbies"];
 
 /**
  * Merge dwóch snapshotów danych z preferencją lokalnych zmian.

@@ -88,4 +88,22 @@ function fmtCycleLabel(month, cycleDay) {
 };
 
 
-export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel };
+// ═══ LOCAL DATE HELPERS ═══
+// new Date().toISOString() zwraca UTC. W PL (UTC+1/+2) między 22:00 a 00:00
+// czasu lokalnego daje wczorajszą datę - psuje streak, daily reminder, prefilled
+// daty w formularzach. Używaj tych helperów zamiast .toISOString().split("T")[0]
+// wszędzie gdzie chodzi o "dziś" / "lokalna data użytkownika".
+function todayLocal() {
+  return dateToLocal(new Date());
+}
+
+function dateToLocal(d) {
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+
+export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel,
+         todayLocal, dateToLocal };

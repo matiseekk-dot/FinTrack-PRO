@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Wallet, PlusCircle, X, Home, List, PiggyBank, BarChart2, Settings,
-  CreditCard, Briefcase, Bell, CheckCircle2, RefreshCw, Cloud, CloudOff
+  CreditCard, Briefcase, Bell, CheckCircle2, RefreshCw, Cloud, CloudOff, Heart
 } from "lucide-react";
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
@@ -14,9 +14,12 @@ import { TransactionsView } from "./views/TransactionsView.jsx";
 import { InvestmentsView } from "./views/InvestmentsView.jsx";
 import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
 import { GoalsView } from "./views/GoalsView.jsx";
+import { PlansView } from "./views/PlansView.jsx";
+import { HobbyView } from "./views/HobbyView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
+import { todayLocal } from "./utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES, getAllCats } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
@@ -40,6 +43,8 @@ function applyData(d, s) {
   if (Array.isArray(d.payments))                               s.setPayments(d.payments);
   if (d.paid && typeof d.paid === "object")                    s.setPaid(d.paid);
   if (Array.isArray(d.goals))                                  s.setGoals(d.goals);
+  if (Array.isArray(d.trips))                                  s.setTrips(d.trips);
+  if (Array.isArray(d.hobbies))                                s.setHobbies(d.hobbies);
   if (Array.isArray(d.customCats))                             s.setCustomCats(d.customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label })));
   if (d.defaultAcc != null)                                    s.setDefaultAcc(d.defaultAcc);
   if (d.month != null && d.month >= 0 && d.month <= 11)        s.setMonth(d.month);
@@ -83,6 +88,8 @@ export default function App() {
   const [partnerName,  setPartnerName]  = useState("Partner");
   const [portfolio,    setPortfolio]    = useState([]);
   const [goals,        setGoals]        = useState(INITIAL_GOALS);
+  const [trips,        setTrips]        = useState([]);
+  const [hobbies,      setHobbies]      = useState([]);
   const [fabOpen,      setFabOpen]      = useState(false);
   const [fabMenu,      setFabMenu]      = useState(false); // long press menu
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
@@ -99,13 +106,14 @@ export default function App() {
   stateRef.current = {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
+    trips, hobbies,
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
 
   const capLabel = (c) => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label });
   const setCustomCatsCap = (cats) => setCustomCats(Array.isArray(cats) ? cats.map(capLabel) : cats);
-  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setPartnerName, setPortfolio, setVacationArchive };
+  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setPartnerName, setPortfolio, setVacationArchive, setTrips, setHobbies };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -152,7 +160,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
 
   // Save to Firestore
   useEffect(() => {
@@ -165,7 +173,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName]);
+  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -212,7 +220,7 @@ export default function App() {
       }, 5000); // ask after 5s so user is already in app
     }
     // Schedule local reminders - tylko raz dziennie
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     const lastNotif = localStorage.getItem("ft_notif_date");
     if (lastNotif !== today) {
       schedulePaymentReminders(payments, paid);
@@ -278,6 +286,8 @@ export default function App() {
     setPayments(INITIAL_PAYMENTS);
     setPaid({});
     setGoals(INITIAL_GOALS);
+    setTrips([]);
+    setHobbies([]);
     setCustomCats([]);
     setPortfolio([]);
     setPartnerName("Partner");
@@ -313,7 +323,8 @@ export default function App() {
     { id: "dashboard",    label: t("nav.start"),        Icon: Home },
     { id: "transactions", label: t("nav.transactions"), Icon: List },
     { id: "payments",     label: t("nav.payments"),     Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
-    { id: "goals",        label: t("nav.goals"),        Icon: PiggyBank },
+    { id: "plans",        label: t("nav.plans"),        Icon: PiggyBank },
+    { id: "hobby",        label: t("nav.hobby"),        Icon: Heart },
     { id: "analytics",    label: t("nav.analytics"),    Icon: BarChart2 },
     { id: "portfolio",    label: t("nav.accounts"),     Icon: Briefcase },
   ];
@@ -433,12 +444,13 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts} portfolio={portfolio} setPortfolio={setPortfolio}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "goals"        && <ErrorBoundary><GoalsView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} allCats={allCategories} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}/></ErrorBoundary>}
-          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName}/></ErrorBoundary>}
+          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips}/></ErrorBoundary>}
+          {tab === "hobby"        && <ErrorBoundary><HobbyView hobbies={hobbies} setHobbies={setHobbies} transactions={transactions} allCats={allCategories} month={month} cycleDay={cycleDay}/></ErrorBoundary>}
+          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -480,6 +492,7 @@ export default function App() {
           setTransactions={(txs) => { setTransactions(txs); setQuickAddOpen(false); }}
           accounts={accounts} setAccounts={setAccounts} allCats={allCategories}
           _forceOpenModal={true} _onClose={() => setQuickAddOpen(false)}
+          trips={trips}
         />
       )}
 

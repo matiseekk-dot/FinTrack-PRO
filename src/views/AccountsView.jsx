@@ -46,8 +46,10 @@ function AccountsView({ accounts, setAccounts }) {
 
   const typeLabel = (type) => (ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking).label;
   // Grupowanie po ACCOUNT_GROUPS (liquid/invest/retirement/longterm)
+  // Invest accounts są filtrowane - mają osobny widok w InvestmentsView gdzie
+  // saldo wyliczane jest z portfolio[]. Tutaj sums jest tylko dla widocznych grup.
   const grouped = groupAccountsByCategory(accounts.filter(a => a.type !== "invest"));
-  const sums = sumByGroup(accounts);
+  const sums = sumByGroup(accounts.filter(a => a.type !== "invest"));
   const total = sums.total;
 
   const AccCard = ({ acc }) => {

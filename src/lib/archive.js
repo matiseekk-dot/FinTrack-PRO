@@ -7,6 +7,8 @@
  * Wywoływane ręcznie lub automatycznie gdy dokument > 90% limitu.
  */
 
+import { dateToLocal } from "../utils.js";
+
 const ARCHIVE_KEY = "ft_archive_tx";
 const TWO_YEARS_MS = 2 * 365 * 86400000;
 
@@ -19,7 +21,7 @@ function getArchivedTransactions() {
 
 function archiveOldTransactions(transactions, cutoffDays = 730) {
   const cutoff = Date.now() - (cutoffDays * 86400000);
-  const cutoffStr = new Date(cutoff).toISOString().split("T")[0];
+  const cutoffStr = dateToLocal(new Date(cutoff));
   
   const toArchive = [];
   const toKeep = [];

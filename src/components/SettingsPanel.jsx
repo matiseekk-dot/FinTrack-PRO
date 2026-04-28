@@ -12,6 +12,7 @@ import { Input, Select } from "./ui/Input.jsx";
 import { TemplatesEditor } from "./TemplatesEditor.jsx";
 import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INITIAL_TEMPLATES } from "../constants.js";
 import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
+import { todayLocal } from "../utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
 import { PinSettings, PIN_ENABLED_KEY } from "./PinLock.jsx";
 import { getLang, setLang } from "../i18n.js";
@@ -143,7 +144,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     wsBackup["!cols"] = [{wch:200}];
     XLSX.utils.book_append_sheet(wb, wsBackup, "_Backup_JSON");
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     XLSX.writeFile(wb, `FinTrack_export_${today}.xlsx`);
   };
 
@@ -280,6 +281,15 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     setImportStatus("loading");
     setImportMsg("Wczytuję CSV…");
 
+    // Konto docelowe dla zaimportowanych transakcji.
+    // Priorytet: defaultAcc (z ustawień) → pierwsze konto z listy → 1 jako ostatnia deska.
+    const importTargetAcc = (() => {
+      if (defaultAcc != null && accounts.some(a => a.id === defaultAcc)) return defaultAcc;
+      if (accounts.length > 0) return accounts[0].id;
+      return 1;
+    })();
+    const targetAccName = (accounts.find(a => a.id === importTargetAcc) || {}).name || "Konto główne";
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -316,7 +326,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
                 return "inne";
               }
               // Zakłady / bukmacher
@@ -344,7 +354,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
           });
         }
         // mBank format: "Data operacji";"Data księgowania";"Opis operacji";"Tytuł";"Nadawca/Odbiorca";"Konto";"Kwota";"Saldo po operacji"
@@ -358,7 +368,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
                 return "inne";
               }
               // Zakłady / bukmacher
@@ -386,7 +396,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
           });
         }
         // ING format: "Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji";"Saldo po transakcji"
@@ -400,7 +410,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
                 return "inne";
               }
               // Zakłady / bukmacher
@@ -428,7 +438,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
           });
         }
         // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
@@ -458,7 +468,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
                 return "inne";
               }
               // Zakłady / bukmacher
@@ -486,7 +496,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
           });
         }
         else {
@@ -502,7 +512,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const detectCat = (desc, amt) => {
               const d = desc.toLowerCase();
               if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "wynagrodzenie";
+                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
                 return "inne";
               }
               // Zakłady / bukmacher
@@ -530,7 +540,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
               return "inne";
             };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: 1 });
+            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
           });
         }
 
@@ -545,7 +555,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         });
 
         setImportStatus("ok");
-        setImportMsg(`Zaimportowano ${imported} transakcji z CSV. Sprawdź kategorie w zakładce Transakcje.`);
+        setImportMsg(`Zaimportowano ${imported} transakcji do "${targetAccName}". Sprawdź kategorie w zakładce Transakcje.`);
       } catch (err) {
         setImportStatus("err");
         setImportMsg(`Błąd: ${err.message}. Obsługiwane banki: PKO BP, mBank, ING, Revolut.`);
@@ -924,6 +934,17 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           <input type="file" accept=".csv,.txt" onChange={handleImportCSV}
                  style={{ display: "none" }}/>
         </label>
+        {accounts.length > 0 && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", textAlign: "center" }}>
+            Transakcje trafią do: <span style={{ color: "#10b981", fontWeight: 600 }}>
+              {(accounts.find(a => a.id === defaultAcc) || accounts[0]).name}
+            </span>
+            {" · "}
+            <span style={{ color: "#475569" }}>
+              (zmień domyślne konto wyżej)
+            </span>
+          </div>
+        )}
 
         {/* Import status */}
         {importStatus && (

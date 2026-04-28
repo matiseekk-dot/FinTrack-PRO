@@ -66,7 +66,6 @@ export function schedulePaymentReminders(payments, paid) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
 
   const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
   const year = today.getFullYear();
   const month = today.getMonth();
 

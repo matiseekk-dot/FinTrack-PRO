@@ -6,19 +6,28 @@ service cloud.firestore {
     // User data - tylko właściciel może czytać/pisać swoje dane
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      
+
       // Sub-kolekcje (transactions, accounts, etc.) - dziedziczą
       match /{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
-    
-    // Public: licensing (future) - tylko read
-    match /licenses/{licenseId} {
+
+    // Licenses: lockowane przy aktywacji.
+    // - read: każdy zalogowany może sprawdzić swoją licencję (ale nie cudzą!)
+    //   technicznie: read pozwala przeczytać dowolny doc jeśli authed.
+    //   To OK bo dokument zawiera tylko {uid, type, activatedAt} - bez tajemnic.
+    // - create: każdy zalogowany może utworzyć doc z własnym uid - to działa
+    //   jak "przypisz klucz do mnie pierwszemu". Nikt potem tego nie nadpisze.
+    // - update/delete: NIKT (poza backendem przez Admin SDK).
+    match /licenses/{licenseKey} {
       allow read: if request.auth != null;
-      allow write: if false;  // tylko backend może zmieniać
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['uid', 'activatedAt', 'type']);
+      allow update, delete: if false;
     }
-    
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

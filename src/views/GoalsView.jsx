@@ -15,7 +15,7 @@ import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
+import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal, dateToLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
@@ -274,12 +274,12 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
         const d = new Date(stored.dateFrom);
         if (!isNaN(d.getTime())) {
           d.setMonth(d.getMonth() - 3);
-          return d.toISOString().slice(0,10);
+          return dateToLocal(d);
         }
       }
     } catch (_) { /* fallback */ }
     const d = new Date(); d.setMonth(d.getMonth() - 3);
-    return d.toISOString().slice(0,10);
+    return dateToLocal(d);
   });
   const [candidateTo, setCandidateTo] = useState(() => {
     try {
@@ -289,7 +289,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
         if (!isNaN(d.getTime())) return stored.dateFrom;
       }
     } catch (_) { /* fallback */ }
-    return new Date().toISOString().slice(0,10);
+    return todayLocal();
   });
   const [editGoal,    setEditGoal]    = useState(null);
   const EMPTY_FORM = { name: "", target: "", saved: "", accId: 1, color: "#06b6d4", emoji: "💰" };
@@ -735,7 +735,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                     {[[1,"1M"],[3,"3M"],[6,"6M"]].map(([m,l]) => {
                       const d = new Date(candidateTo || new Date());
                       d.setMonth(d.getMonth() - m);
-                      const df = d.toISOString().slice(0,10);
+                      const df = dateToLocal(d);
                       return (
                         <button key={l} onClick={() => setCandidateFrom(df)}
                           style={{ background: candidateFrom === df ? "#1e3a5f" : "#060b14",
@@ -834,7 +834,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                   const entry = {
                     ...vacation,
                     id: Date.now(),
-                    savedAt: new Date().toISOString().slice(0,10),
+                    savedAt: todayLocal(),
                     spent,
                     txCount: vacTx.length,
                   };

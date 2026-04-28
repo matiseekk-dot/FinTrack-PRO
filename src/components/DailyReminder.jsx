@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Flame, PlusCircle, X, CheckCircle2, AlarmClock } from "lucide-react";
+import { todayLocal, dateToLocal } from "../utils.js";
 
 function DailyReminder({ transactions, onAddTx }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocal();
   const todayTxs = transactions.filter(t => t.date === today && t.cat !== "inne");
   const [dismissed, setDismissed] = useState(false);
 
@@ -11,7 +12,7 @@ function DailyReminder({ transactions, onAddTx }) {
     let s = 0;
     const d = new Date();
     while (true) {
-      const ds = d.toISOString().split("T")[0];
+      const ds = dateToLocal(d);
       const has = transactions.some(t => t.date === ds && t.cat !== "inne");
       if (!has) break;
       s++;

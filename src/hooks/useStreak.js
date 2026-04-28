@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { dateToLocal } from "../utils.js";
 
 const STREAK_KEY = "ft_streak";
 const LONGEST_KEY = "ft_streak_longest";
@@ -45,7 +46,7 @@ export function useStreak(transactions) {
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const iso = d.toISOString().split("T")[0];
+      const iso = dateToLocal(d);
       const dayOfWeek = d.getDay();
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 

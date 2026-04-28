@@ -1,4 +1,5 @@
 import { encryptString, decryptString } from "../lib/crypto.js";
+import { dateToLocal } from "../utils.js";
 
 const LS_KEY = "fintrack_v1";
 
@@ -86,6 +87,9 @@ function migrateData(d) {
   }
   // ensure paid is object
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
+  // ensure trips/hobbies są tablicami
+  if (!Array.isArray(d.trips))    d.trips    = [];
+  if (!Array.isArray(d.hobbies))  d.hobbies  = [];
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
     d.customCats = d.customCats.map(c => {
@@ -132,6 +136,29 @@ function migrateData(d) {
   if (Array.isArray(d.payments)) {
     d.payments = d.payments.map(p => ({ ...p, amount: safeNum(p.amount) }));
   }
+  if (Array.isArray(d.trips)) {
+    d.trips = d.trips
+      .filter(t => t && t.id != null)
+      .map(t => ({
+        ...t,
+        budget: Math.max(0, safeNum(t.budget)),
+        archived: !!t.archived,
+        // Nazwa wymagana - jeśli pusta, daj fallback
+        name: t.name || "Wyjazd",
+      }));
+  }
+  if (Array.isArray(d.hobbies)) {
+    d.hobbies = d.hobbies
+      .filter(h => h && h.id != null)
+      .map(h => ({
+        ...h,
+        categories: Array.isArray(h.categories) ? h.categories : [],
+        keywords:   Array.isArray(h.keywords)   ? h.keywords   : [],
+        yearlyTarget: h.yearlyTarget != null ? Math.max(0, safeNum(h.yearlyTarget)) : null,
+        archived: !!h.archived,
+        name: h.name || "Hobby",
+      }));
+  }
 
   return d;
 }
@@ -162,7 +189,7 @@ function downloadJSON(data) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href = url;
-    a.download = "fintrack_" + new Date().toISOString().slice(0,10) + ".json";
+    a.download = "fintrack_" + dateToLocal(new Date()) + ".json";
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
     return true;

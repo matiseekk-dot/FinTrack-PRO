@@ -5,20 +5,21 @@ import {
   CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
   Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
   Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy, Search
+  ClipboardList, RefreshCw, AlarmClock, Copy, Search, Plane, Tag
 } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
+import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 import { t } from "../i18n.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
-function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1 }) {
+import { getActiveTrips } from "../lib/trips.js";
+function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
     if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
@@ -33,7 +34,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const [filterCat, setFilterCat] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
-  const getEmptyForm = () => ({ date: new Date().toISOString().split("T")[0], desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: "PLN" });
+  const getEmptyForm = () => {
+    const active = getActiveTrips(trips);
+    const presetTripId = active.length > 0 ? active[0].id : null;
+    return { date: todayLocal(), desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: "PLN", tripId: presetTripId };
+  };
   const [form, setForm] = useState(getEmptyForm);
 
   const addTx = () => {
@@ -95,6 +100,10 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
 
     const amt    = form.type === "expense" ? -rawAmt : rawAmt;
     const txData = { date: form.date, desc: form.desc, amount: parseFloat(amt.toFixed(2)), cat: finalCat, acc: parseInt(form.acc) };
+    // tripId tylko dla wydatków - przychody/transfery nie należą do wyjazdu
+    if (form.type === "expense" && form.tripId != null) {
+      txData.tripId = form.tripId;
+    }
     if (editingId) {
       // reverse old tx on old account, apply new tx on new account
       const oldTx = transactions.find(t => t.id === editingId);
@@ -132,7 +141,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     if (_onModalClose) _onModalClose();
   };
 
-  const todayStr2 = new Date().toISOString().split("T")[0];
+  const todayStr2 = todayLocal();
 
   // Memoized filter + grouping - jedna pętla zamiast 4 filter + forEach
   const { filtered, grouped } = useMemo(() => {
@@ -204,7 +213,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           {((() => { try { const s = JSON.parse(localStorage.getItem("ft_templates") || JSON.stringify(INITIAL_TEMPLATES)); return s.map(t => ({...t, desc: t.desc === "Zhabka" ? "Zabka" : t.desc})); } catch(_) { return INITIAL_TEMPLATES; } })()).map(tpl => (
             <button key={tpl.id} onClick={() => {
               const cat = getLocalCat(tpl.cat);
-              setForm({ date: new Date().toISOString().split("T")[0], desc: tpl.desc,
+              setForm({ date: todayLocal(), desc: tpl.desc,
                 amount: String(tpl.amount), cat: tpl.cat, acc: tpl.acc || 1,
                 toAcc: 2, type: "expense", currency: "PLN" });
               setModal(true);
@@ -373,7 +382,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <button
                         onClick={() => {
-                          setForm({ date: new Date().toISOString().split("T")[0], desc: tx.desc,
+                          setForm({ date: todayLocal(), desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
                             type: tx.amount > 0 ? "income" : "expense" });
                           setModal(true);
@@ -388,7 +397,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           setEditingId(tx.id);
                           setForm({ date: tx.date, desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense", currency: "PLN" });
+                            type: tx.amount > 0 ? "income" : "expense", currency: "PLN",
+                            tripId: tx.tripId || null });
                           setModal(true);
                         }}
                         title="Edytuj"
@@ -566,6 +576,55 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             }).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </Select>
         )}
+
+        {/* Trip selector - pokazuj tylko gdy expense + (aktywny wyjazd ISTNIEJE lub edytujemy tx z tripId) */}
+        {form.type === "expense" && (() => {
+          const active = getActiveTrips(trips || []);
+          const editingHasTrip = editingId && form.tripId != null;
+          if (active.length === 0 && !editingHasTrip) return null;
+          // Jeśli edytujemy tx z tripId którego już nie ma w aktywnych - dodaj do listy
+          const allOptions = [...active];
+          if (editingHasTrip && !active.find(t => t.id === form.tripId)) {
+            const orphan = (trips || []).find(t => t.id === form.tripId);
+            if (orphan) allOptions.unshift(orphan);
+          }
+          return (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+                fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+                letterSpacing: "0.08em", marginBottom: 6 }}>
+                <Plane size={11}/> Przypisz do wyjazdu
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button onClick={() => setForm(f => ({ ...f, tripId: null }))} style={{
+                  padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 12, fontWeight: 600,
+                  background: form.tripId == null ? "#1a2744" : "#060b14",
+                  border: `1px solid ${form.tripId == null ? "#475569" : "#1a2744"}`,
+                  color: form.tripId == null ? "#cbd5e1" : "#475569",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>
+                  Bez tagu
+                </button>
+                {allOptions.map(trip => {
+                  const selected = form.tripId === trip.id;
+                  return (
+                    <button key={trip.id} onClick={() => setForm(f => ({ ...f, tripId: trip.id }))} style={{
+                      padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                      fontSize: 12, fontWeight: 600,
+                      background: selected ? trip.color + "33" : "#060b14",
+                      border: `1px solid ${selected ? trip.color : "#1a2744"}`,
+                      color: selected ? trip.color : "#64748b",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                    }}>
+                      {trip.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         <button onClick={addTx} style={{ width: "100%", background: "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
           {editingId ? "Zapisz zmiany" : "Zapisz transakcję"}
