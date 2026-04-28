@@ -20,6 +20,7 @@ const SYNC_KEYS = [
   "portfolio", "month", "vacationArchiveData",
   "trips", "hobbies",
   "tombstones",  // v1.2.4: { [arrayKey]: { [id]: deletedAtMs } } - blokuje wskrzeszanie
+  "proStatus",   // v1.2.7: licencja PRO syncuje się między urządzeniami tego samego konta
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
@@ -91,8 +92,16 @@ function mergeSnapshots(local, remote) {
       merged[key] = localVal.length >= (remoteVal?.length || 0) ? localVal : remoteVal;
     }
     else if (typeof localVal === "object" && localVal !== null && typeof remoteVal === "object" && remoteVal !== null) {
-      // Obiekty (paid) - shallow merge
-      merged[key] = { ...remoteVal, ...localVal };
+      // proStatus: last-write-wins po `since` timestamp - potrzebne żeby drugie urządzenie
+      // dostało aktywację PRO bez ponownego wpisywania klucza.
+      if (key === "proStatus") {
+        const localSince  = localVal.since  || "";
+        const remoteSince = remoteVal.since || "";
+        merged[key] = localSince >= remoteSince ? localVal : remoteVal;
+      } else {
+        // Obiekty (paid) - shallow merge
+        merged[key] = { ...remoteVal, ...localVal };
+      }
     }
     else {
       // Prymitywy (cycleDay, defaultAcc) - lokalne wygrywają

@@ -82,13 +82,20 @@ function getHobbyStats(transactions, hobby, opts = {}) {
   if (txs.length === 0) {
     return {
       total: 0, count: 0,
-      thisCycle: 0, thisYear: 0, allTime: 0,
+      thisCycle: 0, thisMonth: 0, thisQuarter: 0, thisYear: 0, allTime: 0,
       byCategory: {}, byMerchant: {},
       yoyTrend: [],
     };
   }
 
-  const yyyy = String(year || new Date().getFullYear());
+  const now = new Date();
+  const yyyy = String(year || now.getFullYear());
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const ymPrefix = `${yyyy}-${mm}`;
+  const currentQ = Math.floor(now.getMonth() / 3); // 0..3
+  const qStart = currentQ * 3;
+  const qMonths = [qStart, qStart + 1, qStart + 2].map(m => String(m + 1).padStart(2, "0"));
+
   let thisCycle = 0;
   if (Array.isArray(cycleTxs)) {
     const cycleIdSet = new Set(cycleTxs.map(t => t.id));
@@ -96,6 +103,13 @@ function getHobbyStats(transactions, hobby, opts = {}) {
                    .reduce((s, t) => s + Math.abs(t.amount), 0);
   }
 
+  const thisMonth = txs.filter(t => (t.date || "").startsWith(ymPrefix))
+                       .reduce((s, t) => s + Math.abs(t.amount), 0);
+  const thisQuarter = txs.filter(t => {
+    const d = t.date || "";
+    if (!d.startsWith(yyyy)) return false;
+    return qMonths.some(m => d.startsWith(`${yyyy}-${m}`));
+  }).reduce((s, t) => s + Math.abs(t.amount), 0);
   const thisYear = txs.filter(t => (t.date || "").startsWith(yyyy))
                       .reduce((s, t) => s + Math.abs(t.amount), 0);
   const allTime  = txs.reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -122,9 +136,11 @@ function getHobbyStats(transactions, hobby, opts = {}) {
 
   return {
     total: allTime, count: txs.length,
-    thisCycle: Math.round(thisCycle),
-    thisYear: Math.round(thisYear),
-    allTime: Math.round(allTime),
+    thisCycle:   Math.round(thisCycle),
+    thisMonth:   Math.round(thisMonth),
+    thisQuarter: Math.round(thisQuarter),
+    thisYear:    Math.round(thisYear),
+    allTime:     Math.round(allTime),
     byCategory, byMerchant,
     yoyTrend,
   };

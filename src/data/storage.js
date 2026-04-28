@@ -115,6 +115,20 @@ function migrateData(d) {
   } else {
     d.tombstones = {};
   }
+  // sanityzacja proStatus - obiekt { type, since, expiresAt, licenseKey }
+  // Pomijamy nieprawidłowe wartości żeby nie nadpisać lokalnego stanu śmieciem.
+  if (d.proStatus && typeof d.proStatus === "object" && !Array.isArray(d.proStatus)) {
+    const valid = {};
+    if (typeof d.proStatus.type === "string") valid.type = d.proStatus.type;
+    if (typeof d.proStatus.since === "string") valid.since = d.proStatus.since;
+    if (d.proStatus.expiresAt === null || typeof d.proStatus.expiresAt === "string") {
+      valid.expiresAt = d.proStatus.expiresAt;
+    }
+    if (typeof d.proStatus.licenseKey === "string") valid.licenseKey = d.proStatus.licenseKey;
+    d.proStatus = valid.type ? valid : null;
+  } else {
+    d.proStatus = null;
+  }
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
     d.customCats = d.customCats.map(c => {

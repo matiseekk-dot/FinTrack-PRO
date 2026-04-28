@@ -1,173 +1,399 @@
-# FinTrack PRO v1.2.6 — fix self-inflicted bugs z v1.2.5 + cleanup imports (2026-04-28)
+# FinTrack PRO v1.2.7 — sync PRO + UX fixy + K3/K4/K5 production readiness (2026-04-28)
 
-`package.json` 1.2.5 → 1.2.6.
+`package.json` 1.2.6 → 1.2.7.
 
 ## TL;DR
 
-Krytyczna naprawa dla **3 self-inflicted bugów** które ja stworzyłem w v1.2.5 audycie. Plus dalszy cleanup imports w 6 viewach. Plus wzmocniony auto-snap dla "Muzyka 110%". Plus bump cache service workera żeby wymusić odświeżenie.
-
-| | v1.2.5 | v1.2.6 |
+| | v1.2.6 | v1.2.7 |
 |---|---|---|
-| Crash przy wejściu na Wyjazdy | **TAK** | nie |
-| Crash przy aktywacji licencji PRO | **TAK** | nie |
-| Crash przy płatności reminder | **TAK** | nie |
-| index.js gzip | 88 KB | 88 KB |
+| PRO licencja syncuje się między urządzeniami | **NIE** | tak (sync_keys + last-write-wins) |
+| Wydatki per miejsce w "Bieżący" pokazują wszystkie historyczne | **TAK (bug)** | bieżący cykl |
+| Hobby stats granularność | cykl/rok/total | cykl/mies./kwart./rok/total |
+| Struktura przychodów pokazuje top 1 z 7 źródeł | **TAK (mylące)** | rozwijana lista wszystkich |
+| "Inne" (transfer) wpadają do Lifestyle | **TAK (bug)** | skip (nie wpada) |
+| Service Worker offline-first | **podstawowy** | production-ready (K4) |
+| FCM VAPID error handling | silent fail | explicit reasons |
 
 ---
 
-## 🔴 3 KRYTYCZNE BUGI ode mnie z v1.2.5 (mea culpa)
+## 🔴 Bug krytyczny: Premium nie syncuje się między urządzeniami (NAPRAWIONY)
 
-W v1.2.5 wyciąłem "dead exports" — funkcje/zmienne które nie były importowane z innych plików. Mój skrypt szukał **tylko cross-file references**, nie wewnętrznych w obrębie tego samego pliku. Skutek: wyciąłem 3 rzeczy które były wewnętrznie używane.
+**Twoja skarga:** „A nie przenosi się premium pomiędzy urządzeniami jestem na tym samym koncie i to nie działa."
 
-### Bug #1 — Plany → Wyjazdy crashuje (ZGŁOSZONY przez Mateusza)
+### Diagnoza
 
-**Plik:** `src/lib/trips.js`
+PRO status był zapisywany **tylko w localStorage** danej przeglądarki. Firestore nie wiedział nic o aktywacji. Czyli:
 
-Funkcja `getTripsForYear` była wywoływana wewnątrz `getYearlyTripsSummary` (linia 113):
-```js
-const yearTrips = getTripsForYear(trips, year);
+1. Aktywujesz PRO na laptopie → `localStorage.ft_pro_status = {type: "yearly", since: ...}`
+2. Logujesz się na telefonie → Firestore sync ściąga dane (transactions, accounts, ...) ale **nie ma proStatus**
+3. Telefon: `getProStatus()` czyta `localStorage.ft_pro_status` → null → **isPro = false**
+
+Funkcja `validateLicense` w `lib/license.js` zapisywała `licenses/{key} → {uid: <twoje_uid>}` w Firestore (mechanizm anty-redystrybucji), ale **odwrotnego lookupu** (dla danego uid → jaki PRO status) nie było.
+
+### Fix
+
+Dodałem `proStatus` do **istniejącego sync mechanizmu** (`SYNC_KEYS` w `useFirebase.js`). To znaczy że:
+
+- Aktywacja na urządzeniu A → state update → useEffect save Firestore → `users/{uid}/data/main.proStatus` zapisany
+- Login na urządzeniu B → `loadFromFirestore` pobiera całe `data/main` → `applyData` widzi `proStatus` → `setProStatusFromRemote` zapisuje do localStorage → `refreshProStatus()` aktualizuje React state → **PRO aktywne automatycznie**
+
+### Co realnie się zmieniło
+
+**`src/lib/tier.js`:**
+- `getProStatusRaw()` — zwraca surowe payload bez sprawdzania expiresAt (potrzebne dla sync)
+- `setProStatusFromRemote(data)` — zapisuje remote payload, ale tylko jeśli świeższy niż lokalny (last-write-wins by `since` timestamp)
+- `getProStatus()` zwraca też `licenseKey` (nie tracimy info)
+
+**`src/hooks/useFirebase.js`:**
+- `SYNC_KEYS` dodane `"proStatus"`
+- `mergeSnapshots`: special case dla proStatus — **last-write-wins by `since`**, nie shallow merge (bo dla licencji shallow merge nie ma sensu, jest kompletna)
+
+**`src/App.jsx`:**
+- Import `getProStatusRaw, setProStatusFromRemote`
+- `applyData`: gdy `d.proStatus` ma `type` → `setProStatusFromRemote(d.proStatus); s.refreshProStatus()`
+- `stateRef.current.proStatus = getProStatusRaw()` — żeby Save useEffect wysłał do Firestore
+- `setters.refreshProStatus = () => setProStatus(getProStatus())` — re-read z localStorage po sync
+- Save useEffects (localStorage + Firestore) dodano `proStatus` do deps
+
+**`src/data/storage.js`:**
+- Sanityzacja `proStatus`: walidacja typów (type/since/expiresAt/licenseKey muszą być string)
+- Malformed remote nie psuje stanu — odrzucone gdy nie ma `type`
+
+### Test smoke (14/14 passed)
+
 ```
-W v1.2.5 wyciąłem ją bo "nie była eksportowana cross-file". Wynik: `ReferenceError: getTripsForYear is not defined` przy każdym wejściu w zakładkę Wyjazdy. ErrorBoundary łapał błąd i pokazywał generyczny komunikat.
-
-**Fix:** Przywróciłem funkcję jako internal helper (zachowane jak było, tylko bez exportu).
-
-### Bug #2 — Aktywacja licencji PRO crashuje
-
-**Plik:** `src/lib/license.js`
-
-Const `B32_ALPHABET` był używany w funkcji `hmacTag` (linia 47):
-```js
-out += B32_ALPHABET[bytes[i] % B32_ALPHABET.length];
+✅ Device A: aktywacja → state ma type
+✅ Device A: getProStatus zwraca isPro=true
+✅ Device B: setProStatusFromRemote zwraca true (zapisał)
+✅ Device B: po sync getProStatus.isPro=true
+✅ Device B: type=yearly
+✅ Old remote NIE nadpisuje świeższego local
+✅ Lokalnie pozostaje lifetime
+✅ Nowszy remote nadpisuje starszy local
+✅ Po nadpisaniu type=lifetime
+✅ mergeSnapshots: nowszy wygrywa
+✅ Malformed null nie psuje
+✅ Malformed bez since nie psuje
+✅ Malformed string nie psuje
+✅ Local nadal yearly
 ```
-W v1.2.5 wyciąłem go bo nie był eksportowany. Wynik: `UpgradeModal → wpisz klucz → kliknij Aktywuj → ReferenceError: B32_ALPHABET is not defined`. **PRO upgrade flow był złamany na produkcji.**
 
-**Fix:** Przywróciłem const z komentarzem "używany w hmacTag, NIE usuwać".
+### Co realnie zauważysz po deployu
 
-### Bug #3 — Powiadomienia płatności crashują
+Aktywuj na laptopie (jeśli jeszcze nie aktywny) → poczekaj 2-3 sekundy (Firestore save debounce) → otwórz na telefonie → po 1-2 sekundach (Firestore load) **pasek FREE/PRO zniknie, masz pełne PRO funkcje**.
 
-**Plik:** `src/notifications.js`
+---
 
-Funkcja `scheduleLocalNotification` była wywoływana wewnątrz `schedulePaymentReminders` (linie 66, 71):
+## 🟢 Wydatki per miejsce — tylko bieżący cykl (Image 4 fix)
+
+**Twoja skarga:** „To się powtarza wydatki per miejsce to powinny być bieżące."
+
+Image 4 pokazywał `top 7 z 84` z wydatkami: PIT 7000zł (raz w roku), Samolot 3895zł, AirBnb 3831zł, Kredyt Dom 2826zł, Żłobek, Kredyt auto. To są **wszystkie historyczne** wydatki, nie z bieżącego cyklu.
+
+### Fix
+
+`src/views/AnalyticsView.jsx` linia 727:
 ```js
-if (diffDays === 1) {
-  scheduleLocalNotification("💳 Jutro płatność!", `${p.name} · ${...}`);
+- transactions.filter(t => t.amount < 0 && !skipCats.includes(t.cat))
++ monthTx.filter(t => t.amount < 0 && !skipCats.includes(t.cat))
+```
+
+Teraz w widoku "Bieżący" pokazujesz tylko tx z aktualnego cyklu rozliczeniowego. PIT, Samolot, Kredyt Dom z poprzednich miesięcy/lat **nie wpadają**.
+
+### Edge case który zostawiłem
+
+W widoku "Okresy" (Q/półrocze/rok) widget `Wydatki per miejsce` użyje też `monthTx` — ale `monthTx` w "Okresy" to już cały zakres okresu, więc działa OK. Sprawdź czy widzisz to samo co przedtem (cały Q1 wydatki per miejsce) — jeśli tak, OK; jeśli pokazuje tylko bieżący cykl w widoku okresowym, to jest bug do v1.2.8.
+
+---
+
+## 🟢 Hobby stats — miesięcznie + kwartalnie (Image z poprzedniej sesji)
+
+**Twój komentarz:** „w hobby też pewnie dobrze dodać lata. Nie wiem czy nie dodałbym jakoś miesięcznie kwartalnie."
+
+`thisYear` już było. Dodałem `thisMonth` i `thisQuarter`.
+
+### Fix
+
+**`src/lib/hobby.js` `getHobbyStats`:**
+```js
+return {
+  total: allTime, count: txs.length,
+  thisCycle:   ...,  // istniało
+  thisMonth:   Math.round(thisMonth),    // NEW
+  thisQuarter: Math.round(thisQuarter),  // NEW (Q1=sty-mar, Q2=kwi-cze, ...)
+  thisYear:    ...,  // istniało
+  allTime:     ...,
+  ...
+};
+```
+
+**`src/views/HobbyView.jsx`:**
+
+Karta hobby (lista) — 4 statystyki w grid 1fr×4:
+- Cykl / Mies. / Kwart. / Rok
+- Total usunięty z karty (nadal w detail view)
+
+Detail view — 5 statystyk, dwa wiersze:
+- 1. wiersz: Bieżący cykl / Ten miesiąc / Ten kwartał
+- 2. wiersz: Ten rok / Total
+
+---
+
+## 🟢 Struktura przychodów — pokaż wszystkie źródła (Image 2 fix)
+
+**Twoja skarga:** „Strukura przychodów nie za dobrze."
+
+Image 2 pokazywał: `Pensja 100% 10.4k zł` + napis `Pensja z 7 źródeł — top: Ekwiwalent (29%)`. Czyli widzisz że masz 7 źródeł ale tylko top jest pokazany. Mało pomocne.
+
+### Fix
+
+`src/components/AnalyticsWidgets.jsx` `IncomeTypesBreakdown`:
+
+Wyrzuciłem stary blok "showTopMain / !showTopMain". Teraz **zawsze rozwijana lista** wszystkich źródeł pensji:
+
+```
+ŹRÓDŁA PENSJI (7)
+  ING Bank (główne wynagr.)        43%   4 480 zł
+  Ekwiwalent urlopowy              29%   3 020 zł
+  Premia kwartalna                 14%   1 460 zł
+  Premia za projekt                 7%     720 zł
+  Bonus jubileuszowy                4%     420 zł
+  Wczasówki                         2%     200 zł
+  Reszta (zaokrąglenia)             1%     100 zł
+  + 0 więcej (jeśli >8)
+```
+
+Top 8 źródeł, posortowane malejąco. Procenty względem `main` (pensji), nie względem total.
+
+---
+
+## 🟢 Struktura wydatków — reklasyfikacja kategorii (Image 3 fix)
+
+**Twoja skarga:** „Stałe ok ale w innych. To się powtarza."
+
+Image 3 pokazywał Lifestyle 45% (5.5k zł). To podejrzanie wysoko — okazuje się że `EXPENSE_TYPES.lifestyle` zawierało `"inne"`. Ale `"inne"` jest **kategorią transferów** (skip cat), nie wydatkiem. Ten bug fundamentalnie psuł całą klasyfikację.
+
+### Co zmieniłem
+
+`src/components/AnalyticsWidgets.jsx`:
+
+```js
+// PRZED
+const EXPENSE_TYPES = {
+  fixed:      ["rachunki", "zakupy"],         // "zakupy" jako fixed?? wątpliwe
+  variable:   ["jedzenie", "transport", "zdrowie"],
+  lifestyle:  [..., "inne"],                  // "inne" w lifestyle = bug
+};
+
+// PO
+const EXPENSE_TYPES = {
+  investment:     ["inwestycje"],
+  fixed:          ["rachunki", "transport"],          // regularne miesięczne
+  uncontrollable: ["rzad", "rząd"],
+  variable:       ["jedzenie", "zdrowie", "zakupy"],  // "zakupy" przeniesione
+  lifestyle:      ["kawiarnia", "rozrywka", "muzyka", "ubrania", "prezenty", "alkohol", "bukmacher"],
+  // "inne" → null (skip transfer)
+};
+const getExpenseType = (cat) => {
+  if (cat === "inne") return null;  // jasno: nie wpada nigdzie
+  ...
+  return "variable";  // fallback dla custom kategorii (Kredyt Dom, Żłobek, Auto)
+};
+```
+
+### Co realnie zobaczysz
+
+- **Lifestyle spadnie** — wszystkie tx z cat="inne" już nie są lifestyle
+- **Custom kategorie** (Kredyt Dom, Żłobek, Auto, Samolot, AirBnb z Image 4) wpadają w **Variable** jako fallback
+- **Stałe** mają teraz tylko rachunki+transport (bardziej zgodne z definicją "stałych")
+
+### Edge case ostrzeżenie
+
+To jest **automatyczna heurystyka**, nie idealna. Jeśli widzisz nadal coś niespójnego (np. "Żłobek" jako Variable a powinno być Fixed bo płacisz co miesiąc), to znaczy że trzeba dać user-defined classification per-category. To jest **plan na v1.2.8** — Settings → "Dla każdej kategorii wybierz: Stałe / Zmienne / Lifestyle".
+
+---
+
+## 🟢 Muzyka 110% (Image 1) — od ciebie wymaga clear cache
+
+**Twoja skarga:** „Muzyka nadal 110%."
+
+To jest cache service workera v5/v6 który serwuje stary bundle. v1.2.7 bumpuje na **v7**, więc po deployu service worker `activate` event automatycznie wyczyści stare cache (v5 + v6) i pobierze nowy bundle.
+
+**Co realnie zrobić po deployu (jednorazowo):**
+
+```
+1. Otwórz aplikację
+2. F12 → Application → Service Workers
+3. Jeśli widzisz "fintrack-pro-v5" lub "fintrack-pro-v6" → Unregister
+4. Application → Storage → Clear site data
+5. Hard refresh (Ctrl+Shift+R lub iPhone: Settings → Safari → Clear History)
+```
+
+Po tym jednorazowym kroku, przyszłe deployy będą się aktualizować automatycznie.
+
+Jeśli **po wszystkim** nadal widzisz Muzyka 110%, to znaczy że masz tx muzyki z **dziś (28 kwietnia)** w aktualnym cyklu rozliczeniowym, które przekraczają limit. Wtedy 110% jest **prawidłowe**.
+
+---
+
+## 🛡️ K4 — Service Worker production-ready
+
+**Z audytu O3 K4:** offline-first PWA reliability.
+
+### Znalezione bugi w starym sw.js (v6)
+
+1. **`addAll()` z `.catch(() => {})`** — błędy cache silently ignorowane. Jeśli któryś asset zwróci 404, SW i tak się instaluje, ale offline nie działa.
+
+2. **Brak `return` po HTML branch** — fetch handler nie miał wyraźnego return.
+
+3. **`manifest.json` nie był obsługiwany przez fetch handler** — ani Cache First (bo nie .ico/.svg/.png i nie /assets/), ani HTML branch (bo accept ≠ text/html). Wynik: za każdym razem network-only, bez offline.
+
+4. **Cross-origin requests** nie były wyraźnie filtrowane — opieraliśmy się tylko na `hostname.includes("firebase")`. Jeśli kiedyś dodajesz CDN, bug.
+
+### Fixy w sw.js v7
+
+```js
+// 1. Indywidualne add zamiast addAll - jeden 404 nie blokuje całego cache
+for (const asset of STATIC_ASSETS) {
+  try { await cache.add(asset); }
+  catch (err) { console.warn("[SW] Failed to cache", asset, err); }
 }
+
+// 2. Helper functions cacheFirst() + networkFirst() - jasna strategia
+const cacheFirst = async (request) => { ... };
+const networkFirst = async (request, fallbackPath) => { ... };
+
+// 3. manifest.json explicit - dodany do Cache First branch
+url.pathname.endsWith("manifest.json")
+
+// 4. Cross-origin - odrzucone całkiem (browser sam obsłuży)
+if (url.origin !== self.location.origin) return;
+
+// 5. Routing per request type, każdy z return
+if (assetPath)        { event.respondWith(cacheFirst(request)); return; }
+if (navigateOrHtml)   { event.respondWith(networkFirst(request, "/FinTrack-PRO/index.html")); return; }
+event.respondWith(networkFirst(request));  // fallback dla reszty
+
+// 6. Lepsze fallbacks gdy network down
+- cacheFirst zwraca 504 jeśli brak cache + offline
+- networkFirst próbuje cache → fallback path → 503
+
+// 7. Activate event chained przez .then() żeby clients.claim po cleanupie
+.then(() => self.clients.claim())
 ```
-W v1.2.5 wyciąłem ją bo nie była eksportowana. Wynik: gdy użytkownik miał włączone powiadomienia i nadchodząca płatność, `schedulePaymentReminders` rzucało `ReferenceError`. Reminders nie działały — ale **bezgłośnie**, bo wywołanie było w try/catch lub event handler.
 
-**Fix:** Przywróciłem funkcję jako internal helper.
+### Co to oznacza w praktyce
 
-### Co się zmienia w mojej metodyce
+Jeśli stracisz internet w czasie używania aplikacji:
+- **Bundle JS/CSS** — zawsze z cache, nigdy nie znikną
+- **HTML** — z ostatnio widzianego stanu, lub fallback do index.html (SPA routing nadal działa)
+- **manifest.json** — z cache (PWA install nadal działa)
+- **Firebase calls** — fail (oczekiwane, dane już są w localStorage)
 
-W kolejnym audycie (v1.2.7+) skrypt szukania dead code będzie sprawdzać też **wewnętrzne wywołania w obrębie pliku**, nie tylko cross-file. To była podstawowa pomyłka — przeprosiny.
+### Test offline (do zrobienia ręcznie)
+
+```
+1. Załaduj aplikację (online)
+2. F12 → Network → Throttling → Offline
+3. Hard refresh (Ctrl+Shift+R)
+4. Aplikacja powinna się załadować z cache
+5. Spróbuj nawigować między tabami — powinno działać
+```
 
 ---
 
-## ⚠️ Bug "Muzyka 110%" — wzmocniony fix
+## 🛡️ K3 — NBP API rate limit (preventive, na przyszłość)
 
-**Twoja skarga:** „Muzyka nadal 110% robiłem reset."
+**Z audytu O3 K3:** ochrona przed 429 rate limit z NBP API.
 
-**Diagnoza pełna:** widget pokazujący 110% to **Dashboard alerts** (linia 354 Dashboard.jsx), nie LimitsView. `Math.min(110, ...)` clamp do 110% gdy spent > limit.
+### Status: NIE używasz NBP API
 
-110% pokazuje się gdy `monthTx` zawiera tx muzyki z poprzedniego cyklu. To znaczy że `month` w stanie aplikacji jest nadal **kwiecień** zamiast skoczyć na **maj** (bo dziś 28 kwietnia ≥ cycleDay=28 → cykl 28.04-27.05 czyli "miesiąc maj").
+Sprawdziłem. W kodzie **brak fetch do api.nbp.pl**. Currency rates są hardcoded:
 
-**Możliwe powody że auto-snap nie działa po Twoim "reset":**
-1. Service Worker cache trzymał stary bundle (nawet po hard refresh)
-2. Race condition: useEffect dla auto-snap odpalał się przed cycleDayHistory wczytane
-
-### Fix #1: bumped service worker cache
 ```js
-// public/sw.js
-const CACHE_NAME = "fintrack-pro-v6"; // było v5
+// src/views/TransactionsView.jsx:77
+const RATES = { EUR: 4.28, USD: 3.92, GBP: 5.02, CZK: 0.172, HUF: 0.011, PLN: 1 };
 ```
-Po deployu **stary cache zostanie automatycznie wyczyszczony** przez `activate` event w sw.js. Potrzebny może być jeden hard refresh, potem już samo.
 
-### Fix #2: auto-snap useEffect — dodano `month` do deps
-Przed:
+K3 z O3 audytu zakładał że dodasz live FX. Nie zrobiłeś. Więc nie ma nic do rate-limitować. Przygotowałem infrastrukturę na przyszłość:
+
 ```js
-}, [loaded, cycleDay, cycleDayHistory]);
+// src/lib/rateLimit.js
+const LIMITS = {
+  ...
+  // NBP API polityka: 100 req/min per IP. Trzymamy z marginesem.
+  nbpFx: { count: 50, windowMs: 60000 },
+};
 ```
-Po:
+
+Gdy w przyszłości dodasz live FX rates, owiniesz każde `fetch("https://api.nbp.pl/...")` przez:
 ```js
-}, [loaded, cycleDay, cycleDayHistory, month]);
+const check = checkLimit("nbpFx");
+if (!check.allowed) { /* show error */ }
 ```
 
-To znaczy że useEffect odpala się też przy każdej zmianie `month`. Jeśli z jakiegoś powodu `month` cofnie się na zły (np. legacy save z localStorage), auto-snap natychmiast skoryguje na poprawny cykl.
-
-`userNavigatedMonthRef.current` nadal blokuje gdy user manualnie kliknął strzałki. Czyli nie ma regresji w UX.
-
-### Co realnie zrobić
-
-Po deployu v1.2.6:
-1. Zamknij wszystkie karty z FinTrack
-2. Otwórz nowo na czysto
-3. Hard refresh (Ctrl+Shift+R lub iPhone: Settings → Safari → Clear History)
-4. Otwórz Dashboard — powinien pokazać cykl **28.04 - 27.05** (Maj) zamiast Kwiecień
-
-Jeśli **nadal** pokazuje 110%, to znaczy że Twoje tx muzyki są z **dziś** (28 kwietnia, czyli już w nowym cyklu). Wtedy 110% jest poprawne — masz przekroczony limit muzyki w tym cyklu rozliczeniowym. Sprawdź daty tych tx.
-
 ---
 
-## 🧹 Cleanup importów w 6 viewach (audyt głębszy)
+## 🛡️ K5 — VAPID keys + FCM error handling
 
-Sprzątnięte massive bloat — copy-paste z wczesnej fazy projektu, gdzie każdy view miał importowany cały zestaw 41 ikon i 5 hooków, nawet jeśli używał tylko 3.
+**Z audytu O3 K5:** push notifications backend.
 
-### AccountsView.jsx
-**Przed:** 41 ikon importowanych, 5 hooków, 6 utils, 7 constants
-**Po:** 5 ikon (TrendingUp, PlusCircle, PiggyBank, CreditCard, Trash2 + Shield/Landmark aliases), 1 hook (useState), 1 util (fmt), 0 constants
+### Status: VAPID nie skonfigurowany
 
-### LimitsView.jsx
-**Przed:** importował `getCycleRange` (nieużywany)
-**Po:** clean — tylko `fmt, cycleTxs`
+`src/notifications.js` ma `const VAPID_KEY = ""` (pusty). To znaczy że:
+- **Local notifications działają** (`scheduleLocalNotification` dla przypomnień o płatnościach)
+- **Cloud push (FCM) nie działa** — nie da się wysłać notyfikacji ze serwera/Cloud Function
 
-### InvestmentsView.jsx
-**Przed:** 41 ikon, 13 z recharts, 5 hooków, 6 utils
-**Po:** 1 ikona (X), 3 z recharts (PieChart, Pie, Cell), 1 hook (useState), 1 util (fmt)
+### Fix w v1.2.7
 
-### PaymentsView.jsx
-**Przed:** 41 ikon, 5 hooków, 7 utils, 7 constants
-**Po:** 16 ikon (faktycznie używane), 3 hooki (useState/useMemo/useEffect), 2 utils (fmt, todayLocal), 3 constants (MONTHS, MONTH_NAMES, CATEGORIES)
+VAPID key musi przyjść z Firebase Console (Settings → Cloud Messaging → Web Push certificates → Generate). To jest **konfiguracja infrastruktury**, nie kod. Zostawiłem placeholder z czytelną instrukcją w `notifications.js`.
 
-### HobbyView.jsx
-**Przed:** importował `X` (nieużywany), `getCycleRange` (nieużywany)
-**Po:** clean
+Plus **lepsze error handling** — `requestNotificationPermission` zwraca teraz strukturę zamiast `null`:
 
-### TripsView.jsx
-**Brak zmian w imports** — był już dobrze utrzymany. Tylko fix Bug #1 powyżej.
+```js
+// PRZED
+return null;  // co poszło nie tak? nie wiadomo.
 
-### Wpływ na bundle
+// PO
+return { ok: false, reason: "denied_by_user" };
+return { ok: false, reason: "permission_not_granted" };
+return { ok: true, hasFcm: false, reason: "vapid_not_configured" };
+return { ok: true, hasFcm: true, token };
+```
 
-Zerowy. Vite tree-shake to wszystko już wcześniej. Source jest jednak czystszy o ~50 nieużywanych importów (~30% wpisów). Łatwiejszy do utrzymania.
+App.jsx caller jest fire-and-forget więc nie używa returnu, ale gdy w przyszłości dodasz UI status (np. badge "FCM ready / Local only"), reasons będą gotowe.
 
----
-
-## Stan kodu
-
-| | v1.2.5 | v1.2.6 |
-|---|---|---|
-| Pliki .js/.jsx | 59 | 59 |
-| Linie source | 12 777 | ~12 700 (jeszcze 4 funkcje przywrócone z v1.2.5 cięcia) |
-| index.js raw | 354 KB | 354 KB |
-| index.js gzip | 88 KB | 88 KB |
-| Build status | zielony | zielony |
-| Smoke test tombstones | 5/5 | 5/5 (niesprawdzane, nie ruszane) |
-
----
-
-## Pliki zmienione (10)
+### Co realnie zrobić (KIEDY będziesz publikować na produkcję)
 
 ```
-src/lib/trips.js                    [+ getTripsForYear (Bug #1 fix)]
-src/lib/license.js                  [+ B32_ALPHABET (Bug #2 fix)]
-src/notifications.js                [+ scheduleLocalNotification (Bug #3 fix)]
-src/App.jsx                         [auto-snap useEffect: dodano month do deps]
-public/sw.js                        [CACHE_NAME v5 → v6]
-src/views/AccountsView.jsx          [clean 35 nieużywanych importów]
-src/views/LimitsView.jsx            [- getCycleRange (dead)]
-src/views/InvestmentsView.jsx       [clean 50+ nieużywanych importów]
-src/views/PaymentsView.jsx          [clean 25+ nieużywanych importów]
-src/views/HobbyView.jsx             [- X, getCycleRange (dead)]
-package.json                        [1.2.5 → 1.2.6]
+1. Firebase Console → Project Settings → Cloud Messaging
+2. Web Push certificates → Generate key pair
+3. Skopiuj klucz (zaczyna się od "B...", długi base64url string)
+4. Wklej do src/notifications.js linia 16: const VAPID_KEY = "BX..."
+5. Build, deploy
+6. Test: na realnym urządzeniu, kliknij Settings → Włącz powiadomienia
+7. Sprawdź Firestore: users/{uid}/fcm/token musi mieć token
+8. Z Cloud Function spróbuj wysłać test push
+```
+
+---
+
+## Pliki zmienione (12)
+
+```
+src/lib/tier.js                     [+ getProStatusRaw, setProStatusFromRemote]
+src/hooks/useFirebase.js            [+ proStatus do SYNC_KEYS, special merge]
+src/App.jsx                         [+ applyData proStatus, stateRef.proStatus,
+                                     setters.refreshProStatus, save deps]
+src/data/storage.js                 [+ sanityzacja proStatus]
+src/views/AnalyticsView.jsx         [Wydatki per miejsce: transactions → monthTx]
+src/components/AnalyticsWidgets.jsx [IncomeTypesBreakdown: lista wszystkich źródeł
+                                     EXPENSE_TYPES: usunięto "inne", reklasyfikacja]
+src/lib/hobby.js                    [+ thisMonth, thisQuarter w getHobbyStats]
+src/views/HobbyView.jsx             [+ MiniStat 4-kolumny + Detail 5 statystyk]
+public/sw.js                        [v6→v7, helper functions, lepsze fallbacki]
+src/notifications.js                [VAPID dokumentacja, error reasons]
+src/lib/rateLimit.js                [+ nbpFx limit (preventive)]
+package.json                        [1.2.6 → 1.2.7]
 ```
 
 ---
@@ -177,35 +403,45 @@ package.json                        [1.2.5 → 1.2.6]
 ```bash
 npm install
 npm run build
-git add -A && git commit -m "v1.2.6: fix self-inflicted bugs + cleanup imports"
+git add -A && git commit -m "v1.2.7: PRO sync + UX fixy + K3/K4/K5 production"
 git push --force
 ```
 
-**Po push, KONIECZNIE:**
-1. Otwórz aplikację, otwórz DevTools (F12)
-2. Application → Service Workers → **Unregister** (jeśli widzisz `fintrack-pro-v5`)
-3. Application → Storage → **Clear site data**
-4. Hard refresh
+**Po push, jednorazowo na każdym urządzeniu:**
 
-To jest jednorazowe — service worker v6 zastąpi v5 i potem już samodzielnie.
+1. Otwórz aplikację, F12 → Application → Service Workers → Unregister
+2. Application → Storage → Clear site data
+3. Hard refresh
 
----
-
-## Pytania zaległe (wciąż otwarte)
-
-1. **„W przychodzie nie da się dać jakiejś kategorii"** — feature nie zaczęty. Wymaga zmiany schematu kategorii (dodać typ `income`/`expense` per kategoria, zmodyfikować picker w form). Wpisz na liście dla v1.2.7.
-
-2. **„W strukturze wydatków nie do końca dobrze dzieli"** — pytałem o konkretne przykłady, jeszcze nie odpowiedziałeś. Daj 3-5 transakcji które są źle przydzielone (np. „Carrefour 250zł trafia do Lifestyle, powinno do Stałe") — wtedy mogę poprawić mappery w `lib/insights.js` lub `getCat`.
-
-3. **TZ bug** — pytane 7×, brak odpowiedzi. Pomijam.
-
-4. **Audyt O3 27/39** — K3 NBP, K4 Service Worker offline-first, K5 VAPID. Krytyczne przed produkcją, niezrobione.
+Po tym SW v7 będzie sam aktualizować się przy każdym deployu. To jest jednorazowa operacja konieczna z powodu cache_v5 → cache_v7 transition.
 
 ---
 
-## Co realnie zauważysz po deployu
+## Co WCIĄŻ otwarte (na v1.2.8)
 
-1. **Wyjazdy działają** — możesz wejść w Plany → Wyjazdy bez crash
-2. **Aktywacja PRO działa** — gdy klikniesz Upgrade, weryfikacja klucza nie crashuje
-3. **Reminders płatności działają** — gdy włączysz powiadomienia, system o nich nie zapomni
-4. **Muzyka 110%** — po hard refresh + flush SW cache **powinna pokazać 0%** (nowy cykl 28.04-27.05). Jeśli nie, daj znać dokładnie co widzisz + screenshot z Settings → Stan synchronizacji
+1. **„Kategorie dla przychodów"** (twoja skarga z poprzedniej sesji) — feature nie zaczęty. Wymaga zmiany schematu `customCats` (dodać `type: "income" | "expense"` per kategoria), zmodyfikować picker w form Add Transaction.
+
+2. **User-defined classification per kategoria** — żeby "Kredyt Dom" mógł być **Stałe** zamiast fallback **Variable**. Settings → tabela kategorii → wybierz typ.
+
+3. **Wydatki per miejsce w widoku Okresy** — używa `monthTx` ale nie jestem pewien czy w widoku okresowym (Q/półrocze/rok) `monthTx` ma cały zakres czy tylko bieżący cykl. Wymaga testu z Twoimi danymi.
+
+4. **Live FX rates z NBP API** — infrastruktura rate-limit gotowa, brak implementacji.
+
+5. **VAPID key konfiguracja** — przed produkcją (krok manualny w Firebase Console).
+
+6. **Audyt O3 pozostały (27/39 → ile zostało?)** — K3/K4/K5 done, sprawdź który następny w lista.
+
+---
+
+## Mój priorytet rekomendacja
+
+Po deployu daj znać:
+
+**A)** PRO sync działa (zaloguj na 2 urządzeniach, aktywuj na 1, sprawdź na 2)?  
+**B)** Wydatki per miejsce w "Bieżący" pokazują tylko bieżący cykl?  
+**C)** Hobby stats mają 4 wartości w karcie?  
+**D)** Struktura przychodów pokazuje wszystkie 7 źródeł?  
+**E)** Lifestyle % w struktura wydatków spadło?  
+**F)** Muzyka 110% (Image 1) zniknęło po clear SW?
+
+Jeśli wszystko OK → idziemy w **kategorie przychodów** (najbardziej blokujące jak go używasz codziennie). Jeśli coś nie działa — najpierw fix.

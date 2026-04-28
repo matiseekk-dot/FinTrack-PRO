@@ -3,7 +3,17 @@ import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 
-const VAPID_KEY = ""; // Do uzupełnienia po konfiguracji FCM w Firebase Console
+// VAPID public key z Firebase Console:
+//   1. Otwórz Firebase Console → Project Settings → Cloud Messaging
+//   2. Web Push certificates → Generate key pair (jeśli jeszcze nie ma)
+//   3. Skopiuj "Key pair" wartość (zaczyna się od "B...", długi base64url string)
+//   4. Wklej tutaj jako string
+//
+// Bez VAPID key działają TYLKO local notifications (scheduleLocalNotification poniżej).
+// Push z serwera (FCM) nie zadziała - getToken() rzuci.
+//
+// PRZED PUBLIKACJĄ NA PRODUKCJĘ: ustawić VAPID_KEY i przetestować push end-to-end.
+const VAPID_KEY = "";
 
 let messaging = null;
 
@@ -15,15 +25,27 @@ function getMessagingInstance() {
 }
 
 export async function requestNotificationPermission(uid) {
-  if (!("Notification" in window)) return null;
-  if (Notification.permission === "denied") return null;
+  if (!("Notification" in window)) {
+    return { ok: false, reason: "unsupported" };
+  }
+  if (Notification.permission === "denied") {
+    return { ok: false, reason: "denied_by_user" };
+  }
 
   try {
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") return null;
+    if (permission !== "granted") {
+      return { ok: false, reason: "permission_not_granted" };
+    }
+
+    // Lokalne notyfikacje już działają od tej chwili (scheduleLocalNotification).
+    // Token FCM dla cloud push - tylko jeśli VAPID skonfigurowany.
+    if (!VAPID_KEY) {
+      return { ok: true, hasFcm: false, reason: "vapid_not_configured" };
+    }
 
     const m = getMessagingInstance();
-    if (!m || !VAPID_KEY) return null;
+    if (!m) return { ok: true, hasFcm: false, reason: "messaging_unavailable" };
 
     const token = await getToken(m, { vapidKey: VAPID_KEY });
     if (token && uid) {
@@ -32,10 +54,10 @@ export async function requestNotificationPermission(uid) {
         token, updatedAt: new Date().toISOString(), platform: navigator.userAgent,
       });
     }
-    return token;
-  } catch(e) {
+    return { ok: true, hasFcm: !!token, token };
+  } catch (e) {
     console.warn("[FCM] token error:", e);
-    return null;
+    return { ok: true, hasFcm: false, reason: "fcm_error", error: String(e) };
   }
 }
 

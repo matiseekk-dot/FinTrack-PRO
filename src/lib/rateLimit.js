@@ -9,6 +9,10 @@
 const LIMITS = {
   addTransaction: { count: 60, windowMs: 60000 },   // 60/min
   saveFirestore:  { count: 100, windowMs: 60000 },  // 100/min
+  // NBP API polityka: 100 req/min per IP. Trzymamy z marginesem żeby nie dostać 429.
+  // Currently unused - currencies są hardcoded w TransactionsView (RATES).
+  // Gdy ktoś doda live FX, owinąć fetch przez checkLimit("nbpFx").
+  nbpFx:          { count: 50, windowMs: 60000 },
   default:        { count: 200, windowMs: 60000 },
 };
 

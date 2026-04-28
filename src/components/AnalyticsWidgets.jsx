@@ -10,23 +10,28 @@ import { fmt, fmtShort, cycleTxs, getCycleRange } from "../utils.js";
 import { getCat, MONTHS, MONTH_NAMES, BASE_CATEGORIES } from "../constants.js";
 
 
+// v1.2.7: klasyfikacja zsynchronizowana z BASE_CATEGORIES (constants.js).
+// "inne" usunięte z lifestyle - to transfer/skip, nie wydatek.
+// Custom kategorie userów (np. "Kredyt Dom") wpadają w fallback "variable".
 const EXPENSE_TYPES = {
-  investment: ["inwestycje"],
-  fixed:      ["rachunki","zakupy"],
-  uncontrollable: ["rzad","rząd"],
-  variable:   ["jedzenie","transport","zdrowie"],
-  lifestyle:  ["kawiarnia","rozrywka","muzyka","ubrania","prezenty","alkohol","bukmacher","inne"],
+  investment:     ["inwestycje"],
+  fixed:          ["rachunki", "transport"],          // regularnie miesięcznie, niezbędne
+  uncontrollable: ["rzad", "rząd"],                   // podatki/ZUS - nie da się ograniczyć
+  variable:       ["jedzenie", "zdrowie", "zakupy"],  // potrzebne ale można przyciąć
+  lifestyle:      ["kawiarnia", "rozrywka", "muzyka", "ubrania", "prezenty", "alkohol", "bukmacher"],
+  // "inne" → skip (transfer, nie wydatek - traktowany w monthTx.filter cat !== "inne")
 };
-const UNCONTROLLABLE_CATS = ["rząd","rzad","inwestycje","rachunki"];
+const UNCONTROLLABLE_CATS = ["rząd", "rzad", "inwestycje", "rachunki"];
 const isControllable = (cat) => {
-  return ["kawiarnia","rozrywka","muzyka","ubrania","prezenty","alkohol",
-          "bukmacher","jedzenie","transport","zakupy"].includes(cat);
+  return ["kawiarnia", "rozrywka", "muzyka", "ubrania", "prezenty", "alkohol",
+          "bukmacher", "jedzenie", "zakupy"].includes(cat);
 };
 const getExpenseType = (cat) => {
+  if (cat === "inne") return null;  // skip transfer
   for (const [type, cats] of Object.entries(EXPENSE_TYPES)) {
     if (cats.includes(cat)) return type;
   }
-  return "variable";
+  return "variable";  // fallback dla custom kategorii
 };
 
 function FinancialScore({ income, expense, transactions, month, cycleDay, elapsedDays }) {
@@ -544,21 +549,41 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
             })}
           </div>
 
-          {showTopMain && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-              fontSize: 11, color: "#64748b" }}>
-              Główne źródło: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
-              {" — "}
-              <span style={{ fontFamily: "'DM Mono', monospace", color: "#10b981" }}>{fmt(topMain[1])}</span>
-            </div>
-          )}
-          {!showTopMain && main > 0 && mainSourceCount > 1 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-              fontSize: 11, color: "#64748b" }}>
-              Pensja z {mainSourceCount} źródeł — top: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
-              {" "}<span style={{ fontFamily: "'DM Mono', monospace", color: "#475569" }}>
-                ({((topMain[1]/main)*100).toFixed(0)}%)
-              </span>
+          {/* v1.2.7: zawsze rozwijana lista wszystkich źródeł pensji.
+              Wcześniej pokazywało tylko top 1 z procentem - mało pomocne gdy masz 7 źródeł. */}
+          {main > 0 && sortedMerchants.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744" }}>
+              <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                Źródła pensji ({sortedMerchants.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {sortedMerchants.slice(0, 8).map(([name, val]) => {
+                  const pct = main > 0 ? (val / main * 100) : 0;
+                  return (
+                    <div key={name} style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "center", fontSize: 11 }}>
+                      <span style={{ color: "#cbd5e1", overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: 8 }}>
+                        {name}
+                      </span>
+                      <span style={{ color: "#64748b", fontFamily: "'DM Mono', monospace",
+                        fontSize: 10, marginRight: 8 }}>
+                        {pct.toFixed(0)}%
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", color: "#10b981",
+                        minWidth: 70, textAlign: "right" }}>
+                        {fmt(val)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {sortedMerchants.length > 8 && (
+                  <div style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 4 }}>
+                    + {sortedMerchants.length - 8} więcej
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

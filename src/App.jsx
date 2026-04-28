@@ -27,7 +27,7 @@ import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.js
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
-import { getProStatus } from "./lib/tier.js";
+import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
 import { t } from "./i18n.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
@@ -80,6 +80,12 @@ function applyData(d, s) {
   }
   if (Array.isArray(d.vacationArchiveData))                    s.setVacationArchive(d.vacationArchiveData);
   if (d.tombstones && typeof d.tombstones === "object")        s.setTombstones(d.tombstones);
+  // v1.2.7: PRO status syncuje się między urządzeniami. Sync przez SYNC_KEYS w useFirebase.
+  // Tu zapisujemy do localStorage (źródło prawdy dla getProStatus()) i refreshujemy state.
+  if (d.proStatus && typeof d.proStatus === "object" && d.proStatus.type) {
+    setProStatusFromRemote(d.proStatus);
+    if (s.refreshProStatus) s.refreshProStatus();
+  }
   if (d.templates) try { localStorage.setItem("ft_templates", JSON.stringify(d.templates)); } catch(_) {}
   if (d.vacation)  try { localStorage.setItem("ft_vacation",  JSON.stringify(d.vacation));  } catch(_) {}
 }
@@ -150,6 +156,7 @@ export default function App() {
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
     trips, hobbies,
     tombstones,
+    proStatus: getProStatusRaw(),  // v1.2.7: sync PRO status między urządzeniami
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
@@ -216,6 +223,7 @@ export default function App() {
     setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
     setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
     setTrips, setHobbies, setTombstones,
+    refreshProStatus: () => setProStatus(getProStatus()),  // v1.2.7: po sync PRO statusu
   };
 
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
@@ -281,7 +289,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus]);
 
   // Save to Firestore
   useEffect(() => {
@@ -294,7 +302,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones]);
+  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));

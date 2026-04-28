@@ -38,10 +38,40 @@ function getProStatus() {
       type: parsed.type || "unknown",
       since: parsed.since,
       expiresAt: parsed.expiresAt,
+      licenseKey: parsed.licenseKey || null,
     };
   } catch (_) {
     return { isPro: false, type: null, since: null, expiresAt: null };
   }
+}
+
+/**
+ * Zwraca raw payload z localStorage żeby App mógł go syncować przez Firestore.
+ * Bez wywoływania getProStatus() bo ten sprawdza expiresAt i mógłby zwrócić null
+ * dla wygasłej licencji którą i tak chcemy zachować w sync (drugie urządzenie
+ * też ma to samo).
+ */
+function getProStatusRaw() {
+  try {
+    const raw = localStorage.getItem(PRO_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Ustaw status PRO z remote sync (Firestore). Używane gdy user zaloguje się
+ * na drugim urządzeniu - powinien dostać swoje PRO bez ponownej aktywacji.
+ * Tylko dla zalogowanego usera, tylko gdy lokalnie nie ma PRO lub jest stary.
+ */
+function setProStatusFromRemote(remoteData) {
+  if (!remoteData || typeof remoteData !== "object") return;
+  if (!remoteData.type || !remoteData.since) return;
+  // Nie nadpisuj jeśli lokalna aktywacja jest świeższa (np. user właśnie wpisał klucz)
+  const local = getProStatusRaw();
+  if (local && local.since && remoteData.since && local.since >= remoteData.since) return;
+  localStorage.setItem(PRO_KEY, JSON.stringify(remoteData));
 }
 
 function activatePro(type, licenseKey) {
@@ -79,6 +109,7 @@ function canAddTransaction(transactions, isPro) {
 }
 
 export {
-  getProStatus, activatePro, deactivatePro,
+  getProStatus, getProStatusRaw, setProStatusFromRemote,
+  activatePro, deactivatePro,
   canAddTransaction,
 };

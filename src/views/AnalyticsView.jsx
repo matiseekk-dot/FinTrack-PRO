@@ -720,11 +720,12 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
         })()}
       </Card>
 
-      {/* Per-sklep / per-miejsce — top 7 + expand do całej listy */}
+      {/* Per-sklep / per-miejsce — top 7 + expand. v1.2.7: tylko bieżący cykl
+          (przedtem wszystkie tx historycznie - mylące, top to były PIT/wakacje/kredyt) */}
       {(() => {
         const shopMap = {};
         const skipCats = ["inne", "inwestycje", "przychód", "sprzedaż", "dodatkowe", "bukmacherka"];
-        transactions
+        monthTx
           .filter(t => t.amount < 0 && !skipCats.includes(t.cat))
           .forEach(t => {
             const key = t.desc.trim();

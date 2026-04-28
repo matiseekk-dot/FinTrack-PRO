@@ -277,10 +277,11 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
         <ChevronRight size={16} color="#475569"/>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-        <MiniStat label="Cykl" value={fmtShort(stats.thisCycle)} color="#ec4899"/>
-        <MiniStat label="Rok"  value={fmtShort(stats.thisYear)}  color="#a855f7"/>
-        <MiniStat label="Total" value={fmtShort(stats.allTime)}  color="#64748b"/>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+        <MiniStat label="Cykl"  value={fmtShort(stats.thisCycle)}   color="#ec4899"/>
+        <MiniStat label="Mies." value={fmtShort(stats.thisMonth)}   color="#f43f5e"/>
+        <MiniStat label="Kwart."value={fmtShort(stats.thisQuarter)} color="#a855f7"/>
+        <MiniStat label="Rok"   value={fmtShort(stats.thisYear)}    color="#8b5cf6"/>
       </div>
 
       {target > 0 && (
@@ -373,10 +374,14 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <Stat label={t("hobby.thisCycle")} value={fmt(stats.thisCycle)} color="#ec4899"/>
-          <Stat label={t("hobby.thisYear")}  value={fmt(stats.thisYear)}  color="#a855f7"/>
-          <Stat label={t("hobby.allTime")}   value={fmt(stats.allTime)}   color="#8b5cf6"/>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <Stat label="Bieżący cykl"   value={fmt(stats.thisCycle)}   color="#ec4899"/>
+          <Stat label="Ten miesiąc"    value={fmt(stats.thisMonth)}   color="#f43f5e"/>
+          <Stat label="Ten kwartał"    value={fmt(stats.thisQuarter)} color="#a855f7"/>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <Stat label="Ten rok"        value={fmt(stats.thisYear)}    color="#8b5cf6"/>
+          <Stat label="Total"          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
 
         {hobby.yearlyTarget > 0 && (
