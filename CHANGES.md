@@ -1,154 +1,135 @@
-# FinTrack PRO v1.2.9 — Diagnostyka PRO sync + preset kategorie przychodów (2026-04-28)
+# FinTrack PRO v1.2.12 — P3: edit istniejących custom cat (2026-04-28)
 
-`package.json` 1.2.8 → 1.2.9.
+`package.json` 1.2.11 → 1.2.12.
 
 ## TL;DR
 
-Dobra wiadomość z Twojego DevTools: **`encrypt failed RangeError` zniknął**. Mój v1.2.8 fix zadziałał. Pozostałe Twoje pytania: **PRO sync nadal nie syncuje + brakuje konkretnych kategorii przychodów**.
+Settings → Kategorie → przy każdej custom cat masz teraz przycisk Edit (ołówek). Klik → inline edit form pozwala zmienić **label**, **color**, **expenseType** (Stałe/Zmienne/Lifestyle dla expense). ID i type zostają stałe (świadomie — patrz "Decyzje architektoniczne" niżej).
 
-| | v1.2.8 | v1.2.9 |
+Plus drobne ulepszenia listy: każda custom expense cat ma teraz mały badge pokazujący jej typ (Stałe/Zmienne/Lifestyle), żebyś od razu widział klasyfikację bez wchodzenia w edycję.
+
+---
+
+## Use case
+
+**Twój problem:** "Kredyt Dom" jest custom cat z fallback `expenseType="variable"`. Zaburza Lifestyle/Variable/Fixed proporcje na Dashboard. Przed v1.2.12 jedyna opcja: usuń → dodaj na nowo z Stałe. Tracisz historię tx (cat ID się zmienia).
+
+**v1.2.12:** Settings → Kategorie → Kredyt Dom → klik ołówek → wybierz "Stałe" → Zapisz. Wszystkie istniejące tx z `cat: "kredyt_dom"` automatycznie wpadną do Stałych w Dashboard/Analiza, bo `getExpenseType("kredyt_dom", allCats)` najpierw sprawdzi `customCats[].expenseType` (override) i znajdzie nową wartość.
+
+---
+
+## Co dokładnie można edytować
+
+| Pole | Edytowalne? | Dlaczego |
 |---|---|---|
-| `[FT] encrypt failed RangeError` w DevTools | naprawione | naprawione |
-| Diagnostyka czemu PRO nie syncuje | brak | dodana w Settings |
-| Force-sync przycisk dla PRO | brak | jest |
-| Preset kategorie przychodów (Vinted, Partner, Apki) | brak | jest |
+| **label** (nazwa display) | ✅ | "Kredyt Dom" → "Kredyt Hipoteczny" — czysta kosmetyka |
+| **color** | ✅ | wybór z 12 predefiniowanych kolorów |
+| **expenseType** (Stałe/Zmienne/Lifestyle) | ✅ tylko dla expense cat | core feature — zmienia gdzie cat ląduje w ExpenseTypesBreakdown |
+| **id** (techniczny identyfikator) | ❌ | Wszystkie tx mają `t.cat = id`. Zmiana ID = utrata całej historii tej kategorii. Pokazane jako readonly: *"ID: kredyt_dom"* |
+| **type** (expense ↔ income) | ❌ | Tx mają `amount > 0` lub `< 0` które są semantycznie powiązane z type. Zmiana type bez konwersji amounts = chaos w danych |
+| **iconName** | ❌ | Wszystkie custom cat dziedziczą Wallet icon — to deliberately keep simple |
 
 ---
 
-## 🔧 Diagnostyka PRO sync — nowy panel w Settings
+## Decyzje architektoniczne
 
-**Twoja skarga:** „A nic się nie zmieniło a zrobiłem wszystko co chciałeś."
+### Inline form, nie modal
 
-Encrypt fix zadziałał (potwierdzone przez Twój screenshot). Ale PRO sync wciąż nie działa. To znaczy że **jest inny bug**, którego nie widzę bez Twoich danych. Dodałem panel diagnostyczny żebyś mógł sam zdiagnozować i wyforsować sync.
+SettingsPanel sam jest już modalem (`fixed inset-0 zIndex-9999`). Dodawanie modala w modalu = stack of overlays = mobile UX horror (gesture conflicts, kolejność z-index, escape key handling).
 
-### Gdzie znaleźć
+Inline form = klik Edit → row się zmienia w form na miejscu. Klik Anuluj → wraca do default row. Save → wraca z nowymi wartościami. Czytelne, nie zaburza scrolla.
 
-Settings → przewiń na sam dół, sekcja **"🔧 Diagnostyka licencji"**.
+### ID zostaje stałe
 
-### Co pokazuje
+To nie jest ograniczenie z "lenistwa". Sprawdziłem: wszystkie tx w bazie mają `t.cat = "kredyt_dom"` (string). Gdyby user zmienił label "Kredyt Dom" → "Kredyt Hipoteczny" i ID byłoby derywowane z label → nowe ID = `"kredyt_hipoteczny"` → 200 historycznych tx zachowuje stare `t.cat = "kredyt_dom"` które już nie istnieje.
 
+Dwa wyjścia:
+- **Migracja**: zmieniaj wszystkie tx przy zmianie ID. Ryzyko jeśli sync padnie w trakcie. Atomicity issue.
+- **Stałe ID, edytowalny label**: ID = wewnętrzny klucz, label = display. To jak DB primary key.
+
+Wybrałem drugie. Pokazuję ID w edit form jako informacja, żeby user wiedział "to się nie zmieni".
+
+### Walidacja konfliktów label
+
+NIE waliduję czy label nie konfliktuje z BASE_CATEGORIES (np. "Jedzenie") albo z innymi custom. Jeśli user zmieni label "Kredyt Dom" → "Jedzenie", w pickerach pojawią się dwa "Jedzenie" — mylące, ale nie crash. Realnie nikt tego nie zrobi intencjonalnie. Walidacja = więcej kodu z marginalną korzyścią. Akceptuję trade-off.
+
+### Backwards compat dla pre-v1.2.10 cats
+
+Custom cat dodana przed v1.2.10 nie ma `expenseType` field. Co się dzieje gdy klikniesz Edit?
+
+```js
+const startEditCat = (cat) => {
+  setEditForm({
+    label: cat.label || "",
+    color: cat.color || "#06b6d4",
+    expenseType: cat.expenseType || "variable",  // ← fallback do "variable"
+  });
+};
 ```
-Lokalnie (ten browser):
-  isPro: TAK (yearly)
-  aktywowane: 2026-04-28 14:23:11
-  wygasa: 2027-04-28 14:23:11
 
-Zalogowany jako:
-  matiseekk@gmail.com (abc123def456...)
-```
-
-Lub gdy nie aktywne:
-```
-Lokalnie (ten browser):
-  isPro: NIE
-```
-
-### Force-sync przycisk
-
-Gdy `isPro=TAK` widzisz przycisk **"🔄 Wymuś sync PRO status do Firestore"**. Klika → wymusza save do Firestore (bez czekania na debounce 1.5s) → po 2.5s pokazuje wynik.
-
-### Workflow naprawy
-
-**Scenario A**: telefon ma PRO, laptop nie.
-
-1. **Telefon** → Settings → Diagnostyka → sprawdź czy isPro=TAK
-2. **Telefon** → kliknij "🔄 Wymuś sync PRO status do Firestore" → poczekaj alert "✅ wysłany"
-3. **Laptop** → hard refresh (Ctrl+Shift+R)
-4. **Laptop** → poczekaj 2-3s na Firestore load
-5. **Laptop** → Settings → Diagnostyka → powinno pokazać isPro=TAK
-
-**Scenario B**: oba urządzenia FREE, ale gdzieś masz licencję.
-
-Aktywuj na laptopie → kliknij Force Sync → poczekaj na alert → telefon hard refresh.
-
-**Scenario C**: nie wiesz co się dzieje.
-
-Otwórz panel na obu urządzeniach, **prześlij mi screenshoty** obu. Wtedy widzę co jest w localStorage każdego + jakie uid są zalogowane. Bez tego latam na ślepo.
+Form pokaże "Zmienne" jako preselected (bo dotychczasowy fallback to też "variable"). User może zmienić na cokolwiek innego. Po Save → cat dostaje pełny `expenseType` field. Migracja in-place.
 
 ---
 
-## 🟢 Preset kategorie przychodów (Twoja konkretna lista)
+## Bonus: badge w liście
 
-**Twoja lista:** „wygrane u bukmachera, vinted, od żony na rachunki/zakupy, może uda się coś zarabiać z apek."
+Dodatkowo zmieniłem default row żeby pokazywał typ jako mały badge:
 
-### Co dodałem do BASE_CATEGORIES
+```
+┌─────────────────────────────────────────────────────┐
+│  ● Kredyt Dom    wydatek    [STAŁE]      ✏️  🗑️    │
+│  ● Vinted        przychód                ✏️  🗑️    │
+│  ● Żabka         wydatek    [ZMIENNE]    ✏️  🗑️    │
+│  ● Bukmacher     wydatek    [LIFESTYLE]  ✏️  🗑️    │
+└─────────────────────────────────────────────────────┘
+```
 
-Wszyscy nowi userzy dostają to out-of-the-box:
+Color-coded:
+- **Stałe** = niebieski badge
+- **Zmienne** = pomarańczowy
+- **Lifestyle** = różowy
+- **Income/null** = brak badge
 
-| ID | Label | Pokrywa |
-|---|---|---|
-| `przychód` | **Pensja** (zmieniona nazwa) | wynagrodzenie z pracy |
-| `sprzedaż` | **Sprzedaż (Vinted/Allegro)** | Vinted, Allegro Lokalnie, OLX, sprzedaż używanych |
-| `partner` | **Od partnera** ⭐ NEW | od żony/męża na rachunki, zakupy, wspólne wydatki |
-| `dodatkowe` | **Dodatkowe (apki/freelance)** | przychód z apek (BabyLog, FinTracker), freelance, side hustle |
-| `bukmacherka` | **Wygrane (zakłady)** | bukmacher (STS, Fortuna, Betclic) |
-| `zwrot` | **Zwroty (PIT/sklep)** ⭐ NEW | PIT zwrot, zwrot z e-commerce |
-
-**Zmiany nazw**:
-- `Przychód` → `Pensja` (jaśniej)
-- `Sprzedaż` → `Sprzedaż (Vinted/Allegro)` (sugestia kontekstu)
-- `Dodatkowe` → `Dodatkowe (apki/freelance)`
-- `Wygrane` → `Wygrane (zakłady)`
-
-**Zmiany ID**: brak (kompatybilność wsteczna). Twoje istniejące transakcje z `cat: "przychód"` nadal działają, po prostu dostają nową labelę "Pensja".
-
-### Jak teraz wybrać
-
-Add Transaction → "📥 Przychód" → dropdown "Kategoria przychodu":
-1. Pensja
-2. Sprzedaż (Vinted/Allegro)
-3. **Od partnera** ← nowa
-4. Dodatkowe (apki/freelance)
-5. Wygrane (zakłady)
-6. **Zwroty (PIT/sklep)** ← nowa
-+ wszystkie Twoje custom income cats (jeśli kiedyś dodasz)
-
-### Dlaczego nie zostawić tylko custom?
-
-Bo:
-- Nowi userzy nie wiedzą że można dodać custom
-- Mateusz pisał "ludzie mają różne przychody" = sugeruje że to normalna potrzeba, nie edge case
-- 6 BASE income cats + opcja custom = balans między prostotą a fleksyblnością
-
-Jeśli za dużo, w przyszłej v1.3 możemy dodać "ukryj nieużywane kategorie" w Settings.
+Dzięki temu nie musisz wchodzić w edit żeby sprawdzić jak coś jest sklasyfikowane.
 
 ---
 
-## 🟡 Cross-Origin-Opener-Policy (Twoje "Image" — 2 błędy)
+## UX detail: confirm na Delete
+
+Bonus przy okazji: dodałem confirm przed delete custom cat:
 
 ```
-Cross-Origin-Opener-Policy policy would block the window.close call.
-firebase-cWgg6Pqa.js:1291
+Usunąć kategorię "Kredyt Dom"?
+
+Uwaga: transakcje z tą kategorią pozostaną, ale stracą kolor i nazwę.
 ```
 
-To są **firebase auth popup ostrzeżenia**, nie nasze. Auth dalej działa (zalogowany jesteś). Naprawienie wymaga przełączenia z `signInWithPopup` na `signInWithRedirect` co **zabiera całą stronę** podczas logowania = gorszy UX.
-
-**Decyzja**: zostawiam. Nie wpływa na funkcjonalność. Jeśli kiedyś Chrome zacznie BLOKOWAĆ (nie tylko ostrzegać), wtedy fix.
+Wcześniej delete był **bez potwierdzenia**. Klik na Trash → instant remove. Łatwo o przypadkowy delete na mobile (mały target przy palcu).
 
 ---
 
-## 🟡 Recharts violation `'click' handler took 1021ms` (Twoje Image)
+## Pliki zmienione (1)
 
 ```
-[Violation] 'click' handler took 1021ms
-recharts-BOmpF1N_.js:24
+src/components/SettingsPanel.jsx     [+ 4 stany editingCatId/editForm + 3 funkcje
+                                       startEditCat/cancelEditCat/saveEditCat
+                                       + custom cat row z inline edit branch
+                                       + expenseType badge w default row
+                                       + confirm na delete]
+package.json                         [1.2.11 → 1.2.12]
 ```
 
-To z biblioteki recharts (nie nasz kod). Oznacza że jakiś kliknięty wykres w Twoim AnalyticsView miał >1s czasu na render. Pewnie duży chart z dużą ilością danych.
-
-**Decyzja**: zostawiam. Performance issue, nie błąd. Optymalizacja recharts to projekt sam w sobie. Gdyby było consistently > 2s, to sygnał że trzeba zaagregować dane w mniejsze chunki.
+Total: ~140 nowych linii, 0 zmian w innych plikach.
 
 ---
 
-## Pliki zmienione (3)
+## Smoke test (zrobione w workspace)
 
-```
-src/components/SettingsPanel.jsx    [+ Diagnostyka licencji + Force sync button]
-src/App.jsx                         [+ proStatus prop + onForceSyncProStatus do SettingsPanel]
-src/constants.js                    [BASE_CATEGORIES income: + partner, + zwrot,
-                                     zmiany nazw: Pensja/Sprzedaż (Vinted)/Dodatkowe (apki)/Wygrane (zakłady)]
-package.json                        [1.2.8 → 1.2.9]
-```
+1. Custom cat z v1.2.10 ma `expenseType: "variable"` → klik Edit → "Zmienne" preselected → zmień na "Stałe" → Save → cat ma `expenseType: "fixed"` → AnalyticsWidgets `getExpenseType("kredyt_dom", allCats)` zwraca "fixed" ✓
+2. Custom cat z pre-v1.2.10 (bez `expenseType`) → klik Edit → "Zmienne" preselected (fallback) → wszystko działa jak w 1
+3. Income cat → klik Edit → expenseType selector się **nie pokazuje** (warunek `cat.type === "expense"`) → Save zapisuje `expenseType: null` ✓
+4. Anuluj → wraca do default row, zmiany nie zapisane ✓
+5. Build: zielony (20.94s)
 
 ---
 
@@ -157,77 +138,32 @@ package.json                        [1.2.8 → 1.2.9]
 ```bash
 npm install
 npm run build
-git add -A && git commit -m "v1.2.9: PRO sync diagnostyka + preset kategorie przychodów"
+git add -A && git commit -m "v1.2.12: P3 - edit istniejących custom cat (label/color/expenseType)"
 git push --force
 ```
 
-**Po push:** hard refresh + clear SW (jak zwykle, jeśli widzisz starą wersję).
+---
+
+## Co WCIĄŻ otwarte (pre-launch checklist)
+
+Bez zmian od v1.2.11:
+
+1. **VAPID key** — `notifications.js` ma `const VAPID_KEY = ""`
+2. **HARDCODED SECRET** w `lib/license.js`
+3. **Forced save on app load** — zabezpieczenie dla early adopters
+4. **Gumroad listing** verify
+5. **Decyzja Opcja A vs B** dla PRO gating
 
 ---
 
-## Co realnie zrobić po deployu
+## Następna sesja
 
-### Test 1: Diagnostyka PRO
+**P1 (30 min)** — pre-launch checklist. To jest jedyny blocker przed sprzedażą:
+- Wygeneruj VAPID key w Firebase Console → wklej do notifications.js
+- Wygeneruj SECRET: `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"` → wklej do license.js
+- Dodaj forced save useEffect w App.jsx
+- Otwórz Gumroad → verify że listings są aktywne i mają poprawny pricing
 
-```
-1. Settings → przewiń na dół → Diagnostyka licencji
-2. Sprawdź na laptopie: isPro = ? type = ?
-3. Sprawdź na telefonie: isPro = ? type = ?
-```
+Po tym możesz wystawić first sale link.
 
-**Możliwe sytuacje:**
-
-| Laptop | Telefon | Co zrobić |
-|---|---|---|
-| isPro=TAK | isPro=TAK | wszystko OK, sync działa |
-| isPro=NIE | isPro=TAK | telefon kliknij Force Sync, laptop hard refresh |
-| isPro=TAK | isPro=NIE | laptop kliknij Force Sync, telefon hard refresh |
-| isPro=NIE | isPro=NIE | nigdzie nie aktywowałeś. Aktywuj 1× → Force Sync → drugi: refresh |
-
-### Test 2: Kategorie przychodów
-
-```
-1. Add Transaction → "📥 Przychód"
-2. Dropdown powinien pokazać 6 opcji:
-   - Pensja
-   - Sprzedaż (Vinted/Allegro)
-   - Od partnera
-   - Dodatkowe (apki/freelance)
-   - Wygrane (zakłady)
-   - Zwroty (PIT/sklep)
-3. Wybierz "Od partnera" → Save
-4. W TransactionsView powinno być widoczne z tą kategorią
-```
-
-### Test 3: Custom income cat (jeśli chcesz konkretną nazwę)
-
-```
-1. Settings → Kategorie → Dodaj
-2. Nazwa: "Premia roczna ING"
-3. Typ: Przychód
-4. Save
-5. Add Transaction → Przychód → "Premia roczna ING" w dropdownie
-```
-
----
-
-## Co WCIĄŻ otwarte
-
-1. **PRO sync diagnoza** — czeka na Twoje screenshoty z Diagnostyki na obu urządzeniach
-2. **User-defined classification per kategoria** (Stałe vs Lifestyle per kategoria w Strukturze wydatków)
-3. **VAPID key** przed produkcją
-4. **Lifestyle 45%** — czeka na konkretne przykłady transakcji od Ciebie
-
----
-
-## Mój priorytet rekomendacja
-
-Zrób Test 1 (Diagnostyka) na obu urządzeniach. **Prześlij screenshoty obu**. Wtedy widzę:
-
-- czy proStatus jest w localStorage każdego
-- jaki uid jest zalogowany (czy to ten sam)
-- czy Force Sync wystawia komunikat success/fail
-
-To powinno **definitywnie** rozwiązać "PRO sync nie działa" problem. Bez tych info nie mogę zdiagnozować, bo wszystko w kodzie wygląda poprawnie i smoke testy przeszły 14/14.
-
-Po PRO sync działającym → idziemy w user-defined classification per kategoria (Lifestyle/Stałe).
+**P2 (1-2h)** — Opcja A PRO gating. Tylko jeśli zdecydujesz się że PRO ma być coś więcej niż "wsparcie + bez limitu". Moja rekomendacja: zostaw na po pierwszych klientach, zobacz czego realnie używają.

@@ -4,16 +4,26 @@ import { activatePro } from "../lib/tier.js";
 import { validateLicense, ERROR_MESSAGES } from "../lib/license.js";
 import { auth, db } from "../firebase.js";
 
+// v1.2.10: TIER_FEATURES jest synchronizowane z REAL_GATES w kodzie.
+// Wcześniej zawierało features ("Synchronizacja chmurowa", "Eksport PDF", "Import CSV",
+// "Wszystkie analizy", "Bez limitu kont/budżetów/celów") których kod NIE egzekwował.
+// Klient by zapłacił i nie zobaczył różnicy = pretensje + zwroty.
+//
+// AKTUALNIE EGZEKWOWANE w kodzie (TransactionsView.canAddTransaction):
+//   - Limit 50 transakcji miesięcznie
+//
+// PLANOWANE do egzekwowania (FREE_LIMITS w tier.js mówi false ale brak check w UI):
+//   - canImport (CSV/XLSX)        → SettingsPanel powinien gate handleImport
+//   - canExportPDF                → SettingsPanel powinien gate "Drukuj/PDF"
+//   - canSync (chmurowa sync)     → useFirebase powinien skip dla FREE
+//   - customCategories (limit 0)  → SettingsPanel powinien gate "Dodaj kategorię"
+//
+// PRZED LAUNCHEM: trzeba zdecydować które realnie egzekwować. Na razie pokazuję tylko
+// to co rzeczywiście różni FREE od PRO, żeby nie sprzedawać pustych obietnic.
 const TIER_FEATURES = [
-  { label: "Bez limitu transakcji", free: "50/mies", pro: "∞" },
-  { label: "Bez limitu kont", free: "2", pro: "∞" },
-  { label: "Bez limitu budżetów", free: "1", pro: "∞" },
-  { label: "Bez limitu celów", free: "1", pro: "∞" },
-  { label: "Własne kategorie", free: "❌", pro: "✅" },
-  { label: "Import z banków (CSV)", free: "❌", pro: "✅" },
-  { label: "Synchronizacja chmurowa", free: "❌", pro: "✅" },
-  { label: "Eksport PDF", free: "❌", pro: "✅" },
-  { label: "Wszystkie analizy", free: "❌", pro: "✅" },
+  { label: "Limit transakcji miesięcznie", free: "50", pro: "Bez limitu" },
+  { label: "Wsparcie autora",              free: "—",  pro: "✅" },
+  { label: "Wczesny dostęp do nowych funkcji", free: "—", pro: "✅" },
 ];
 
 function UpgradeModal({ open, onClose, trigger, onActivated }) {

@@ -591,12 +591,12 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
             <FinancialScore income={monthInc} expense={monthExp} transactions={transactions}
               month={month} cycleDay={cycleDay} elapsedDays={elapsed}/>
-            <ExpenseTypesBreakdown monthTx={monthTx} income={monthInc}/>
+            <ExpenseTypesBreakdown monthTx={monthTx} income={monthInc} allCats={allCats}/>
             <IncomeTypesBreakdown transactions={transactions} month={month} cycleDay={cycleDay}/>
             <Insights transactions={transactions} month={month} cycleDay={cycleDay}
-              income={monthInc} expense={monthExp} catData={catData}/>
+              income={monthInc} expense={monthExp} catData={catData} allCats={allCats}/>
             <Recommendations income={monthInc} expense={monthExp} catData={catData}
-              monthTx={monthTx} safeToSpend={0} daysLeft={0}/>
+              monthTx={monthTx} safeToSpend={0} daysLeft={0} allCats={allCats}/>
           </div>
         );
       })()}

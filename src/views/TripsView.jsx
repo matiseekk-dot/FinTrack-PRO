@@ -85,19 +85,35 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
     setTrips(migrationCandidate);
   };
 
+  // v1.2.10 fix: Modal MUSI renderować się niezależnie od detailsId, bo openEdit
+  // jest wywołane z TripDetails i ustawia modalTrip w stanie głównego TripsView.
+  // Wcześniej był early return przed Modal → modalTrip ustawiony, ale Modal nigdy
+  // nie renderowany → "edycja nie działa".
+  const modalNode = modalTrip && (
+    <TripModal
+      trip={modalTrip}
+      setTrip={setModalTrip}
+      onClose={() => setModalTrip(null)}
+      onSave={saveTrip}
+    />
+  );
+
   if (detailsId) {
     const trip = (trips || []).find(t => t.id === detailsId);
     if (trip) return (
-      <TripDetails
-        trip={trip}
-        transactions={transactions}
-        setTransactions={setTransactions}
-        allCats={allCats}
-        onBack={() => setDetailsId(null)}
-        onEdit={() => openEdit(trip)}
-        onDelete={() => { deleteTrip(trip.id); }}
-        onArchiveToggle={() => toggleArchive(trip.id)}
-      />
+      <>
+        <TripDetails
+          trip={trip}
+          transactions={transactions}
+          setTransactions={setTransactions}
+          allCats={allCats}
+          onBack={() => setDetailsId(null)}
+          onEdit={() => openEdit(trip)}
+          onDelete={() => { deleteTrip(trip.id); }}
+          onArchiveToggle={() => toggleArchive(trip.id)}
+        />
+        {modalNode}
+      </>
     );
   }
 
@@ -277,15 +293,8 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
         </div>
       )}
 
-      {/* Modal add/edit */}
-      {modalTrip && (
-        <TripModal
-          trip={modalTrip}
-          setTrip={setModalTrip}
-          onClose={() => setModalTrip(null)}
-          onSave={saveTrip}
-        />
-      )}
+      {/* Modal add/edit (shared z gałęzią detailsId) */}
+      {modalNode}
     </div>
   );
 }

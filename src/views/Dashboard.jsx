@@ -1,22 +1,9 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line
-} from "recharts";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
-} from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
-import { Modal } from "../components/ui/Modal.jsx";
-import { Input, Select } from "../components/ui/Input.jsx";
-import { Toast } from "../components/ui/Toast.jsx";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Bar, BarChart, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
-import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { MONTHS, getCat } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
@@ -24,27 +11,12 @@ import { sumByGroup } from "../lib/accountTypes.js";
 import { InsightsCard } from "../components/InsightsCard.jsx";
 import { StorageWarning } from "../components/StorageWarning.jsx";
 
-const EXPENSE_TYPES = {
-  investment: ["inwestycje"],
-  fixed:      ["rachunki","zakupy"],
-  uncontrollable: ["rzad","rząd"],   // podatki, kredyty — user nie moze ograniczyc
-  variable:   ["jedzenie","transport","zdrowie"],
-  lifestyle:  ["kawiarnia","rozrywka","muzyka","ubrania","prezenty","alkohol","bukmacher","inne"],
-};
-// Kategorie ktore user NIE moze kontrolowac — nie dawaj rekomendacji
-const UNCONTROLLABLE_CATS = ["rząd","rzad","inwestycje","rachunki"];
-// Sprecyzuj: rachunki sa "fixed" ale czesciowo kontrolowalne (subskrypcje tak, kredyt nie)
-// Na potrzeby rekomendacji: tylko lifestyle i variable sa "controlable"
-const isControllable = (cat) => {
-  return ["kawiarnia","rozrywka","muzyka","ubrania","prezenty","alkohol",
-          "bukmacher","jedzenie","transport","zakupy"].includes(cat);
-};
-const getExpenseType = (cat) => {
-  for (const [type, cats] of Object.entries(EXPENSE_TYPES)) {
-    if (cats.includes(cat)) return type;
-  }
-  return "variable";
-};
+// v1.2.11: usunięty duplikat EXPENSE_TYPES/getExpenseType/UNCONTROLLABLE_CATS/isControllable.
+// Te były dead code (nigdzie w Dashboard nie używane) ALE też nieaktualne - miały starą
+// klasyfikację z "inne" w lifestyle (naprawione w AnalyticsWidgets v1.2.7-10). Trzymanie
+// ich tu ryzykowało future-bug gdyby ktoś dodał Dashboard widget używający tej logiki.
+// Source of truth: src/components/AnalyticsWidgets.jsx getExpenseType().
+
 // Compute "recurring" expense — removes one-time outliers for burn rate
 // Excludes: taxes (rząd), investments, and single transactions > 4x median daily
 const getRecurringExpense = (transactions, month, cycleDay) => {
@@ -581,7 +553,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       <StorageWarning transactions={transactions} setTransactions={setTransactions}/>
 
       {/* ═══ INSIGHTS ═══ */}
-      <InsightsCard transactions={transactions} budgets={budgets} accounts={accounts}/>
+      <InsightsCard transactions={transactions} budgets={budgets} accounts={accounts} cycleDay={cycleDay}/>
 
       {/* ═══ OSTATNIE TRANSAKCJE ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>

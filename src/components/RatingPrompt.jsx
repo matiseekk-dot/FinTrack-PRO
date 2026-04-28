@@ -57,7 +57,7 @@ function RatingPrompt({ onDismiss }) {
                 color: "white", fontWeight: 800, fontSize: 15,
                 cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
               }}>
-              Oceń w sklepie 🚀
+              Wesprzyj — kup PRO 💜
             </button>
           )}
           {stars > 0 && stars < 4 && (

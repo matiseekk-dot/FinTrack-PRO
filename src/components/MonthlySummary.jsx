@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { cycleTxs } from "../utils.js";
 
 function MonthlySummary({ transactions, month, cycleDay = 1, onClose }) {
   const monthNames = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
@@ -6,12 +7,10 @@ function MonthlySummary({ transactions, month, cycleDay = 1, onClose }) {
 
   const fmt = (n) => Math.abs(n).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
 
-  // Get previous month transactions
+  // v1.2.10 fix: użyj cyklu rozliczeniowego, nie kalendarzowego miesiąca.
+  // Dla userów z cycleDay > 1 (np. dzień wypłaty 28) podsumowanie miało błędne daty.
   const prevMonth = month === 0 ? 11 : month - 1;
-  const prevYear  = month === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear();
-  const prevKey   = `${prevYear}-${String(prevMonth+1).padStart(2,"0")}`;
-
-  const prevTx  = transactions.filter(t => t.date.startsWith(prevKey) && t.cat !== "inne");
+  const prevTx  = cycleTxs(transactions || [], prevMonth, cycleDay).filter(t => t.cat !== "inne");
   const income  = prevTx.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
   const expense = prevTx.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
   const saved   = income - expense;

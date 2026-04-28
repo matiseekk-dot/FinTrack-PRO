@@ -35,15 +35,49 @@ function groupByMerchant(transactions) {
 }
 
 // Helper: miesiąc bieżący vs poprzedni
-function splitByMonth(transactions) {
+// v1.2.11: gdy cycleDay > 1, używamy cyklu rozliczeniowego zamiast kalendarzowego.
+// Dla userów z cycleDay=1 (default) zachowanie identyczne jak wcześniej.
+function splitByMonth(transactions, cycleDay = 1) {
   const now = new Date();
-  const curYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,"0")}`;
+
+  if (cycleDay <= 1) {
+    // Standardowe miesiące kalendarzowe
+    const curYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,"0")}`;
+    return {
+      current: transactions.filter(t => t.date?.startsWith(curYM)),
+      previous: transactions.filter(t => t.date?.startsWith(prevYM)),
+    };
+  }
+
+  // Cykl rozliczeniowy: jeśli dziś >= cycleDay, jesteśmy w cyklu który zaczął się
+  // cycleDay tego miesiąca; inaczej w cyklu który zaczął się cycleDay poprzedniego miesiąca.
+  const today = now.getDate();
+  let curStartY, curStartM, curEndY, curEndM;
+  if (today >= cycleDay) {
+    curStartY = now.getFullYear();
+    curStartM = now.getMonth();
+    curEndY = curStartM === 11 ? curStartY + 1 : curStartY;
+    curEndM = curStartM === 11 ? 0 : curStartM + 1;
+  } else {
+    curStartY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    curStartM = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+    curEndY = now.getFullYear();
+    curEndM = now.getMonth();
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  const curStart = `${curStartY}-${pad(curStartM+1)}-${pad(cycleDay)}`;
+  const curEnd   = `${curEndY}-${pad(curEndM+1)}-${pad(cycleDay-1)}`;
+  // Poprzedni cykl: miesiąc wcześniej
+  const prevStartY = curStartM === 0 ? curStartY - 1 : curStartY;
+  const prevStartM = curStartM === 0 ? 11 : curStartM - 1;
+  const prevEnd    = `${curStartY}-${pad(curStartM+1)}-${pad(cycleDay-1)}`;
+  const prevStart  = `${prevStartY}-${pad(prevStartM+1)}-${pad(cycleDay)}`;
 
   return {
-    current: transactions.filter(t => t.date?.startsWith(curYM)),
-    previous: transactions.filter(t => t.date?.startsWith(prevYM)),
+    current:  transactions.filter(t => t.date >= curStart  && t.date <= curEnd),
+    previous: transactions.filter(t => t.date >= prevStart && t.date <= prevEnd),
   };
 }
 
@@ -65,11 +99,11 @@ function spendByWeekday(transactions) {
 // Główny generator — zwraca TOP 3 insight'y dla Dashboardu
 import { generateRetirementInsights } from "./retirementCalc.js";
 
-function generateInsights(transactions, budgets = [], accounts = []) {
+function generateInsights(transactions, budgets = [], accounts = [], cycleDay = 1) {
   if (!Array.isArray(transactions) || transactions.length === 0) return [];
 
   const insights = [];
-  const { current: curTx, previous: prevTx } = splitByMonth(transactions);
+  const { current: curTx, previous: prevTx } = splitByMonth(transactions, cycleDay);
 
   if (curTx.length < 3) return []; // za mało danych
 

@@ -2,10 +2,10 @@ import { useMemo } from "react";
 import { Sparkles } from "lucide-react";
 import { generateInsights } from "../lib/insights.js";
 
-function InsightsCard({ transactions, budgets, accounts }) {
+function InsightsCard({ transactions, budgets, accounts, cycleDay = 1 }) {
   const insights = useMemo(
-    () => generateInsights(transactions, budgets, accounts),
-    [transactions, budgets, accounts]
+    () => generateInsights(transactions, budgets, accounts, cycleDay),
+    [transactions, budgets, accounts, cycleDay]
   );
 
   if (insights.length === 0) return null;

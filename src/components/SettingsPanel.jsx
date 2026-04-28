@@ -29,6 +29,39 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
+  const [newCatExpenseType, setNewCatExpenseType] = useState("variable"); // fixed | variable | lifestyle (tylko dla expense)
+
+  // v1.2.12: edit istniejącej custom cat. Pozwala zmienić label/color/expenseType
+  // ale NIE id (bo wszystkie tx mają t.cat = id, zmiana = utrata historii) ani type
+  // (expense ↔ income - bo amount sign jest semantycznie powiązany).
+  const [editingCatId, setEditingCatId] = useState(null);
+  const [editForm, setEditForm] = useState({ label: "", color: "", expenseType: "variable" });
+
+  const startEditCat = (cat) => {
+    setEditingCatId(cat.id);
+    setEditForm({
+      label: cat.label || "",
+      color: cat.color || "#06b6d4",
+      expenseType: cat.expenseType || "variable",
+    });
+  };
+  const cancelEditCat = () => {
+    setEditingCatId(null);
+    setEditForm({ label: "", color: "", expenseType: "variable" });
+  };
+  const saveEditCat = () => {
+    const trimmed = editForm.label.trim();
+    if (!trimmed) return;
+    const capLabel = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    setCustomCats(c => c.map(x => x.id === editingCatId ? {
+      ...x,
+      label: capLabel,
+      color: editForm.color,
+      // expenseType tylko gdy expense (income tego nie używa)
+      expenseType: x.type === "expense" ? editForm.expenseType : null,
+    } : x));
+    cancelEditCat();
+  };
   const [importStatus, setImportStatus] = useState(null); // null | "ok" | "err" | "loading"
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -874,20 +907,148 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* Existing custom cats */}
         {customCats.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {customCats.map(cat => (
-              <div key={cat.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}</span>
-                  <span style={{ fontSize: 11, color: "#334155" }}>{cat.type === "income" ? "przychód" : "wydatek"}</span>
+            {customCats.map(cat => {
+              const isEditing = editingCatId === cat.id;
+
+              if (isEditing) {
+                // Inline edit form
+                return (
+                  <div key={cat.id} style={{
+                    background: "#0d1628", border: "1px solid #2563eb44",
+                    borderRadius: 10, padding: "12px 14px",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Edytuj kategorię · ID: {cat.id}
+                    </div>
+
+                    {/* Label */}
+                    <input
+                      value={editForm.label}
+                      onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                      placeholder="Nazwa kategorii"
+                      style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
+                        borderRadius: 8, padding: "9px 11px", color: "#e2e8f0", fontSize: 14,
+                        fontFamily: "'Space Grotesk', sans-serif", outline: "none",
+                        WebkitAppearance: "none" }}
+                    />
+
+                    {/* Color picker */}
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
+                        marginBottom: 6, textTransform: "uppercase" }}>Kolor</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4",
+                          "#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
+                          <div key={c} onClick={() => setEditForm(f => ({ ...f, color: c }))}
+                            style={{ width: 24, height: 24, borderRadius: 6, background: c,
+                              cursor: "pointer",
+                              border: editForm.color === c ? "2px solid white" : "2px solid transparent" }}/>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Expense type (tylko dla expense cat) */}
+                    {cat.type === "expense" && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
+                          marginBottom: 6, textTransform: "uppercase" }}>
+                          Typ w strukturze wydatków
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {[
+                            ["fixed",     "Stałe",     "#3b82f6"],
+                            ["variable",  "Zmienne",   "#f59e0b"],
+                            ["lifestyle", "Lifestyle", "#ec4899"],
+                          ].map(([v, l, col]) => (
+                            <button key={v}
+                              onClick={() => setEditForm(f => ({ ...f, expenseType: v }))}
+                              style={{
+                                flex: 1, padding: "6px 0", borderRadius: 6, cursor: "pointer",
+                                fontSize: 11, fontWeight: 700,
+                                fontFamily: "'Space Grotesk', sans-serif",
+                                background: editForm.expenseType === v ? col + "22" : "transparent",
+                                border: `1px solid ${editForm.expenseType === v ? col : "#1a2744"}`,
+                                color: editForm.expenseType === v ? col : "#475569",
+                              }}>{l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Save / Cancel */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={cancelEditCat} style={{
+                        flex: 1, background: "#1a2744", border: "1px solid #334155",
+                        color: "#94a3b8", borderRadius: 8, padding: "9px 0",
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        fontFamily: "'Space Grotesk', sans-serif",
+                      }}>Anuluj</button>
+                      <button onClick={saveEditCat} style={{
+                        flex: 2, background: "linear-gradient(135deg,#1e40af,#3b82f6)",
+                        border: "none", color: "white",
+                        borderRadius: 8, padding: "9px 0",
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        fontFamily: "'Space Grotesk', sans-serif",
+                      }}>Zapisz zmiany</button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Default row (z Edit + Delete buttons)
+              return (
+                <div key={cat.id} style={{ display: "flex", alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "#060b14", border: "1px solid #1a2744",
+                  borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>
+                      {cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#334155" }}>
+                      {cat.type === "income" ? "przychód" : "wydatek"}
+                    </span>
+                    {/* Pokaż expenseType jako mały badge */}
+                    {cat.type === "expense" && cat.expenseType && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                        textTransform: "uppercase", letterSpacing: "0.04em",
+                        background: cat.expenseType === "fixed"     ? "#3b82f622"
+                                  : cat.expenseType === "variable"  ? "#f59e0b22"
+                                  :                                   "#ec489922",
+                        color:      cat.expenseType === "fixed"     ? "#60a5fa"
+                                  : cat.expenseType === "variable"  ? "#fbbf24"
+                                  :                                   "#f472b6",
+                      }}>
+                        {cat.expenseType === "fixed" ? "Stałe"
+                         : cat.expenseType === "variable" ? "Zmienne"
+                         : "Lifestyle"}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={() => startEditCat(cat)}
+                      style={{ background: "none", border: "none", cursor: "pointer",
+                        color: "#475569", padding: 4 }}
+                      title="Edytuj">
+                      <Edit2 size={13}/>
+                    </button>
+                    <button onClick={() => {
+                      if (confirm(`Usunąć kategorię "${cat.label}"?\n\nUwaga: transakcje z tą kategorią pozostaną, ale stracą kolor i nazwę.`)) {
+                        setCustomCats(c => c.filter(x => x.id !== cat.id));
+                      }
+                    }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}
+                      title="Usuń">
+                      <Trash2 size={13}/>
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => setCustomCats(c => c.filter(x => x.id !== cat.id))}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}>
-                  <Trash2 size={13}/>
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -922,6 +1083,35 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               ))}
             </div>
           </div>
+
+          {/* v1.2.10: typ wydatku dla custom expense cat - żeby user mógł powiedzieć
+              "Kredyt Dom = Stałe" zamiast fallback do Variable. */}
+          {newCatType === "expense" && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase" }}>
+                Typ w strukturze wydatków
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  ["fixed",     "Stałe",     "#3b82f6"],
+                  ["variable",  "Zmienne",   "#f59e0b"],
+                  ["lifestyle", "Lifestyle", "#ec4899"],
+                ].map(([v, l, c]) => (
+                  <button key={v} onClick={() => setNewCatExpenseType(v)} style={{
+                    flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    background: newCatExpenseType === v ? c + "22" : "transparent",
+                    border: `1px solid ${newCatExpenseType === v ? c : "#1a2744"}`,
+                    color: newCatExpenseType === v ? c : "#475569",
+                  }}>{l}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: "#475569", marginTop: 4, lineHeight: 1.4 }}>
+                Stałe = miesięczne (kredyt, czynsz). Zmienne = potrzebne (jedzenie, zdrowie). Lifestyle = przyjemności.
+              </div>
+            </div>
+          )}
+
           <button
             onClick={() => {
               if (!newCatLabel.trim()) return;
@@ -933,8 +1123,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 iconName: "Wallet", color: newCatColor,
                 type: newCatType, custom: true,
                 group: newCatType === "income" ? "income" : "lifestyle",
+                // v1.2.10: expenseType dla user-defined classification
+                expenseType: newCatType === "expense" ? newCatExpenseType : null,
               }]);
               setNewCatLabel("");
+              setNewCatExpenseType("variable");
             }}
             style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
               borderRadius: 10, padding: "11px 0", color: "white", fontWeight: 700, fontSize: 14,

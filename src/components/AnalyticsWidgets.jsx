@@ -12,7 +12,9 @@ import { getCat, MONTHS, MONTH_NAMES, BASE_CATEGORIES } from "../constants.js";
 
 // v1.2.7: klasyfikacja zsynchronizowana z BASE_CATEGORIES (constants.js).
 // "inne" usunięte z lifestyle - to transfer/skip, nie wydatek.
-// Custom kategorie userów (np. "Kredyt Dom") wpadają w fallback "variable".
+// v1.2.10: user-defined override - custom cat z polem `expenseType` ma priorytet nad
+// fallback. Custom kategoria "Kredyt Dom" z expenseType="fixed" trafia do Stałych
+// zamiast Variable.
 const EXPENSE_TYPES = {
   investment:     ["inwestycje"],
   fixed:          ["rachunki", "transport"],          // regularnie miesięcznie, niezbędne
@@ -26,12 +28,23 @@ const isControllable = (cat) => {
   return ["kawiarnia", "rozrywka", "muzyka", "ubrania", "prezenty", "alkohol",
           "bukmacher", "jedzenie", "zakupy"].includes(cat);
 };
-const getExpenseType = (cat) => {
+// allCats opcjonalne - gdy podane, pozwala na user-defined override przez expenseType
+// pole na custom kategorii. Bez allCats fallback do hardcoded mapowania.
+const getExpenseType = (cat, allCats = null) => {
   if (cat === "inne") return null;  // skip transfer
+  // 1. Sprawdź user-defined override (custom cat z expenseType)
+  if (Array.isArray(allCats)) {
+    const custom = allCats.find(c => c.id === cat);
+    if (custom?.expenseType) {
+      return custom.expenseType;  // "fixed" | "variable" | "lifestyle"
+    }
+  }
+  // 2. Hardcoded mapowanie dla BASE_CATEGORIES
   for (const [type, cats] of Object.entries(EXPENSE_TYPES)) {
     if (cats.includes(cat)) return type;
   }
-  return "variable";  // fallback dla custom kategorii
+  // 3. Fallback dla nieznanych
+  return "variable";
 };
 
 function FinancialScore({ income, expense, transactions, month, cycleDay, elapsedDays }) {
@@ -150,7 +163,7 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
   );
 };
 
-function Insights({ transactions, month, cycleDay, income, expense, catData }) {
+function Insights({ transactions, month, cycleDay, income, expense, catData, allCats = null }) {
   const insights = useMemo(() => {
     const list = [];
     const curTx = cycleTxs(transactions, month, cycleDay).filter(t => t.cat !== "inne");
@@ -206,9 +219,9 @@ function Insights({ transactions, month, cycleDay, income, expense, catData }) {
     }
 
     // Reguła D — lifestyle rosnie
-    const lifestyleCur  = curTx.filter(t => t.amount < 0 && getExpenseType(t.cat) === "lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
+    const lifestyleCur  = curTx.filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
     const lifestylePrev = cycleTxs(transactions, (month+11)%12, cycleDay)
-      .filter(t => t.amount < 0 && getExpenseType(t.cat) === "lifestyle")
+      .filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "lifestyle")
       .reduce((s,t)=>s+Math.abs(t.amount),0);
     if (lifestylePrev > 0 && lifestyleCur > lifestylePrev * 1.2) {
       list.push({ type: "warning", icon: "↑",
@@ -284,23 +297,23 @@ function Insights({ transactions, month, cycleDay, income, expense, catData }) {
   );
 };
 
-function ExpenseTypesBreakdown({ monthTx, income }) {
+function ExpenseTypesBreakdown({ monthTx, income, allCats = null }) {
   const [expanded, setExpanded] = useState(null); // "fixed" | "variable" | "lifestyle" | null
 
-  const fixed      = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="fixed").reduce((s,t)=>s+Math.abs(t.amount),0);
-  const variable   = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="variable").reduce((s,t)=>s+Math.abs(t.amount),0);
-  const lifestyle  = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
-  const investment = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
+  const fixed      = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="fixed").reduce((s,t)=>s+Math.abs(t.amount),0);
+  const variable   = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="variable").reduce((s,t)=>s+Math.abs(t.amount),0);
+  const lifestyle  = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
+  const investment = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
   const total = fixed + variable + lifestyle;
 
   // Breakdown per kategoria w obrębie typu - rozwinięcie pokaże co się kryje pod "Stałe" itd.
   const breakdownByType = (typeId) => {
     const map = {};
     monthTx
-      .filter(t => t.amount < 0 && getExpenseType(t.cat) === typeId)
+      .filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === typeId)
       .forEach(t => { map[t.cat] = (map[t.cat] || 0) + Math.abs(t.amount); });
     return Object.entries(map)
-      .map(([cat, val]) => ({ cat, val, info: getCat(cat) }))
+      .map(([cat, val]) => ({ cat, val, info: getCat(cat, allCats || []) }))
       .sort((a, b) => b.val - a.val);
   };
 
@@ -391,24 +404,43 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
       </div>
 
       {investment > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 11, color: "#8b5cf6", fontWeight: 700 }}>Inwestycje</div>
-            <div style={{ fontSize: 10, color: "#475569" }}>Nie sa wydatkiem — to alokacja majatku</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14,
-              fontWeight: 700, color: "#8b5cf6" }}>{fmtShort(investment)} zl</div>
-            <div style={{ fontSize: 10, color: "#475569" }}>
-              {income > 0 ? (investment/income*100).toFixed(0) : 0}% dochodu
+        // v1.2.10: Inwestycje jako pełnoprawna sekcja z paskiem (jak Stałe/Zmienne/Lifestyle).
+        // Wcześniej był to mały dodatek na dole, mylące. Teraz fioletowy pasek + ikona +
+        // procent dochodu, ale wyraźnie zaznaczone że to NIE jest wydatek.
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "2px dashed #1a2744" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: "#8b5cf6", fontWeight: 700, fontSize: 13 }}>▸ Inwestycje</span>
+              <span style={{ fontSize: 9, color: "#64748b", background: "#1a2744",
+                padding: "1px 6px", borderRadius: 4, fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                alokacja
+              </span>
             </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 11, color: "#8b5cf6" }}>
+                {income > 0 ? (investment/income*100).toFixed(0) : 0}% dochodu
+              </span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14,
+                fontWeight: 700, color: "#a855f7" }}>{fmt(investment)}</span>
+            </div>
+          </div>
+          {income > 0 && (
+            <div style={{ background: "#0f1825", borderRadius: 5, height: 6, overflow: "hidden" }}>
+              <div style={{
+                width: Math.min(100, (investment / income) * 100) + "%", height: "100%",
+                background: "linear-gradient(90deg, #6d28d9, #a855f7)", borderRadius: 5,
+              }}/>
+            </div>
+          )}
+          <div style={{ marginTop: 4, fontSize: 10, color: "#64748b", lineHeight: 1.4 }}>
+            Nie liczone jako wydatek — to przeniesienie kapitału, nie konsumpcja.
           </div>
         </div>
       )}
 
       <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
-        Normy: Stale &lt;50% · Zmienne &lt;30% · Lifestyle &lt;20%
+        Normy: Stałe &lt;50% · Zmienne &lt;30% · Lifestyle &lt;20%
         {total > 0 && <span style={{ color: "#475569" }}> · kliknij sekcję żeby rozwinąć</span>}
       </div>
     </div>
@@ -462,24 +494,6 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
   });
   const sortedMerchants = Object.entries(mainMerchants).sort((a,b) => b[1] - a[1]);
   const topMain = sortedMerchants[0];
-  // v1.2.4 fix Image 3: "Główne źródło" pokazujemy TYLKO gdy
-  //   (a) jest tylko 1 wpis pensyjny (wtedy faktycznie to jest główne źródło)
-  //   (b) lub top wpis stanowi >70% pensji (ma sens nazwać go "głównym")
-  // Wcześniej pokazywało np. "Ekwiwalent 3000zł" jako "główne źródło" mimo że
-  // to tylko 1 z 4 wpisów = mylące (ekwiwalent urlopowy nie jest pensją).
-  const showTopMain = topMain && main > 0 && (
-    sortedMerchants.length === 1 || (topMain[1] / main) > 0.70
-  );
-  // Liczba unikalnych źródeł pensji (do wyświetlenia obok "Pensja")
-  const mainSourceCount = sortedMerchants.length;
-
-  // v1.2.4 fix Image 3: "100% pochodzi z jednego źródła" było triggerowane
-  // gdy wszystkie tx były tej SAMEJ KATEGORII (main), ale z RÓŻNYCH źródeł.
-  // To też mylące - jeśli masz pensję+ekwiwalent+premię jako 3 osobne tx z różnym
-  // desc, to NIE jest "jedno źródło". Concentrated tylko gdy faktycznie 1 merchant
-  // dominuje (>85% z pojedynczego desc).
-  const trueConcentration = topMain ? (topMain[1] / total) * 100 : 0;
-  const concentrated = trueConcentration > 85 && total >= 2000 && sortedMerchants.length <= 2;
 
   const isCurrentMonth = localMonth === parentMonth;
   const monthLabel = MONTH_NAMES[localMonth] || "—";
@@ -587,14 +601,11 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
             </div>
           )}
 
-          {concentrated && (
-            <div style={{ marginTop: 10, padding: "8px 12px",
-              background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
-              fontSize: 11, color: "#fbbf24", lineHeight: 1.4 }}>
-              ⚠️ {trueConcentration.toFixed(0)}% przychodów pochodzi z jednego źródła ({topMain[0]}).
-              Warto rozważyć dywersyfikację — utrata głównego dochodu = utrata prawie całości.
-            </div>
-          )}
+          {/* v1.2.10: usunięty concentration alert. IncomeTypesBreakdown jest renderowany
+              tylko w widoku Bieżący (cykl rozliczeniowy). 1 wypłata w cyklu to NORMA, nie
+              "concentration risk". Diversyfikacji ma sens dla rocznego widoku, nie dla
+              jednego cyklu. Jeśli ktoś chce sprawdzić czy nie jest za bardzo zależny od
+              1 źródła — patrzy na widok Okresy → Rok. */}
 
           <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
             Razem: {fmt(total)} · {types.length} {types.length === 1 ? "źródło" : "źródła"}
@@ -605,11 +616,11 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
   );
 };
 
-function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysLeft }) {
+function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysLeft, allCats = null }) {
   const recs = useMemo(() => {
     const list = [];
     const savingsRate = income > 0 ? (income - expense) / income * 100 : 0;
-    const lifestyle = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
+    const lifestyle = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
     const lifestyleNorm = income * 0.20;
 
     if (safeToSpend <= 0 && income > 0) {
@@ -641,7 +652,7 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
       list.push({ emoji: "🎯", text: "Lifestyle " + (lifestyle/income*100).toFixed(0) + "% dochodu. Norma <20% — ogranicz o " + fmt(lifestyle - lifestyleNorm) + " zl." });
     }
 
-    const topInvest = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
+    const topInvest = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
     if (topInvest === 0 && income > 2000) {
       list.push({ emoji: "📈", text: "Brak inwestycji w tym cyklu. Rozważ automat. przelew w dniu wyplaty." });
     }

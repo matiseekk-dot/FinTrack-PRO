@@ -5,7 +5,7 @@ const SLIDES = [
   {
     emoji: "👋",
     title: "Witaj w FinTrack PRO!",
-    desc: "Osobisty tracker finansów. Zero subskrypcji, synchronizacja w chmurze, Twoje dane bezpieczne.",
+    desc: "Osobisty tracker finansów. Synchronizacja w chmurze, Twoje dane bezpieczne. 50 transakcji miesięcznie za darmo, więcej w wersji PRO.",
     color: "#3b82f6",
   },
   {
@@ -23,19 +23,19 @@ const SLIDES = [
   {
     emoji: "🏷️",
     title: "Kategorie i custom kategorie",
-    desc: "Masz gotowe 15 kategorii (jedzenie, transport, rachunki…) ale możesz dodać własne (np. Wakacje, Dziecko, Kurs online). Każda kategoria = inny kolor na wykresach.",
+    desc: "Masz gotowe 20 kategorii (jedzenie, transport, rachunki, wynagrodzenie…) ale możesz dodać własne (np. Kredyt Dom, Żłobek, Vinted). Każda kategoria = inny kolor na wykresach.",
     color: "#ec4899",
   },
   {
     emoji: "🎯",
     title: "Budżety i alerty",
-    desc: "Ustaw miesięczny limit dla wybranej kategorii (np. Rozrywka = 500 zł). Apka pokaże ostrzeżenie gdy zbliżasz się do 85% i alert gdy przekroczysz. Zakładki → Cele.",
+    desc: "Ustaw miesięczny limit dla wybranej kategorii (np. Rozrywka = 500 zł). Apka pokaże ostrzeżenie gdy zbliżasz się do 85% i alert gdy przekroczysz. Zakładki → Plany → Limity.",
     color: "#10b981",
   },
   {
     emoji: "💰",
     title: "Cele oszczędnościowe",
-    desc: "Ustal cel (np. Wakacje 5000 zł do wakacji 2026) i powiąż z kontem oszczędnościowym. Apka policzy ile jeszcze brakuje i ile musisz odłożyć miesięcznie.",
+    desc: `Ustal cel (np. Wakacje 5000 zł do końca ${new Date().getFullYear() + 1} roku) i powiąż z kontem oszczędnościowym. Apka policzy ile jeszcze brakuje i ile musisz odłożyć miesięcznie.`,
     color: "#f59e0b",
   },
   {

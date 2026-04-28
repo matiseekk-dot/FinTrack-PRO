@@ -1,25 +1,13 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line
-} from "recharts";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
-} from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
+import { useState } from "react";
+import { Wallet, PlusCircle, Trash2 } from "lucide-react";
+import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal, dateToLocal } from "../utils.js";
-import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { fmt, cycleTxs, todayLocal, dateToLocal } from "../utils.js";
+import { CATEGORIES, getCat } from "../constants.js";
 import { getEffectiveBalance } from "../lib/accountTypes.js";
 import { useToast } from "../hooks/useToast.js";
-import { RecurringReminder } from "../components/SharedWidgets.jsx";
 
 
 function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive, allCats = [], portfolio = [] }) {
@@ -30,54 +18,12 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
   };
   const { toast, showToast } = useToast();
   const [modal,       setModal]       = useState(false);
-  const [limitModal,  setLimitModal]  = useState(false);
-  const [activeTab,   setActiveTab]   = useState("goals");
-  const [vacation, setVacation]       = useState((() => {
-    const defaults = {
-      name: "", dest: "", dateFrom: "", dateTo: "", budget: "",
-      categories: ["zakupy","jedzenie","transport","rozrywka","zdrowie"],
-      pinnedTxIds: [],
-    };
-    try {
-      const parsed = JSON.parse(localStorage.getItem("ft_vacation") || "null");
-      return parsed && typeof parsed === "object" ? { ...defaults, ...parsed } : defaults;
-    } catch (_) { return defaults; }
-  })()
-  );
-  const saveVacation = (v) => {
-    setVacation(v);
-    localStorage.setItem("ft_vacation", JSON.stringify(v));
-  };
-  // Pre-trip filter   at component level (no hooks inside JSX)
-  const [expandedVacId, setExpandedVacId] = useState(null);
-  const [candidateFrom, setCandidateFrom] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
-      if (stored && stored.dateFrom) {
-        const d = new Date(stored.dateFrom);
-        if (!isNaN(d.getTime())) {
-          d.setMonth(d.getMonth() - 3);
-          return dateToLocal(d);
-        }
-      }
-    } catch (_) { /* fallback */ }
-    const d = new Date(); d.setMonth(d.getMonth() - 3);
-    return dateToLocal(d);
-  });
-  const [candidateTo, setCandidateTo] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("ft_vacation") || "null");
-      if (stored && stored.dateFrom) {
-        const d = new Date(stored.dateFrom);
-        if (!isNaN(d.getTime())) return stored.dateFrom;
-      }
-    } catch (_) { /* fallback */ }
-    return todayLocal();
-  });
+  // v1.2.11: usunięty dead code vacation/candidateFrom/candidateTo/saveVacation/expandedVacId.
+  // Wszystkie te states były z legacy "vacation" feature który zastąpił TripsView w v1.2.4.
+  // Stan był deklarowany ale nigdzie w render nie używany - czysty dead code.
   const [editGoal,    setEditGoal]    = useState(null);
   const EMPTY_FORM = { name: "", target: "", saved: "", accId: 1, color: "#06b6d4", emoji: "💰" };
   const [form,        setForm]        = useState(EMPTY_FORM);
-  const [limitForm,   setLimitForm]   = useState({ cat: "bukmacher", limit: "" });
 
   //    Goals logic                                                            
   const openAdd  = () => { setEditGoal(null); setForm(EMPTY_FORM); setModal(true); };
@@ -103,7 +49,9 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
     setModal(false);
     setEditGoal(null);
   };
-  const updateSaved = (id, delta) => setGoals(g => g.map(goal => goal.id === id ? { ...goal, saved: Math.max(0, goal.saved + delta) } : goal));
+  const updateSaved = (id, delta) => setGoals(g => g.map(goal => goal.id === id
+    ? { ...goal, saved: Math.max(0, (Number(goal.saved) || 0) + delta) }
+    : goal));
   const deleteGoal  = (id) => setGoals(g => g.filter(x => x.id !== id));
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
   const totalSaved = goals.reduce((s, g) => {
@@ -112,24 +60,9 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
   }, 0);
 
   //    Limits logic                                                           
-  // budgets array: { cat, limit, color }
-  const monthTx = cycleTxs(transactions, month, cycleDay).filter(t => t.amount < 0);
-
-  const spentBycat = {};
-  monthTx.forEach(t => { spentBycat[t.cat] = (spentBycat[t.cat]||0) + Math.abs(t.amount); });
-
-  const addLimit = () => {
-    if (!limitForm.cat || !limitForm.limit) return;
-    const existing = budgets.find(b => b.cat === limitForm.cat);
-    if (existing) {
-      setBudgets(b => b.map(x => x.cat === limitForm.cat ? { ...x, limit: parseFloat(limitForm.limit) } : x));
-    } else {
-      setBudgets(b => [...b, { cat: limitForm.cat, limit: parseFloat(limitForm.limit), color: getCat(limitForm.cat).color }]);
-    }
-    setLimitForm({ cat: "bukmacher", limit: "" });
-    setLimitModal(false);
-  };
-  const deleteLimit = (cat) => setBudgets(b => b.filter(x => x.cat !== cat));
+  // v1.2.11: dead code limits (limitModal/limitForm/addLimit/deleteLimit) usunięty.
+  // Limity przeniesione do osobnego LimitsView w v1.2.1, ale stary kod tu został.
+  // Plus dead state: setActiveTab, monthTx/spentBycat (nieużywane w render).
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
