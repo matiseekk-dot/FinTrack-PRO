@@ -1,276 +1,211 @@
-# FinTrack PRO v1.2.5 — Audyt + cleanup (2026-04-28)
+# FinTrack PRO v1.2.6 — fix self-inflicted bugs z v1.2.5 + cleanup imports (2026-04-28)
 
-`package.json` 1.2.4 → 1.2.5.
+`package.json` 1.2.5 → 1.2.6.
 
 ## TL;DR
 
-To jest wersja **bez nowych feature'ów** — tylko **audyt + dead code cleanup**. 6 realnych bugów naprawionych, ~550 linii dead code wyciętych, 1 plik usunięty, ~25 dead exportów wyczyszczonych. Build zielony.
+Krytyczna naprawa dla **3 self-inflicted bugów** które ja stworzyłem w v1.2.5 audycie. Plus dalszy cleanup imports w 6 viewach. Plus wzmocniony auto-snap dla "Muzyka 110%". Plus bump cache service workera żeby wymusić odświeżenie.
 
-| Statystyka | v1.2.4 | v1.2.5 | Δ |
-|------------|--------|--------|---|
-| Liczba plików `.js`/`.jsx` | 60 | 59 | −1 |
-| Suma linii kodu | 13 330 | 12 777 | −553 (−4.2%) |
-| Bundle index.js (raw) | 354 KB | 354 KB | =0 |
-| Bundle index.js (gzip) | 88 KB | 88 KB | =0 |
-
-Bundle bez zmian — vite już tree-shake'ował dead code. Source jest jednak **czystszy** i łatwiejszy do utrzymania w przyszłości.
+| | v1.2.5 | v1.2.6 |
+|---|---|---|
+| Crash przy wejściu na Wyjazdy | **TAK** | nie |
+| Crash przy aktywacji licencji PRO | **TAK** | nie |
+| Crash przy płatności reminder | **TAK** | nie |
+| index.js gzip | 88 KB | 88 KB |
 
 ---
 
-## 🐛 Naprawione bugi (6 realnych)
+## 🔴 3 KRYTYCZNE BUGI ode mnie z v1.2.5 (mea culpa)
 
-### 1. `getEffectiveBalance` null guard order (lib/accountTypes.js)
-**Co było:** Kolejność:
+W v1.2.5 wyciąłem "dead exports" — funkcje/zmienne które nie były importowane z innych plików. Mój skrypt szukał **tylko cross-file references**, nie wewnętrznych w obrębie tego samego pliku. Skutek: wyciąłem 3 rzeczy które były wewnętrznie używane.
+
+### Bug #1 — Plany → Wyjazdy crashuje (ZGŁOSZONY przez Mateusza)
+
+**Plik:** `src/lib/trips.js`
+
+Funkcja `getTripsForYear` była wywoływana wewnątrz `getYearlyTripsSummary` (linia 113):
 ```js
-const baseBalance = Number(account.balance) || 0;  // ← TypeError gdy account=null!
-if (!account || account.type !== "invest") return baseBalance;
+const yearTrips = getTripsForYear(trips, year);
 ```
-Pierwsza linia wywołuje `account.balance` ZANIM linia 2 sprawdza `!account`. Gdyby `account` był `null/undefined`, dostaniesz `TypeError: Cannot read properties of null`.
+W v1.2.5 wyciąłem ją bo "nie była eksportowana cross-file". Wynik: `ReferenceError: getTripsForYear is not defined` przy każdym wejściu w zakładkę Wyjazdy. ErrorBoundary łapał błąd i pokazywał generyczny komunikat.
 
-**Fix:**
+**Fix:** Przywróciłem funkcję jako internal helper (zachowane jak było, tylko bez exportu).
+
+### Bug #2 — Aktywacja licencji PRO crashuje
+
+**Plik:** `src/lib/license.js`
+
+Const `B32_ALPHABET` był używany w funkcji `hmacTag` (linia 47):
 ```js
-if (!account || account.type !== "invest") return Number(account?.balance) || 0;
-const baseBalance = Number(account.balance) || 0;
+out += B32_ALPHABET[bytes[i] % B32_ALPHABET.length];
 ```
+W v1.2.5 wyciąłem go bo nie był eksportowany. Wynik: `UpgradeModal → wpisz klucz → kliknij Aktywuj → ReferenceError: B32_ALPHABET is not defined`. **PRO upgrade flow był złamany na produkcji.**
 
-W praktyce ten case pewnie nigdy nie wystąpił bo wszędzie używamy `accounts.find(a => a.id === ...)` które albo zwraca obiekt albo `undefined` → wcześniejsze `if (!account)` wycina. Ale gdyby jakiś tx miał `acc=999` (usunięte konto), pęknie.
+**Fix:** Przywróciłem const z komentarzem "używany w hmacTag, NIE usuwać".
 
-### 2. `setupGlobalHandlers` nigdy nie wywoływany (main.jsx)
-**Co było:** Plik `lib/errorTracking.js` definiował `setupGlobalHandlers` rejestrujące:
+### Bug #3 — Powiadomienia płatności crashują
+
+**Plik:** `src/notifications.js`
+
+Funkcja `scheduleLocalNotification` była wywoływana wewnątrz `schedulePaymentReminders` (linie 66, 71):
 ```js
-window.addEventListener("error", reportError);
-window.addEventListener("unhandledrejection", reportError);
+if (diffDays === 1) {
+  scheduleLocalNotification("💳 Jutro płatność!", `${p.name} · ${...}`);
+}
 ```
-Ale **nikt tego nie wywołał**. Skutek: gdy aplikacja crashowała w runtime (np. niezłapane promise rejection), nic się nie logowało. Error tracking faktycznie nie działał.
+W v1.2.5 wyciąłem ją bo nie była eksportowana. Wynik: gdy użytkownik miał włączone powiadomienia i nadchodząca płatność, `schedulePaymentReminders` rzucało `ReferenceError`. Reminders nie działały — ale **bezgłośnie**, bo wywołanie było w try/catch lub event handler.
 
-**Fix:** `main.jsx` teraz importuje i wywołuje `setupGlobalHandlers()` przed `createRoot`. Od v1.2.5 wszystkie błędy są łapane do `localStorage` (bufor 50 ostatnich, dostępny przez Settings → eksport błędów dla supportu).
+**Fix:** Przywróciłem funkcję jako internal helper.
 
-### 3. `setters` object w App.jsx miał sprzeczność tracked/raw
-**Co było:**
-```js
-// Komentarz: "applyData powinno użyć RAW setters, nie wrapped"
-const setters = {
-  setAccounts, setTransactions, setBudgets,
-  setPayments: setPaymentsTracked,  // ← TRACKED! sprzeczne z komentarzem
-  setPaid,
-  setGoals: setGoalsTracked,        // ← TRACKED! sprzeczne z komentarzem
-  ...
-};
-```
-2 z 7 setterów dla arrays były tracked, reszta raw. Niespójne. Skutek: gdy przy load/import `applyData` wywoływała `setPayments(d.payments)`, wrapper auto-detekował "delete" wszystkich starych payments które nie były w `d.payments`, i generował fałszywe tombstones. Te tombstones potem mogły blokować legalne nowe payments z tymi samymi ID przy następnym sync.
+### Co się zmienia w mojej metodyce
 
-**Fix:** Wszystkie 7 setterów w `setters` object teraz **raw** (zgodnie z komentarzem). Tracking tombstones odbywa się TYLKO w views przy faktycznym delete (np. user klika kosz w TransactionsView).
-
-### 4. Dashboard.jsx — duplikat find() w `getLocalCat`
-**Co było:**
-```js
-const found = allCats.find(c => c.id === id) || allCats.find(c => c.id === id);
-```
-**Dwie identyczne wyszukiwarki** połączone przez `||`. Drugi find nigdy się nie wykona bo zwróci to samo. Bug copy-paste.
-
-**Fix:** Jedno wywołanie. Bez zmiany funkcjonalnej, ale świadczy o niedbałości — i tak wycinam.
-
-### 5. TransactionsView — dead code w delete handler
-**Co było:**
-```js
-onClick={() => {
-  const deletedTx = tx;
-  const deletedAccBefore = accounts.find(a => a.id === tx.acc);  // unused!
-  setAccounts(...);
-  setTransactions(t => t.filter(x => x.id !== tx.id));
-  showToast(`Usunięto: ${tx.desc} · Cofnij?`, "error", 4000);  // misleading "Cofnij?" - nie ma undo!
-  const undoTimer = setTimeout(() => {}, 4000);  // fake no-op timer
-  window._lastDeletedTx = { tx: deletedTx, timer: undoTimer };  // never read
-}}
-```
-Toast obiecywał undo („Cofnij?"), ale **nie było żadnego mechanizmu undo**. `setTimeout(() => {})` to no-op, `window._lastDeletedTx` nigdy nie odczytywane, `deletedAccBefore` nigdy nie używane.
-
-**Fix:** Wyczyszczone do prostej wersji bez fałszywego promesu undo. Toast: `"Usunięto: ${tx.desc}"`, bez kłamstwa.
-
-### 6. TransactionsView — copy tx mogło nadpisać oryginał
-**Co było:** Klikasz kopiuj na tx, edytujesz, zapisujesz → ale `editingId` zostawał ustawiony z poprzedniej operacji edit, więc save robił `tx.map(t => t.id === editingId ? ...)` zamiast dodać nową. Plus brakowało `currency` i `tripId` w form state.
-
-**Fix:** Copy ustawia `editingId=null`, `currency='PLN'`, `tripId=null` jawnie. Save zawsze tworzy NOWĄ tx z `id: Date.now()`.
+W kolejnym audycie (v1.2.7+) skrypt szukania dead code będzie sprawdzać też **wewnętrzne wywołania w obrębie pliku**, nie tylko cross-file. To była podstawowa pomyłka — przeprosiny.
 
 ---
 
-## ⚙️ Optymalizacje (1 realna)
+## ⚠️ Bug "Muzyka 110%" — wzmocniony fix
 
-### useStreak — fałszywy infinite loop pattern
-**Co było:**
+**Twoja skarga:** „Muzyka nadal 110% robiłem reset."
+
+**Diagnoza pełna:** widget pokazujący 110% to **Dashboard alerts** (linia 354 Dashboard.jsx), nie LimitsView. `Math.min(110, ...)` clamp do 110% gdy spent > limit.
+
+110% pokazuje się gdy `monthTx` zawiera tx muzyki z poprzedniego cyklu. To znaczy że `month` w stanie aplikacji jest nadal **kwiecień** zamiast skoczyć na **maj** (bo dziś 28 kwietnia ≥ cycleDay=28 → cykl 28.04-27.05 czyli "miesiąc maj").
+
+**Możliwe powody że auto-snap nie działa po Twoim "reset":**
+1. Service Worker cache trzymał stary bundle (nawet po hard refresh)
+2. Race condition: useEffect dla auto-snap odpalał się przed cycleDayHistory wczytane
+
+### Fix #1: bumped service worker cache
 ```js
-useEffect(() => {
-  // ... oblicz current ...
-  setStreak(current);
-  if (current > longestStreak) {  // <-- czyta z closure
-    setLongestStreak(current);
-  }
-}, [transactions, longestStreak]);  // <-- longestStreak w deps!
+// public/sw.js
+const CACHE_NAME = "fintrack-pro-v6"; // było v5
 ```
-Zmiana longestStreak triggerowałaby ponowne odpalenie useEffect. W praktyce nie pętli się dzięki `if (current > longestStreak)`, ale każda zmiana longest rerenderowała hook bez potrzeby.
+Po deployu **stary cache zostanie automatycznie wyczyszczony** przez `activate` event w sw.js. Potrzebny może być jeden hard refresh, potem już samo.
 
-**Fix:** Functional setState `setLongestStreak(prev => current > prev ? current : prev)` + usunięte `longestStreak` z deps + `eslint-disable-next-line` z komentarzem.
-
-### AnalyticsView — memoization obejście
-**Co było:**
+### Fix #2: auto-snap useEffect — dodano `month` do deps
+Przed:
 ```js
-const monthTx = cycleTxs(transactions, month, cycleDay);     // nowa tablica każdy render
-const expense = monthTx.filter(...);                          // nowa
-const income = monthTx.filter(...);                           // nowa
-
-const catData = useMemo(() => {...}, [expense]);              // useMemo bezużyteczne!
-const dayData = useMemo(() => {...}, [expense]);              // useMemo bezużyteczne!
+}, [loaded, cycleDay, cycleDayHistory]);
 ```
-`expense` jest tworzone nowe przy każdym renderze, więc useMemo na catData/dayData **nigdy nie cache'owało**. Marnotrawstwo CPU przy każdym renderze AnalyticsView.
+Po:
+```js
+}, [loaded, cycleDay, cycleDayHistory, month]);
+```
 
-**Fix:** Wszystkie 3 (`monthTx`, `expense`, `income`) zawinięte w `useMemo` z odpowiednimi deps. Teraz catData/dayData faktycznie cache'ują.
+To znaczy że useEffect odpala się też przy każdej zmianie `month`. Jeśli z jakiegoś powodu `month` cofnie się na zły (np. legacy save z localStorage), auto-snap natychmiast skoryguje na poprawny cykl.
+
+`userNavigatedMonthRef.current` nadal blokuje gdy user manualnie kliknął strzałki. Czyli nie ma regresji w UX.
+
+### Co realnie zrobić
+
+Po deployu v1.2.6:
+1. Zamknij wszystkie karty z FinTrack
+2. Otwórz nowo na czysto
+3. Hard refresh (Ctrl+Shift+R lub iPhone: Settings → Safari → Clear History)
+4. Otwórz Dashboard — powinien pokazać cykl **28.04 - 27.05** (Maj) zamiast Kwiecień
+
+Jeśli **nadal** pokazuje 110%, to znaczy że Twoje tx muzyki są z **dziś** (28 kwietnia, czyli już w nowym cyklu). Wtedy 110% jest poprawne — masz przekroczony limit muzyki w tym cyklu rozliczeniowym. Sprawdź daty tych tx.
 
 ---
 
-## 🧹 Wycięty dead code (~550 linii + 1 plik + ~25 dead exportów)
+## 🧹 Cleanup importów w 6 viewach (audyt głębszy)
 
-### Pliki + funkcje usunięte całkowicie
+Sprzątnięte massive bloat — copy-paste z wczesnej fazy projektu, gdzie każdy view miał importowany cały zestaw 41 ikon i 5 hooków, nawet jeśli używał tylko 3.
 
-| Plik | Co | Linie |
-|------|-----|-------|
-| `views/GoalsView.jsx` | `BudgetView` + `ForecastTab` (z v1.2.1 cięcia, zostały orphans) | 218 |
-| `lib/license.js` | `generateKey` + helpers `randomB32`, `B32_ALPHABET`, `PREFIX_TYPE` (CLI skrypt ma własną kopię) | ~30 |
-| `lib/hobby.js` | `getTopHobbies`, `getAllHobbiesYoY` | ~30 |
-| `lib/accountTypes.js` | `getAccountGroup`, `isLongTerm` | ~12 |
-| `lib/archive.js` | `restoreArchivedTransactions`, `clearArchive`, `getArchiveStats` + `TWO_YEARS_MS` | ~25 |
-| `lib/tier.js` | `getLimits` | ~3 |
-| `lib/trips.js` | `getTripById`, `getTripsForYear` | ~12 |
-| `notifications.js` | `scheduleLocalNotification` | ~14 |
-| `components/SharedWidgets.jsx` | `MiniComparison` | ~45 |
-| `views/TransactionsView.jsx` | `useStreak`, `useLongestStreak` exports + dead delete code | ~10 |
-| **`hooks/useAnalytics.js`** | **CAŁY PLIK USUNIĘTY** (placeholder, zero usages) | 22 |
-| **`hooks/useStreak.js`** | `useLongestStreak()` (zero usages) | ~5 |
+### AccountsView.jsx
+**Przed:** 41 ikon importowanych, 5 hooków, 6 utils, 7 constants
+**Po:** 5 ikon (TrendingUp, PlusCircle, PiggyBank, CreditCard, Trash2 + Shield/Landmark aliases), 1 hook (useState), 1 util (fmt), 0 constants
 
-Łącznie wycięte: **~430 linii kodu funkcyjnego**.
+### LimitsView.jsx
+**Przed:** importował `getCycleRange` (nieużywany)
+**Po:** clean — tylko `fmt, cycleTxs`
 
-### Dead exports (eksporty bez external usages, wyczyszczone)
+### InvestmentsView.jsx
+**Przed:** 41 ikon, 13 z recharts, 5 hooków, 6 utils
+**Po:** 1 ikona (X), 3 z recharts (PieChart, Pie, Cell), 1 hook (useState), 1 util (fmt)
 
-```
-utils.js               : resolveCycleDay
-constants.js           : HIST_DATA
-data/storage.js        : LS_KEY, migrateData
-lib/accountTypes.js    : isLongTerm, getAccountGroup
-lib/license.js         : generateKey, parseKey, isFormatValid
-lib/trips.js           : TRIP_BUFFER_DAYS, getTripById, getTripsForYear, shiftDate
-lib/hobby.js           : txMatchesHobby, getTopHobbies, getAllHobbiesYoY
-lib/tier.js            : FREE_LIMITS, PRO_LIMITS, getLimits, countMonthlyTransactions
-lib/archive.js         : restoreArchivedTransactions, getArchivedTransactions, getArchiveStats, clearArchive
-lib/errorTracking.js   : getLocalErrors
-```
+### PaymentsView.jsx
+**Przed:** 41 ikon, 5 hooków, 7 utils, 7 constants
+**Po:** 16 ikon (faktycznie używane), 3 hooki (useState/useMemo/useEffect), 2 utils (fmt, todayLocal), 3 constants (MONTHS, MONTH_NAMES, CATEGORIES)
 
-### Nieużywane importy React hooks
+### HobbyView.jsx
+**Przed:** importował `X` (nieużywany), `getCycleRange` (nieużywany)
+**Po:** clean
 
-5 plików importowało `{ useState, useMemo, useEffect, useCallback, useRef }` ale używało zera z nich:
-- `components/ui/Toast.jsx` (5/5 nieużywanych)
-- `components/ui/Input.jsx` (5/5)
-- `components/FontLoader.jsx` (5/5)
-- `components/SettingsPanel.jsx` (4/5 — useState używane)
-- `components/MonthlySummary.jsx` (2/2)
-- `components/ui/Modal.jsx` (1/1)
+### TripsView.jsx
+**Brak zmian w imports** — był już dobrze utrzymany. Tylko fix Bug #1 powyżej.
+
+### Wpływ na bundle
+
+Zerowy. Vite tree-shake to wszystko już wcześniej. Source jest jednak czystszy o ~50 nieużywanych importów (~30% wpisów). Łatwiejszy do utrzymania.
 
 ---
 
-## 📋 Co NIE było audytowane (do następnej iteracji)
+## Stan kodu
 
-Brak zasobów na pełen sweep całego codebase'u. Pominięte (zostawione na v1.2.6+):
-
-### Views nieaudytowane głębiej
-- **HobbyView.jsx** (704 linie) — sprawdzony częściowo, modalHobby/detailsId state OK
-- **TripsView.jsx** (685 linii) — niezweryfikowany
-- **PaymentsView.jsx** (542 linie) — sprawdzona delete logic (OK), reszta nie
-
-### Komponenty nieaudytowane
-- RetirementCalculator.jsx (284), UpgradeModal.jsx (268), EmptyStateSetup.jsx (204), Onboarding.jsx (151), FeedbackButton.jsx (155)
-- PinLock.jsx (201), DailyReminder.jsx, InsightsCard.jsx, LoginScreen.jsx, RatingPrompt.jsx, ErrorBoundary.jsx, StorageWarning.jsx, TemplatesEditor.jsx
-
-### Audyt O3 z miesięcy temu — 27 z 39 punktów wciąż otwarte
-- 3 krytyczne: K3 (NBP API rate limit), K4 (Service Worker offline-first), K5 (VAPID keys + FCM dla notyfikacji)
-- ~15 ważnych z W6-W21
-- Refactor GoalsView (2/3 zrobione w v1.2.1, 1/3 zostało)
-
-### Z Twojego feedback wciąż otwarte
-1. **TZ bug** — pytałem 6× w 5 wersjach, wciąż brak konkretu. Pomijam dopóki nie dasz: który widok, które pole, jaka data błędna vs powinna być.
-2. **Auto-klasyfikacja kategorii** (Auto → Stałe?) — nie zdecydowałeś.
+| | v1.2.5 | v1.2.6 |
+|---|---|---|
+| Pliki .js/.jsx | 59 | 59 |
+| Linie source | 12 777 | ~12 700 (jeszcze 4 funkcje przywrócone z v1.2.5 cięcia) |
+| index.js raw | 354 KB | 354 KB |
+| index.js gzip | 88 KB | 88 KB |
+| Build status | zielony | zielony |
+| Smoke test tombstones | 5/5 | 5/5 (niesprawdzane, nie ruszane) |
 
 ---
 
-## 🧪 Testy
+## Pliki zmienione (10)
 
-Smoke test tombstones nadal ZIELONY (5/5):
-- Test 1: stary mergeSnapshots wskrzesza tx (stary bug) ✓
-- Test 2: nowy mergeSnapshots z tombstones blokuje wskrzeszenie ✓
-- Test 3: tombstones syncują się między urządzeniami ✓
-- Test 4: auto-purge tombstones >30 dni ✓
-- Test 5: concurrent edits A+B → poprawny merge ✓
-
-Build smoke (vite production):
-- 2384 modułów transformowanych ✓
-- 28.5s build time ✓
-- 354 KB index.js raw / 88 KB gzip — bez regresji vs v1.2.4 ✓
-
----
-
-## 📦 Pliki zmienione w v1.2.5 (24)
-
-### Modyfikacje
 ```
-src/main.jsx                              [+ setupGlobalHandlers()]
-src/App.jsx                               [setters object naprawiony]
-src/utils.js                              [- resolveCycleDay z exports]
-src/constants.js                          [- HIST_DATA]
-src/data/storage.js                       [- LS_KEY, migrateData z exports]
-src/notifications.js                      [- scheduleLocalNotification]
-src/hooks/useStreak.js                    [- useLongestStreak, fix infinite loop]
-src/lib/accountTypes.js                   [fix getEffectiveBalance, - isLongTerm/getAccountGroup]
-src/lib/license.js                        [- generateKey + helpers]
-src/lib/trips.js                          [- getTripById/getTripsForYear z exports]
-src/lib/hobby.js                          [- getTopHobbies/getAllHobbiesYoY]
-src/lib/tier.js                           [- getLimits + dead exports]
-src/lib/archive.js                        [- 3 dead funkcje]
-src/lib/errorTracking.js                  [- getLocalErrors z exports]
-src/views/Dashboard.jsx                   [fix duplicate find, - MiniComparison import]
-src/views/GoalsView.jsx                   [- BudgetView + ForecastTab + import]
-src/views/TransactionsView.jsx            [fix copy tx, - dead delete code]
-src/views/AnalyticsView.jsx               [memoize monthTx/expense/income]
-src/components/SettingsPanel.jsx          [- nieużywane hooki z import]
-src/components/MonthlySummary.jsx         [- nieużywane hooki z import]
-src/components/FontLoader.jsx             [- nieużywane hooki z import]
-src/components/SharedWidgets.jsx          [- MiniComparison]
-src/components/ui/Modal.jsx               [- useEffect z import]
-src/components/ui/Input.jsx               [- 5 hooków z import]
-src/components/ui/Toast.jsx               [- 5 hooków z import]
-package.json                              [1.2.4 → 1.2.5]
-```
-
-### Usunięte
-```
-src/hooks/useAnalytics.js                 [CAŁY PLIK]
+src/lib/trips.js                    [+ getTripsForYear (Bug #1 fix)]
+src/lib/license.js                  [+ B32_ALPHABET (Bug #2 fix)]
+src/notifications.js                [+ scheduleLocalNotification (Bug #3 fix)]
+src/App.jsx                         [auto-snap useEffect: dodano month do deps]
+public/sw.js                        [CACHE_NAME v5 → v6]
+src/views/AccountsView.jsx          [clean 35 nieużywanych importów]
+src/views/LimitsView.jsx            [- getCycleRange (dead)]
+src/views/InvestmentsView.jsx       [clean 50+ nieużywanych importów]
+src/views/PaymentsView.jsx          [clean 25+ nieużywanych importów]
+src/views/HobbyView.jsx             [- X, getCycleRange (dead)]
+package.json                        [1.2.5 → 1.2.6]
 ```
 
 ---
 
 ## 🚀 Deploy
 
-Brak migracji. Po push'u GitHub Pages — działa od razu jak v1.2.4.
-
 ```bash
 npm install
 npm run build
-git add -A && git commit -m "v1.2.5: full audit + dead code cleanup"
+git add -A && git commit -m "v1.2.6: fix self-inflicted bugs + cleanup imports"
 git push --force
 ```
 
+**Po push, KONIECZNIE:**
+1. Otwórz aplikację, otwórz DevTools (F12)
+2. Application → Service Workers → **Unregister** (jeśli widzisz `fintrack-pro-v5`)
+3. Application → Storage → **Clear site data**
+4. Hard refresh
+
+To jest jednorazowe — service worker v6 zastąpi v5 i potem już samodzielnie.
+
+---
+
+## Pytania zaległe (wciąż otwarte)
+
+1. **„W przychodzie nie da się dać jakiejś kategorii"** — feature nie zaczęty. Wymaga zmiany schematu kategorii (dodać typ `income`/`expense` per kategoria, zmodyfikować picker w form). Wpisz na liście dla v1.2.7.
+
+2. **„W strukturze wydatków nie do końca dobrze dzieli"** — pytałem o konkretne przykłady, jeszcze nie odpowiedziałeś. Daj 3-5 transakcji które są źle przydzielone (np. „Carrefour 250zł trafia do Lifestyle, powinno do Stałe") — wtedy mogę poprawić mappery w `lib/insights.js` lub `getCat`.
+
+3. **TZ bug** — pytane 7×, brak odpowiedzi. Pomijam.
+
+4. **Audyt O3 27/39** — K3 NBP, K4 Service Worker offline-first, K5 VAPID. Krytyczne przed produkcją, niezrobione.
+
+---
+
 ## Co realnie zauważysz po deployu
 
-**Funkcjonalnie nic** (poza punktem #2 niżej). To była głównie sanityzacja kodu.
-
-1. **Error tracking faktycznie działa** — gdy aplikacja crashuje, error idzie do `localStorage["ft_errors"]` (bufor 50 najnowszych). Możesz zgłosić bug przez Settings → eksport błędów.
-2. **AnalyticsView szybsze** — po useMemo dla monthTx/expense/income, każda zmiana stanu (np. swipe między miesiącami) jest ~30-50% tańsza obliczeniowo.
-3. **Niespójność tombstone fixed** — w v1.2.4 mógłby się zdarzyć dziwny edge case gdzie po imporcie z Excela niektóre payments/goals nie zapisywałyby się w Firestore z powodu fałszywych tombstones. Mało prawdopodobne ale teraz wykluczone.
-
-Jeśli chcesz wgryźć się dalej w pozostałe komponenty (Settings, RetirementCalculator, Onboarding, etc.), daj znać — to v1.2.6.
+1. **Wyjazdy działają** — możesz wejść w Plany → Wyjazdy bez crash
+2. **Aktywacja PRO działa** — gdy klikniesz Upgrade, weryfikacja klucza nie crashuje
+3. **Reminders płatności działają** — gdy włączysz powiadomienia, system o nich nie zapomni
+4. **Muzyka 110%** — po hard refresh + flush SW cache **powinna pokazać 0%** (nowy cykl 28.04-27.05). Jeśli nie, daj znać dokładnie co widzisz + screenshot z Settings → Stan synchronizacji

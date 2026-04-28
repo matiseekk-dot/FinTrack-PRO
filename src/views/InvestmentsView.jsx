@@ -1,21 +1,11 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line
-} from "recharts";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
-} from "lucide-react";
+import { useState } from "react";
+import { PieChart, Pie, Cell } from "recharts";
+import { X } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
+import { fmt } from "../utils.js";
 import { useToast } from "../hooks/useToast.js";
 function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];

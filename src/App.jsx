@@ -221,7 +221,10 @@ export default function App() {
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
   // Bez tego, jeśli cycleDay > 1 i dziś >= cycleDay, Dashboard pokazuje stary cykl
   // (100% przekroczony, "0 dni do końca", limity 110% itd.).
-  // Snap się wykonuje raz - po loadzie - i tylko jeśli user nie nawigował manualnie.
+  //
+  // v1.2.6: snap odpala się TAKŻE gdy `month` przyjdzie zepsuty z wartości startowej
+  // useState(new Date().getMonth()), co dla dni >= cycleDay daje stary kalendarzowy
+  // miesiąc zamiast bieżącego cyklu rozliczeniowego.
   useEffect(() => {
     if (!loaded) return;
     if (userNavigatedMonthRef.current) return;
@@ -231,8 +234,7 @@ export default function App() {
     if (correctMonth !== month) {
       setMonth(correctMonth);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, cycleDay, cycleDayHistory]);
+  }, [loaded, cycleDay, cycleDayHistory, month]);
 
   // Load from localStorage on mount
   useEffect(() => {

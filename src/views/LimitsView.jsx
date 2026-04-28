@@ -3,7 +3,7 @@ import { PlusCircle, Trash2 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
-import { fmt, getCycleRange, cycleTxs } from "../utils.js";
+import { fmt, cycleTxs } from "../utils.js";
 import { CATEGORIES, getCat, MONTH_NAMES } from "../constants.js";
 
 /**

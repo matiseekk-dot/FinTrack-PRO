@@ -26,7 +26,9 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 // Generuj np: `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`
 const SECRET = "ft-license-v1-7b3d9a2c8e1f4056b9ad3e5c8f7d2a1b";
 
-// Base32 alfabet bez 0/O/1/I/L (mniej pomyłek przy ręcznym wpisywaniu)
+// Base32 alfabet bez 0/O/1/I/L (mniej pomyłek przy ręcznym wpisywaniu).
+// Używany w hmacTag do enkodowania pierwszych 4 bajtów podpisu jako tag.
+const B32_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const TYPE_PREFIX = { Y: "yearly", L: "lifetime", T: "trial" };
 
 // === HMAC ===

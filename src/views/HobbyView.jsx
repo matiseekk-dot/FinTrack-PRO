@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
 import {
-  Heart, Plus, X, ChevronRight, ChevronLeft, Edit2, Trash2,
+  Heart, Plus, ChevronRight, ChevronLeft, Edit2, Trash2,
   Sparkles, AlertCircle, TrendingUp,
 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs } from "../utils.js";
+import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import {
   pickHobbyColor, DEFAULT_HOBBY_COLORS,
   getHobbyTransactions, getHobbyStats,

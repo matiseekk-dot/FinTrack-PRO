@@ -26,6 +26,16 @@ import { dateToLocal, todayLocal } from "../utils.js";
 const TRIP_BUFFER_DAYS = 3;
 
 /**
+ * Wyfiltruj wyjazdy które przecinają dany rok kalendarzowy.
+ * Wywoływane wewnętrznie przez getYearlyTripsSummary.
+ */
+function getTripsForYear(trips, year) {
+  if (!Array.isArray(trips)) return [];
+  const yyyy = String(year);
+  return trips.filter(t => (t.dateFrom || "").startsWith(yyyy) || (t.dateTo || "").startsWith(yyyy));
+}
+
+/**
  * Zwraca tablicę aktywnych wyjazdów (dziś jest w zakresie ±bufor).
  * Bufor pozwala dodać tx „taxi z lotniska" dzień przed wyjazdem.
  */

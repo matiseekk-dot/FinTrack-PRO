@@ -1,21 +1,15 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState } from "react";
 import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
+  TrendingUp, PlusCircle, PiggyBank, CreditCard, Trash2,
+  Shield as ShieldIcon, Landmark as LandmarkIcon,
 } from "lucide-react";
 import { ACCOUNT_TYPES, ACCOUNT_GROUPS, groupAccountsByCategory, sumByGroup, getAccountType } from "../lib/accountTypes.js";
-import { Shield as ShieldIcon, Landmark as LandmarkIcon, Wallet as WalletIcon } from "lucide-react";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
-import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { fmt } from "../utils.js";
 function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
