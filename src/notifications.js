@@ -2,6 +2,7 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
+import { t } from "./i18n.js";
 
 // VAPID public key z Firebase Console:
 //   1. Otwórz Firebase Console → Project Settings → Cloud Messaging
@@ -103,12 +104,12 @@ export function schedulePaymentReminders(payments, paid) {
 
     if (diffDays === 1) {
       scheduleLocalNotification(
-        "💳 Jutro płatność!",
+        t("notif.paymentTomorrow", "💳 Jutro płatność!"),
         `${p.name} · ${Math.abs(p.amount).toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł`
       );
     } else if (diffDays === 0) {
       scheduleLocalNotification(
-        "⚡ Dziś płatność!",
+        t("notif.paymentToday", "⚡ Dziś płatność!"),
         `${p.name} · ${Math.abs(p.amount).toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł`
       );
     }

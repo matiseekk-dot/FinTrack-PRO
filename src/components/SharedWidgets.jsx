@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs, dateToLocal } from "../utils.js";
 import { MONTH_NAMES } from "../constants.js";
+import { t } from "../i18n.js";
 
 function RecurringReminder({ payments, paid = {}, transactions, setTransactions, accounts }) {
   const today     = new Date();
@@ -64,18 +65,18 @@ function RecurringReminder({ payments, paid = {}, transactions, setTransactions,
               🔔 {p.name}
             </div>
             <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>
-              Dzisiejsza płatność · {fmt(Math.abs(p.amount))}
+              {t("shared.todayPayment", "Dzisiejsza płatność")} · {fmt(Math.abs(p.amount))}
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             <button onClick={() => addNow(p)} style={{
               background: "#f59e0b", border: "none", borderRadius: 8,
               padding: "6px 12px", cursor: "pointer", color: "#1a0a00",
-              fontSize: 12, fontWeight: 700 }}>+ Dodaj</button>
+              fontSize: 12, fontWeight: 700 }}>+ {t("common.add", "Dodaj")}</button>
             <button onClick={() => dismiss(p.id)} style={{
               background: "none", border: "1px solid #78350f44", borderRadius: 8,
               padding: "6px 8px", cursor: "pointer", color: "#92400e",
-              fontSize: 11 }}>Pomiń</button>
+              fontSize: 11 }}>{t("common.skip", "Pomiń")}</button>
           </div>
         </div>
       ))}

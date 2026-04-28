@@ -10,6 +10,7 @@ import {
 import { Card } from "./ui/Card.jsx";
 import { Input, Select } from "./ui/Input.jsx";
 import { INITIAL_TEMPLATES, getCat, CATEGORIES, BASE_CATEGORIES } from "../constants.js";
+import { t } from "../i18n.js";
 
 function TemplatesEditor() {
   const [tpls, setTpls] = useState(() => {
@@ -52,7 +53,7 @@ function TemplatesEditor() {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "#060b14",
         borderRadius: 12, padding: 12 }}>
-        <div style={{ fontSize: 11, color: "#475569", fontWeight: 700, textTransform: "uppercase" }}>Dodaj szablon</div>
+        <div style={{ fontSize: 11, color: "#475569", fontWeight: 700, textTransform: "uppercase" }}>{t("templates.addLabel", "Dodaj szablon")}</div>
         <Input label="Nazwa (np. Zabka)" value={tForm.desc}
           onChange={e => setTForm(f => ({...f, desc: e.target.value}))} placeholder="np. Zabka"/>
         <Input label="Kwota (zl)" type="number" value={tForm.amount}
@@ -72,7 +73,7 @@ function TemplatesEditor() {
         }} style={{ background: "#1e3a5f", border: "1px solid #2563eb44",
           borderRadius: 10, padding: "10px 0", color: "#60a5fa",
           fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-          + Dodaj szablon
+          + {t("templates.addBtn", "Dodaj szablon")}
         </button>
       </div>
     </div>

@@ -10,6 +10,7 @@ import { useToast } from "../hooks/useToast.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt } from "../utils.js";
+import { t } from "../i18n.js";
 function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
@@ -35,7 +36,7 @@ function AccountsView({ accounts, setAccounts }) {
   };
 
   const deleteAcc = (id) => {
-    setAccounts(a => a.filter(x => x.id !== id)); showToast("Konto usunięte", "error");
+    setAccounts(a => a.filter(x => x.id !== id)); showToast(t("acc.deleted", "Konto usunięte"), "error");
   };
 
   const typeLabel = (type) => (ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking).label;
@@ -80,7 +81,7 @@ function AccountsView({ accounts, setAccounts }) {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pct}% majątku</div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pct}% {t("acc.ofWealth", "majątku")}</div>
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
               <button onClick={() => openEdit(acc)} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#60a5fa", fontSize: 11 }}>Edytuj</button>
               <button onClick={() => deleteAcc(acc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#334155" }}><Trash2 size={11}/></button>
@@ -142,11 +143,11 @@ function AccountsView({ accounts, setAccounts }) {
       }
 
       {/* Add / Edit modal */}
-      <Modal open={modal} onClose={() => { setModal(false); setEditAcc(null); }} title={editAcc ? "Edytuj konto" : "Nowe konto"}>
-        <Input label="Nazwa konta" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="np. Konto osobiste"/>
-        <Input label="Bank" value={form.bank} onChange={e => setForm(f => ({...f, bank: e.target.value}))} placeholder="np. PKO BP"/>
+      <Modal open={modal} onClose={() => { setModal(false); setEditAcc(null); }} title={editAcc ? t("acc.edit", "Edytuj konto") : t("acc.new", "Nowe konto")}>
+        <Input label={t("acc.name", "Nazwa konta")} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder={t("acc.namePlaceholder", "np. Konto osobiste")}/>
+        <Input label={t("acc.bank", "Bank")} value={form.bank} onChange={e => setForm(f => ({...f, bank: e.target.value}))} placeholder={t("acc.bankPlaceholder", "np. PKO BP")}/>
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Waluta</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("acc.currency", "Waluta")}</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["PLN","EUR","USD","GBP","CHF","CZK"].map(c => (
               <button key={c} onClick={() => setForm(f => ({...f, currency: c}))} style={{
@@ -159,22 +160,22 @@ function AccountsView({ accounts, setAccounts }) {
             ))}
           </div>
         </div>
-        <Input label="Saldo (zł)" type="number" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
-        <Select label="Typ konta" value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>
-          <optgroup label="Gotówka dostępna">
-            <option value="checking">Rachunek bieżący</option>
-            <option value="savings">Oszczędności</option>
+        <Input label={t("acc.balance", "Saldo") + " (" + t("common.currencyPLN", "zł") + ")"} type="number" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
+        <Select label={t("acc.type", "Typ konta")} value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>
+          <optgroup label={t("acc.group.cash", "Gotówka dostępna")}>
+            <option value="checking">{t("acc.type.checking", "Rachunek bieżący")}</option>
+            <option value="savings">{t("acc.type.savings", "Oszczędności")}</option>
           </optgroup>
-          <optgroup label="Inwestycje">
-            <option value="invest">Inwestycje (brokerage)</option>
+          <optgroup label={t("acc.group.invest", "Inwestycje")}>
+            <option value="invest">{t("acc.type.invest", "Inwestycje (brokerage)")}</option>
           </optgroup>
-          <optgroup label="Emerytura długoterminowa">
-            <option value="ppk">PPK — Pracownicze Plany Kapitałowe</option>
-            <option value="ike">IKE — Indywidualne Konto Emerytalne</option>
-            <option value="ikze">IKZE — Indywidualne Konto Zabezp. Emerytalnego</option>
+          <optgroup label={t("acc.group.retirement", "Emerytura długoterminowa")}>
+            <option value="ppk">PPK — {t("acc.type.ppk", "Pracownicze Plany Kapitałowe")}</option>
+            <option value="ike">IKE — {t("acc.type.ike", "Indywidualne Konto Emerytalne")}</option>
+            <option value="ikze">IKZE — {t("acc.type.ikze", "Indywidualne Konto Zabezp. Emerytalnego")}</option>
           </optgroup>
-          <optgroup label="Majątek długoterminowy">
-            <option value="bonds">Obligacje skarbowe</option>
+          <optgroup label={t("acc.group.longterm", "Majątek długoterminowy")}>
+            <option value="bonds">{t("acc.type.bonds", "Obligacje skarbowe")}</option>
           </optgroup>
         </Select>
 
@@ -188,10 +189,10 @@ function AccountsView({ accounts, setAccounts }) {
             marginBottom: 16,
           }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#06b6d4", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-              💡 Dane dla kalkulatora {form.type.toUpperCase()}
+              💡 {t("acc.calcData", "Dane dla kalkulatora")} {form.type.toUpperCase()}
             </div>
             <Input
-              label="Wpłata roczna (zł)"
+              label={t("acc.annualContribution", "Wpłata roczna") + " (" + t("common.currencyPLN", "zł") + ")"}
               type="number"
               value={form.annualContribution}
               onChange={e => setForm(f => ({...f, annualContribution: e.target.value}))}
@@ -199,7 +200,7 @@ function AccountsView({ accounts, setAccounts }) {
             />
             {form.type === "ppk" && (
               <Input
-                label="Dopłata pracodawcy rocznie (zł)"
+                label={t("acc.employerContribution", "Dopłata pracodawcy rocznie") + " (" + t("common.currencyPLN", "zł") + ")"}
                 type="number"
                 value={form.employerContribution}
                 onChange={e => setForm(f => ({...f, employerContribution: e.target.value}))}
@@ -207,9 +208,9 @@ function AccountsView({ accounts, setAccounts }) {
               />
             )}
             <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.4, marginTop: 6 }}>
-              {form.type === "ikze" && "Limit 2026: 10 407 zł (15 611 zł dla samozatrudnionych)"}
-              {form.type === "ike" && "Limit 2026: 26 019 zł"}
-              {form.type === "ppk" && "Typowo 2% Twojej pensji + 1.5% od pracodawcy + 240 zł/rok od państwa"}
+              {form.type === "ikze" && t("acc.ikzeLimitInfo", "Limit 2026: 10 407 zł (15 611 zł dla samozatrudnionych)")}
+              {form.type === "ike" && t("acc.ikeLimitInfo", "Limit 2026: 26 019 zł")}
+              {form.type === "ppk" && t("acc.ppkInfo", "Typowo 2% Twojej pensji + 1.5% od pracodawcy + 240 zł/rok od państwa")}
             </div>
           </div>
         )}

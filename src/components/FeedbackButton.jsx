@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MessageCircle, X, Send, Check } from "lucide-react";
 import { exportErrorsForSupport, clearLocalErrors } from "../lib/errorTracking.js";
+import { t } from "../i18n.js";
 
 const SUPPORT_EMAIL = "matiseekk@gmail.com";
 
@@ -12,27 +13,28 @@ function FeedbackButton() {
 
   const handleSend = () => {
     const errorsInfo = includeErrors ? exportErrorsForSupport() : null;
-    
+
     const body = [
-      "Wiadomość:",
-      message || "(brak)",
+      t("feedback.body.message", "Wiadomość:"),
+      message || t("feedback.body.empty", "(brak)"),
       "",
       "---",
-      `Wersja: ${import.meta.env.MODE || "production"}`,
+      `${t("feedback.body.version", "Wersja")}: ${import.meta.env.MODE || "production"}`,
       `URL: ${window.location.href}`,
-      `Data: ${new Date().toISOString()}`,
-      `Przeglądarka: ${navigator.userAgent.substring(0, 100)}`,
+      `${t("feedback.body.date", "Data")}: ${new Date().toISOString()}`,
+      `${t("feedback.body.browser", "Przeglądarka")}: ${navigator.userAgent.substring(0, 100)}`,
     ];
-    
+
     if (errorsInfo && errorsInfo.count > 0) {
       body.push("");
-      body.push(`Ostatnie błędy (${errorsInfo.count}):`);
+      body.push(`${t("feedback.body.errors", "Ostatnie błędy")} (${errorsInfo.count}):`);
       errorsInfo.errors.slice(0, 5).forEach((err, i) => {
         body.push(`${i+1}. ${err.message} (${err.timestamp})`);
       });
     }
-    
-    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("FinTrack PRO - zgłoszenie")}&body=${encodeURIComponent(body.join("\n"))}`;
+
+    const subject = t("feedback.subject", "FinTrack PRO - zgłoszenie");
+    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.join("\n"))}`;
     window.location.href = mailto;
     
     setSent(true);
@@ -57,7 +59,7 @@ function FeedbackButton() {
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", zIndex: 50,
         boxShadow: "0 4px 12px #0008",
-      }} title="Zgłoś problem">
+      }} title={t("feedback.button", "Zgłoś problem")}>
         <MessageCircle size={18} color="#94a3b8"/>
       </button>
     );
@@ -77,7 +79,7 @@ function FeedbackButton() {
         fontFamily: "'Space Grotesk', sans-serif",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ fontSize: 17, fontWeight: 700, color: "#e2e8f0" }}>Zgłoś problem</h3>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: "#e2e8f0" }}>{t("feedback.title", "Zgłoś problem")}</h3>
           <button onClick={() => setOpen(false)} style={{
             background: "#1a2744", border: "none", borderRadius: 8,
             padding: 6, cursor: "pointer", color: "#94a3b8",
@@ -96,7 +98,7 @@ function FeedbackButton() {
               <Check size={28} color="#10b981"/>
             </div>
             <div style={{ fontSize: 14, color: "#e2e8f0", fontWeight: 600 }}>
-              Otwarto aplikację pocztową
+              {t("feedback.opened", "Otwarto aplikację pocztową")}
             </div>
           </div>
         ) : (
@@ -104,7 +106,7 @@ function FeedbackButton() {
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
-              placeholder="Co się dzieje? Na co chcesz zwrócić uwagę?"
+              placeholder={t("feedback.placeholder", "Co się dzieje? Na co chcesz zwrócić uwagę?")}
               rows={4}
               style={{
                 width: "100%", padding: 12,
@@ -127,7 +129,7 @@ function FeedbackButton() {
                 onChange={e => setIncludeErrors(e.target.checked)}
                 style={{ cursor: "pointer" }}
               />
-              Załącz ostatnie błędy (pomaga mi naprawić bug)
+              {t("feedback.attachErrors", "Załącz ostatnie błędy (pomaga mi naprawić bug)")}
             </label>
 
             <button onClick={handleSend} disabled={!message.trim()} style={{
@@ -139,11 +141,11 @@ function FeedbackButton() {
               fontFamily: "'Space Grotesk', sans-serif",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
-              <Send size={16}/> Wyślij
+              <Send size={16}/> {t("feedback.send", "Wyślij")}
             </button>
 
             <div style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 10 }}>
-              Wiadomość pójdzie na {SUPPORT_EMAIL}
+              {t("feedback.recipient", "Wiadomość pójdzie na")} {SUPPORT_EMAIL}
             </div>
           </>
         )}

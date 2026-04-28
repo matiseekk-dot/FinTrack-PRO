@@ -24,10 +24,26 @@ export function useSessionTracker() {
     setShowRatingPrompt(false);
     localStorage.setItem(RATING_KEY, "1");
     if (rated) {
-      // v1.2.10: market intent do io.github.matiseekk_dot.fintrackpro NIE ISTNIEJE.
-      // FinTrack nie jest jeszcze na Play Store. Do czasu publikacji - direct feedback.
-      // Po publikacji przywróć market intent z prawdziwym package ID.
-      window.open("https://skudev.gumroad.com/l/fintrack-pro-yearly?wanted=true", "_blank");
+      // v1.3.0: prawdziwy market intent do pl.skudev.fintrackpro (Play Store).
+      // Po publikacji intent otworzy Play Store rating dialog. Przed publikacją
+      // (intent się nie zarejestruje) - fallback do https URL po 1.5s.
+      const PACKAGE_ID = "pl.skudev.fintrackpro";
+      const ua = navigator.userAgent.toLowerCase();
+      if (ua.includes("android")) {
+        // Market intent najpierw - jeśli apka jest zainstalowana z Play Store,
+        // otworzy się od razu rating dialog. Inaczej fallback do https.
+        try {
+          window.location.href = `market://details?id=${PACKAGE_ID}`;
+          setTimeout(() => {
+            window.open(`https://play.google.com/store/apps/details?id=${PACKAGE_ID}`, "_blank");
+          }, 1500);
+        } catch (_) {
+          window.open(`https://play.google.com/store/apps/details?id=${PACKAGE_ID}`, "_blank");
+        }
+      } else {
+        // iOS / desktop - bezpośrednio do Play Store listing
+        window.open(`https://play.google.com/store/apps/details?id=${PACKAGE_ID}`, "_blank");
+      }
     }
   };
 

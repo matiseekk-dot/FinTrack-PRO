@@ -1,59 +1,67 @@
 import { useState } from "react";
 import { FontLoader } from "./FontLoader.jsx";
+import { t } from "../i18n.js";
 
-const SLIDES = [
-  {
-    emoji: "👋",
-    title: "Witaj w FinTrack PRO!",
-    desc: "Osobisty tracker finansów. Synchronizacja w chmurze, Twoje dane bezpieczne. 50 transakcji miesięcznie za darmo, więcej w wersji PRO.",
-    color: "#3b82f6",
-  },
-  {
-    emoji: "💸",
-    title: "Dodawaj transakcje",
-    desc: "Wpisz kwotę, opis i kategorię. Możesz używać szablonów dla powtarzalnych wydatków (np. Paliwo 200 zł, Żabka 30 zł) — jedno kliknięcie i gotowe.",
-    color: "#8b5cf6",
-  },
-  {
-    emoji: "📅",
-    title: "Czym jest cykl rozliczeniowy?",
-    desc: "Standardowo cykl = miesiąc kalendarzowy (1-31). Ale możesz ustawić go pod dzień wypłaty — np. 27 każdego miesiąca do 26 następnego. Ustawisz to w Ustawieniach.",
-    color: "#06b6d4",
-  },
-  {
-    emoji: "🏷️",
-    title: "Kategorie i custom kategorie",
-    desc: "Masz gotowe 20 kategorii (jedzenie, transport, rachunki, wynagrodzenie…) ale możesz dodać własne (np. Kredyt Dom, Żłobek, Vinted). Każda kategoria = inny kolor na wykresach.",
-    color: "#ec4899",
-  },
-  {
-    emoji: "🎯",
-    title: "Budżety i alerty",
-    desc: "Ustaw miesięczny limit dla wybranej kategorii (np. Rozrywka = 500 zł). Apka pokaże ostrzeżenie gdy zbliżasz się do 85% i alert gdy przekroczysz. Zakładki → Plany → Limity.",
-    color: "#10b981",
-  },
-  {
-    emoji: "💰",
-    title: "Cele oszczędnościowe",
-    desc: `Ustal cel (np. Wakacje 5000 zł do końca ${new Date().getFullYear() + 1} roku) i powiąż z kontem oszczędnościowym. Apka policzy ile jeszcze brakuje i ile musisz odłożyć miesięcznie.`,
-    color: "#f59e0b",
-  },
-  {
-    emoji: "🔒",
-    title: "Bezpieczeństwo",
-    desc: "Włącz blokadę PIN w Ustawieniach — apka zablokuje się automatycznie gdy wyjdziesz. Tylko Ty masz dostęp.",
-    color: "#7c3aed",
-  },
-  {
-    emoji: "🚀",
-    title: "Gotowy do startu!",
-    desc: "Zacznij od dodania pierwszej transakcji albo załaduj dane demo żeby zobaczyć jak apka wygląda w akcji.",
-    color: "#ef4444",
-  },
-];
+// v1.3.1: SLIDES jako funkcja (nie const), żeby t() ewaluowało się przy każdym
+// renderze - inaczej tłumaczenia złapane raz przy module load nie zmienią się
+// gdyby user zmienił język w trakcie (chociaż setLang() i tak robi reload).
+function getSlides() {
+  return [
+    {
+      emoji: "👋",
+      title: t("onb.s1.title", "Witaj w FinTrack PRO!"),
+      desc:  t("onb.s1.desc",  "Osobisty tracker finansów. Synchronizacja w chmurze, Twoje dane bezpieczne. 50 transakcji miesięcznie za darmo, więcej w wersji PRO."),
+      color: "#3b82f6",
+    },
+    {
+      emoji: "💸",
+      title: t("onb.s2.title", "Dodawaj transakcje"),
+      desc:  t("onb.s2.desc",  "Wpisz kwotę, opis i kategorię. Możesz używać szablonów dla powtarzalnych wydatków (np. Paliwo 200 zł, Żabka 30 zł) — jedno kliknięcie i gotowe."),
+      color: "#8b5cf6",
+    },
+    {
+      emoji: "📅",
+      title: t("onb.s3.title", "Czym jest cykl rozliczeniowy?"),
+      desc:  t("onb.s3.desc",  "Standardowo cykl = miesiąc kalendarzowy (1-31). Ale możesz ustawić go pod dzień wypłaty — np. 27 każdego miesiąca do 26 następnego. Ustawisz to w Ustawieniach."),
+      color: "#06b6d4",
+    },
+    {
+      emoji: "🏷️",
+      title: t("onb.s4.title", "Kategorie i custom kategorie"),
+      desc:  t("onb.s4.desc",  "Masz gotowe 20 kategorii (jedzenie, transport, rachunki, wynagrodzenie…) ale możesz dodać własne (np. Kredyt Dom, Żłobek, Vinted). Każda kategoria = inny kolor na wykresach."),
+      color: "#ec4899",
+    },
+    {
+      emoji: "🎯",
+      title: t("onb.s5.title", "Budżety i alerty"),
+      desc:  t("onb.s5.desc",  "Ustaw miesięczny limit dla wybranej kategorii (np. Rozrywka = 500 zł). Apka pokaże ostrzeżenie gdy zbliżasz się do 85% i alert gdy przekroczysz. Zakładki → Plany → Limity."),
+      color: "#10b981",
+    },
+    {
+      emoji: "💰",
+      title: t("onb.s6.title", "Cele oszczędnościowe"),
+      desc:  t("onb.s6.desc",  "Ustal cel (np. Wakacje 5000 zł do końca {YEAR} roku) i powiąż z kontem oszczędnościowym. Apka policzy ile jeszcze brakuje i ile musisz odłożyć miesięcznie.")
+              .replace("{YEAR}", String(new Date().getFullYear() + 1)),
+      color: "#f59e0b",
+    },
+    {
+      emoji: "🔒",
+      title: t("onb.s7.title", "Bezpieczeństwo"),
+      desc:  t("onb.s7.desc",  "Włącz blokadę PIN w Ustawieniach — apka zablokuje się automatycznie gdy wyjdziesz. Tylko Ty masz dostęp."),
+      color: "#7c3aed",
+    },
+    {
+      emoji: "🚀",
+      title: t("onb.s8.title", "Gotowy do startu!"),
+      desc:  t("onb.s8.desc",  "Zacznij od dodania pierwszej transakcji albo załaduj dane demo żeby zobaczyć jak apka wygląda w akcji."),
+      color: "#ef4444",
+    },
+  ];
+}
 
 function Onboarding({ onFinish, onLoadDemo }) {
   const [slide, setSlide] = useState(0);
+  const SLIDES = getSlides();
   const current = SLIDES[slide];
   const isLast = slide === SLIDES.length - 1;
 
@@ -76,7 +84,7 @@ function Onboarding({ onFinish, onLoadDemo }) {
         color: "#475569", fontSize: 13, fontWeight: 600,
         fontFamily: "'Space Grotesk', sans-serif",
       }}>
-        Pomiń
+        {t("onb.skip", "Pomiń")}
       </button>
 
       {/* Progress dots */}
@@ -121,7 +129,7 @@ function Onboarding({ onFinish, onLoadDemo }) {
             color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif",
           }}>
-            ← Wstecz
+            ← {t("onb.back", "Wstecz")}
           </button>
         )}
         <button onClick={() => isLast ? onFinish() : setSlide(s => s + 1)} style={{
@@ -131,7 +139,7 @@ function Onboarding({ onFinish, onLoadDemo }) {
           fontFamily: "'Space Grotesk', sans-serif",
           boxShadow: `0 4px 16px ${current.color}44`,
         }}>
-          {isLast ? "Zaczynam!" : "Dalej →"}
+          {isLast ? t("onb.start", "Zaczynam!") : t("onb.next", "Dalej →")}
         </button>
       </div>
 
@@ -141,7 +149,7 @@ function Onboarding({ onFinish, onLoadDemo }) {
           color: "#64748b", fontSize: 13, textDecoration: "underline",
           fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          🎬 Załaduj dane demo
+          🎬 {t("onb.loadDemo", "Załaduj dane demo")}
         </button>
       )}
     </div>

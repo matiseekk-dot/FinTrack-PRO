@@ -1,9 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Bar, BarChart, XAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Eye, EyeOff,
+  Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
+} from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
-import { MONTHS, getCat } from "../constants.js";
+import { MONTHS, MONTH_NAMES, getCat } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
@@ -196,9 +199,9 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
     >
       <div style={{ paddingTop: 24, textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 12 }}>👋</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0", marginBottom: 8 }}>Zacznij śledzić finanse</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0", marginBottom: 8 }}>{t("dash.empty.title", "Zacznij śledzić finanse")}</div>
         <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, marginBottom: 28 }}>
-          Dodaj pierwszą transakcję żeby zobaczyć analizę, wykresy i raporty.
+          {t("dash.empty.desc", "Dodaj pierwszą transakcję żeby zobaczyć analizę, wykresy i raporty.")}
         </div>
         <button onClick={onAddTx} style={{
           background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
@@ -207,15 +210,15 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           fontFamily: "'Space Grotesk', sans-serif",
           boxShadow: "0 0 24px #7c3aed44",
         }}>
-          + Dodaj pierwszą transakcję
+          + {t("dash.empty.addFirst", "Dodaj pierwszą transakcję")}
         </button>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
         {[
-          { emoji: "💸", title: "Transakcje", desc: "Zapisuj wydatki i przychody w kilka sekund", action: onAddTx, btn: "Dodaj transakcję" },
-          { emoji: "📋", title: "Płatności cykliczne", desc: "Czynsz, prąd, subskrypcje — nigdy nie zapomnisz o terminie", action: null, btn: null },
-          { emoji: "🎯", title: "Cele oszczędnościowe", desc: "Odkładaj na wakacje, nowy telefon czy poduszkę finansową", action: null, btn: null },
+          { emoji: "💸", title: t("dash.feat.tx.title", "Transakcje"), desc: t("dash.feat.tx.desc", "Zapisuj wydatki i przychody w kilka sekund"), action: onAddTx, btn: t("dash.feat.tx.btn", "Dodaj transakcję") },
+          { emoji: "📋", title: t("dash.feat.pay.title", "Płatności cykliczne"), desc: t("dash.feat.pay.desc", "Czynsz, prąd, subskrypcje — nigdy nie zapomnisz o terminie"), action: null, btn: null },
+          { emoji: "🎯", title: t("dash.feat.goals.title", "Cele oszczędnościowe"), desc: t("dash.feat.goals.desc", "Odkładaj na wakacje, nowy telefon czy poduszkę finansową"), action: null, btn: null },
         ].map(({ emoji, title, desc, action, btn }) => (
           <div key={title} style={{
             background: "#0a1120", borderRadius: 16, padding: "16px",
@@ -251,7 +254,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           boxShadow: "0 4px 16px #00000066",
         }}>
           <span style={{ animation: pulling ? "spin 0.8s linear infinite" : "none", display: "inline-block" }}>↻</span>
-          {pulling ? "Odświeżam…" : pullY >= PULL_THRESHOLD ? "Puść aby odświeżyć" : "Pociągnij w dół"}
+          {pulling ? t("dash.pull.refreshing", "Odświeżam…") : pullY >= PULL_THRESHOLD ? t("dash.pull.release", "Puść aby odświeżyć") : t("dash.pull.pullDown", "Pociągnij w dół")}
         </div>
       )}
 
@@ -263,7 +266,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         const todayBal = todayInc - todayExp;
         const n = todayTx.length;
         const isPos = todayBal >= 0;
-        const DAYS_PL = ["Niedziela","Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota"];
+        const DAYS_PL = [t("day.0","Niedziela"), t("day.1","Poniedziałek"), t("day.2","Wtorek"), t("day.3","Środa"), t("day.4","Czwartek"), t("day.5","Piątek"), t("day.6","Sobota")];
         const today = new Date();
         const dayName = t(`day.${today.getDay()}`);
         const dateStr = today.toLocaleDateString(getLang() === "en" ? "en-US" : "pl-PL", { day: "numeric", month: "long" });
@@ -301,7 +304,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             {n > 0 && (todayExp > 0 || todayInc > 0) && (
               <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #1e3a5f44" }}>
                 {todayInc > 0 && <div>
-                  <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Wpłynęło</div>
+                  <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.income", "Wpłynęło")}</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#10b981" }}>+{fmt(todayInc)}</div>
                 </div>}
                 {todayExp > 0 && <div>
@@ -365,12 +368,12 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Gotówka dostępna</div>
+            <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{t("dash.cashAvailable", "Gotówka dostępna")}</div>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700,
               color: hideBalance ? "#1a2744" : "#e2e8f0", letterSpacing: "-0.03em" }}>
               {hideBalance ? "●●●●●" : fmt(totalBalance)}
             </span>
-            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>płynne, dostępne od ręki</div>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>{t("dash.cashDesc", "płynne, dostępne od ręki")}</div>
           </div>
           <button onClick={() => setHideBalance(h => !h)}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#334155", marginTop: 4 }}>
@@ -400,7 +403,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         <div style={{ background: "linear-gradient(135deg,#0a1a2e,#0d1628)", border: "1px solid #1e3a5f44", borderRadius: 20, padding: "16px 20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Majątek łączny</div>
+              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{t("dash.totalWealth", "Majątek łączny")}</div>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: "#cbd5e1", letterSpacing: "-0.02em" }}>
                 {fmt(netWorth)}
               </span>
@@ -408,7 +411,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14, paddingTop: 10, borderTop: "1px solid #1e3a5f44" }}>
             <div>
-              <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Gotówka</div>
+              <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.cash", "Gotówka")}</div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>{fmt(accountSums.liquid)}</div>
             </div>
             {invest > 0 && (
@@ -425,7 +428,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             )}
             {accountSums.longterm > 0 && (
               <div>
-                <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Długoterminowy</div>
+                <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.longterm", "Długoterminowy")}</div>
                 <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#eab308" }}>{fmt(accountSums.longterm)}</div>
               </div>
             )}
@@ -478,7 +481,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       {/* ═══ ILE MOŻESZ WYDAĆ ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>
         <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>
-          Stan na dziś · {daysLeft} dni do końca cyklu
+          {t("dash.statusToday", "Stan na dziś")} · {daysLeft} {t("dash.daysToEnd", "dni do końca cyklu")}
         </div>
         <div style={{
           background: safeToSpend > 0 ? "linear-gradient(135deg,#0a1e12,#052e16)" : "linear-gradient(135deg,#1a0808,#200e0e)",

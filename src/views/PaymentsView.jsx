@@ -12,6 +12,7 @@ import { fmt, todayLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, CATEGORIES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
+import { t } from "../i18n.js";
 function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setTransactions, accounts, month: globalMonth, partnerName = "Partner" }) {
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, medium: hapticMedium } = useHaptic();
@@ -93,8 +94,8 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
       shared:     form.shared || false,
       startMonth: form.freq === "bimonthly" ? (form.startMonth !== undefined ? form.startMonth : new Date().getMonth()) : 0,
     };
-    if (editItem) { setPayments(p => p.map(x => x.id === editItem.id ? item : x)); showToast("Płatność zaktualizowana ✓"); }
-    else          { setPayments(p => [...p, item]); showToast("Płatność dodana ✓"); }
+    if (editItem) { setPayments(p => p.map(x => x.id === editItem.id ? item : x)); showToast(t("pay.toast.updated", "Płatność zaktualizowana ✓")); }
+    else          { setPayments(p => [...p, item]); showToast(t("pay.toast.added", "Płatność dodana ✓")); }
     setModal(false);
     setEditItem(null);
   };
@@ -161,7 +162,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
 
   const freqLabel = (item) => {
     if (item.freq === "daily")   return "Codziennie";
-    if (item.freq === "weekly")  return `Co tydzień · ${DAYS_PL[(item.dayOfWeek-1)%7]}`;
+    if (item.freq === "weekly")  return `${t("pay.fmt.weekly", "Co tydzień")} · ${DAYS_PL[(item.dayOfWeek-1)%7]}`;
     if (item.freq === "bimonthly") {
       const startM = item.startMonth || 0;
       let next = -1;
@@ -171,7 +172,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
       }
       return `Co 2 mies.${next >= 0 ? " · nast: " + MONTHS[next] : ""}`;
     }
-    return `${item.dueDay}. każdego`;
+    return `${item.dueDay}. ${t("pay.fmt.eachMonth", "każdego")}`;
   };
 
   const ItemCard = ({ item }) => {
@@ -196,8 +197,8 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
           minWidth: 58,
         }}>
           {p
-            ? <><Check size={14} color="#10b981"/><span style={{ fontSize: 9, fontWeight: 700, color: "#10b981", fontFamily: "'Space Grotesk', sans-serif" }}>Zapłacono</span></>
-            : <><Circle size={14} color={overdue ? "#ef4444" : "#334155"}/><span style={{ fontSize: 9, fontWeight: 700, color: overdue ? "#ef4444" : "#475569", fontFamily: "'Space Grotesk', sans-serif" }}>Opłać</span></>
+            ? <><Check size={14} color="#10b981"/><span style={{ fontSize: 9, fontWeight: 700, color: "#10b981", fontFamily: "'Space Grotesk', sans-serif" }}>{t("pay.paid", "Zapłacono")}</span></>
+            : <><Circle size={14} color={overdue ? "#ef4444" : "#334155"}/><span style={{ fontSize: 9, fontWeight: 700, color: overdue ? "#ef4444" : "#475569", fontFamily: "'Space Grotesk', sans-serif" }}>{t("pay.pay", "Opłać")}</span></>
           }
         </button>
 
@@ -209,7 +210,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
             {item.shared && (
               <span style={{ fontSize: 9, fontWeight: 700, background: "#0a1e12",
                 border: "1px solid #16a34a44", borderRadius: 5, padding: "1px 5px",
-                color: "#10b981", flexShrink: 0 }}>👫 wspólne</span>
+                color: "#10b981", flexShrink: 0 }}>👫 {t("pay.shared", "wspólne")}</span>
             )}
           </div>
           <div style={{ fontSize: 11, marginTop: 2, color:
@@ -272,7 +273,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
         ) : dueItems.length === 0 ? (
           <div style={{ background: "#060b14", borderRadius: 12, padding: "12px 16px",
             fontSize: 12, color: "#334155", textAlign: "center" }}>
-            Brak płatności w tym miesiącu
+            {t("pay.empty", "Brak płatności w tym miesiącu")}
           </div>
         ) : (
           <>
@@ -320,7 +321,12 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
   const allItems = [...credits, ...bills, ...subs, ...savings];
   const totalPct = allMthTotal > 0 ? (allMthPaid / allMthTotal * 100) : 0;
 
-  const FREQ_LABELS = { monthly: "Miesięcznie", bimonthly: "Co 2 miesiące", weekly: "Tygodniowo", daily: "Codziennie" };
+  const FREQ_LABELS = {
+    monthly:    t("pay.freq.monthly",    "Miesięcznie"),
+    bimonthly:  t("pay.freq.bimonthly",  "Co 2 miesiące"),
+    weekly:     t("pay.freq.weekly",     "Tygodniowo"),
+    daily:      t("pay.freq.daily",      "Codziennie"),
+  };
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
@@ -332,7 +338,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
             <ChevronLeft size={14}/>
           </button>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Płatności</div>
+            <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>{t("pay.title", "Płatności")}</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: isCurrentMonth ? "#e2e8f0" : "#60a5fa", marginTop: 2 }}>
               {MONTH_NAMES[month]} {new Date().getFullYear()} {isCurrentMonth && <span style={{ fontSize: 10, color: "#10b981" }}>● teraz</span>}
             </div>
@@ -351,7 +357,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
           color: showAll ? "#60a5fa" : "#334155", fontSize: 12, fontWeight: 700,
           fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          {showAll ? "👁 Wszystkie płatności (edycja/usuwanie)" : "Pokaż tylko aktywne w tym miesiącu"}
+          {showAll ? "👁 " + t("pay.showAll", "Wszystkie płatności (edycja/usuwanie)") : t("pay.showActiveOnly", "Pokaż tylko aktywne w tym miesiącu")}
         </button>
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, textAlign: "center" }}>
           <span style={{ color: "#10b981" }}>{fmt(allMthPaid)}</span>
@@ -364,10 +370,10 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
         </div>
       </div>
 
-      <Section type="credit"  label="Zobowiązania"           emoji="🏦" color="#3b82f6" items={credits}/>
-      <Section type="bill"    label="Rachunki"                emoji="📄" color="#f59e0b" items={bills}/>
-      <Section type="sub"     label="Subskrypcje"             emoji="🔄" color="#8b5cf6" items={subs}/>
-      <Section type="savings" label="Cele oszczędnościowe"    emoji="💰" color="#10b981" items={savings}/>
+      <Section type="credit"  label={t("pay.section.credit",   "Zobowiązania")}        emoji="🏦" color="#3b82f6" items={credits}/>
+      <Section type="bill"    label={t("pay.section.bills",   "Rachunki")}            emoji="📄" color="#f59e0b" items={bills}/>
+      <Section type="sub"     label={t("pay.section.subs",    "Subskrypcje")}          emoji="🔄" color="#8b5cf6" items={subs}/>
+      <Section type="savings" label={t("pay.section.savings",  "Cele oszczędnościowe")} emoji="💰" color="#10b981" items={savings}/>
 
       {/* Nieaktywne w tym miesi cu   co 2 miesi ce */}
       {(() => {
@@ -378,7 +384,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
             <div style={{ fontSize: 11, fontWeight: 700, color: "#334155",
               textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8,
               display: "flex", alignItems: "center", gap: 6 }}>
-              📅 Co 2 miesiące (nie w tym miesiącu)
+              📅 {t("pay.bimonthlySkip", "Co 2 miesiące (nie w tym miesiącu)")}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {inactive.map(item => (
@@ -413,7 +419,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
       {totalPct >= 100 && payments.length > 0 && (
         <div style={{ textAlign: "center", padding: "16px 0" }}>
           <div style={{ fontSize: 28 }}>🎉</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#10b981", marginTop: 6 }}>Wszystko opłacone!</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#10b981", marginTop: 6 }}>{t("pay.allPaid", "Wszystko opłacone!")}</div>
         </div>
       )}
 
@@ -421,12 +427,17 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
       {/* Modal */}
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
       <Modal open={modal} onClose={() => { setModal(false); setEditItem(null); }}
-             title={editItem ? "Edytuj" : form.type === "credit" ? "Nowe zobowiązanie" : form.type === "sub" ? "Nowa subskrypcja" : form.type === "savings" ? "Nowy cel oszczędnościowy" : "Nowy rachunek"}>
+             title={editItem
+               ? t("common.edit", "Edytuj")
+               : form.type === "credit"  ? t("pay.new.credit",  "Nowe zobowiązanie")
+               : form.type === "sub"     ? t("pay.new.sub",     "Nowa subskrypcja")
+               : form.type === "savings" ? t("pay.new.savings", "Nowy cel oszczędnościowy")
+               :                           t("pay.new.bill",    "Nowy rachunek")}>
 
         {/* Type tabs in modal */}
         {!editItem && (
           <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-            {[["credit","🏦 Zobowiązanie"],["bill","📄 Rachunek"],["sub","🔄 Subskrypcja"],["savings","💰 Oszczędności"]].map(([t,l]) => (
+            {[["credit","🏦 " + t("pay.type.credit","Zobowiązanie")],["bill","📄 " + t("pay.type.bill","Rachunek")],["sub","🔄 " + t("pay.type.sub","Subskrypcja")],["savings","💰 " + t("pay.type.savings","Oszczędności")]].map(([t,l]) => (
               <button key={t} onClick={() => setForm(f => ({...f, type: t}))}
                 style={{ flex: 1, background: form.type === t ? "#1e3a5f" : "#060b14",
                   border: `1px solid ${form.type === t ? "#2563eb" : "#1a2744"}`,
@@ -437,13 +448,13 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
           </div>
         )}
 
-        <Input label="Nazwa" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder={
-          form.type === "credit" ? "np. Kredyt hipoteczny" :
-          form.type === "sub"    ? "np. Netflix" : "np. Prąd"}/>
-        <Input label="Kwota miesięczna (zł)" type="number" value={form.amount}
+        <Input label={t("pay.name", "Nazwa")} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder={
+          form.type === "credit" ? t("pay.ph.credit", "np. Kredyt hipoteczny") :
+          form.type === "sub"    ? t("pay.ph.sub", "np. Netflix") : t("pay.ph.bill", "np. Prąd")}/>
+        <Input label={t("pay.monthlyAmount", "Kwota miesięczna") + " (" + t("common.currencyPLN", "zł") + ")"} type="number" value={form.amount}
           onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="0.00"/>
 
-        <Select label="Kategoria" value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
+        <Select label={t("common.category", "Kategoria")} value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
           {CATEGORIES.filter(c => !["przychód","inne"].includes(c.id)).map(c =>
             <option key={c.id} value={c.id}>{c.label}</option>)}
         </Select>
@@ -452,28 +463,32 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
           {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
 
-        <Select label="Częstotliwość" value={form.freq} onChange={e => setForm(f => ({...f, freq: e.target.value}))}>
+        <Select label={t("pay.frequency", "Częstotliwość")} value={form.freq} onChange={e => setForm(f => ({...f, freq: e.target.value}))}>
           <option value="daily">Codziennie</option>
           <option value="weekly">Tygodniowo</option>
-          <option value="monthly">Miesięcznie</option>
-          <option value="bimonthly">Co 2 miesiące</option>
+          <option value="monthly">{t("pay.freq.monthly", "Miesięcznie")}</option>
+          <option value="bimonthly">{t("pay.freq.bimonthly", "Co 2 miesiące")}</option>
         </Select>
 
         {form.freq === "weekly" && (
-          <Select label="Dzień tygodnia" value={form.dayOfWeek} onChange={e => setForm(f => ({...f, dayOfWeek: e.target.value}))}>
-            {["Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"].map((d,i) =>
+          <Select label={t("pay.dayOfWeek", "Dzień tygodnia")} value={form.dayOfWeek} onChange={e => setForm(f => ({...f, dayOfWeek: e.target.value}))}>
+            {[
+              t("day.1", "Poniedziałek"), t("day.2", "Wtorek"), t("day.3", "Środa"),
+              t("day.4", "Czwartek"),     t("day.5", "Piątek"), t("day.6", "Sobota"),
+              t("day.0", "Niedziela"),
+            ].map((d,i) =>
               <option key={i+1} value={i+1}>{d}</option>)}
           </Select>
         )}
         {(form.freq === "monthly" || form.freq === "bimonthly") && (
-          <Input label="Dzień miesiąca (termin)" type="number" min="1" max="31"
+          <Input label={t("pay.dayOfMonth", "Dzień miesiąca (termin)")} type="number" min="1" max="31"
             value={form.dueDay} onChange={e => setForm(f => ({...f, dueDay: e.target.value}))}/>
         )}
         {form.freq === "bimonthly" && (
-          <Select label="Pierwszy miesiąc płatności" value={form.startMonth || new Date().getMonth()}
+          <Select label={t("pay.startMonth", "Pierwszy miesiąc płatności")} value={form.startMonth || new Date().getMonth()}
             onChange={e => setForm(f => ({...f, startMonth: parseInt(e.target.value)}))}>
             {MONTH_NAMES.map((m, i) => (
-              <option key={i} value={i}>{m} {new Date().getFullYear()} (potem co 2 miesiące)</option>
+              <option key={i} value={i}>{m} {new Date().getFullYear()} ({t("pay.bimonthlyHint", "potem co 2 miesiące")})</option>
             ))}
           </Select>
         )}
@@ -482,8 +497,8 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
         <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between",
           background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "12px 14px" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>🔔 Przypomnienie o płatności</div>
-            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>Pokaż w powiadomieniach i daj możliwość odznaczenia jako zapłacone</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>🔔 {t("pay.reminder", "Przypomnienie o płatności")}</div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{t("pay.reminderDesc", "Pokaż w powiadomieniach i daj możliwość odznaczenia jako zapłacone")}</div>
           </div>
           <button onClick={() => setForm(f => ({...f, trackPaid: !f.trackPaid}))} style={{
             width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
@@ -500,8 +515,8 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
           border: `1px solid ${form.shared ? "#16a34a44" : "#1a2744"}`,
           borderRadius: 10, padding: "12px 14px" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{`👫 Wspólne z ${partnerName}`}</div>
-            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{`Liczy się do rozliczenia z ${partnerName}`}</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{`👫 ${t("pay.sharedWith", "Wspólne z")} ${partnerName}`}</div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{`${t("pay.sharedDesc", "Liczy się do rozliczenia z")} ${partnerName}`}</div>
           </div>
           <button onClick={() => setForm(f => ({...f, shared: !f.shared}))} style={{
             width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
@@ -513,7 +528,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>Kolor</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("common.color", "Kolor")}</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["#3b82f6","#f59e0b","#8b5cf6","#10b981","#ef4444","#06b6d4","#ec4899","#f97316"].map(c => (
               <div key={c} onClick={() => setForm(f => ({...f, color: c}))}
@@ -526,7 +541,7 @@ function PaymentsView({ payments, setPayments, paid, setPaid, transactions, setT
         <button onClick={save} style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)",
           border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15,
           cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {editItem ? "Zapisz zmiany" : "Dodaj"}
+          {editItem ? t("common.saveChanges", "Zapisz zmiany") : t("common.add", "Dodaj")}
         </button>
       </Modal>
     </div>

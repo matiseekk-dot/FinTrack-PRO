@@ -19,6 +19,7 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { RetirementCalculator } from "../components/RetirementCalculator.jsx";
+import { t, getLang } from "../i18n.js";
 function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
 
@@ -59,11 +60,11 @@ function MonthComparison({ transactions, month }) {
   return (
     <Card style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
-        📊 Porównanie miesięcy
+        📊 {t("analytics.monthCompare", "Porównanie miesięcy")}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <span style={{ fontSize: 12, color: "#475569", flexShrink: 0 }}>Porównaj z:</span>
+        <span style={{ fontSize: 12, color: "#475569", flexShrink: 0 }}>{t("analytics.compareWith", "Porównaj z")}:</span>
         <select value={cmpMonth} onChange={e => setCmpMonth(parseInt(e.target.value))}
           style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 8,
             padding: "8px 12px", color: "#e2e8f0", fontSize: 14, outline: "none" }}>
@@ -195,7 +196,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 10 }}>Brak danych do analizy</div>
       <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.7 }}>
-        Dodaj kilka transakcji żeby zobaczyć wykresy, rankingi i trendy wydatków.
+        {t("analytics.empty", "Dodaj kilka transakcji żeby zobaczyć wykresy, rankingi i trendy wydatków.")}
       </div>
     </div>
   );
@@ -284,7 +285,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
     });
   }, [periodInc, groupBy, sortBy]);
 
-  const PERIOD_LABELS = { month: "Miesiąc", quarter: "Kwartał", half: "Półrocze", year: "Rok" };
+  const PERIOD_LABELS = { month: t("analytics.period.month", "Miesiąc"), quarter: t("analytics.period.quarter", "Kwartał"), half: t("analytics.period.half", "Półrocze"), year: t("analytics.period.year", "Rok") };
   const maxVal = (groupedData[0] ? groupedData[0].total : null) || 1;
   const maxIncomeVal = (groupedIncomeData[0] ? groupedIncomeData[0].total : null) || 1;
 
@@ -325,21 +326,31 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
   return (
     <div style={{ padding: "0 16px 100px" }}>
 
-      {/* View switcher */}
+      {/* View switcher
+          v1.3.1: Tab "Emerytura" pokazujemy tylko w PL bo IKZE/IKE/PPK to polskie
+          produkty emerytalne. EN userzy widzą tylko Bieżący/Okresy. */}
       <div style={{ display: "flex", gap: 8, paddingTop: 8, paddingBottom: 14 }}>
-        {[["month","Bieżący"],["period","Okresy"],["retirement","Emerytura"]].map(([v,l]) => (
-          <button key={v} onClick={() => setActiveView(v)} style={{
-            flex: 1, padding: "10px 0", borderRadius: 12, cursor: "pointer",
-            fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
-            background: activeView === v ? "linear-gradient(135deg,#1e40af,#3b82f6)" : "#0f1825",
-            border: activeView === v ? "1px solid #2563eb" : "1px solid #1a2744",
-            color: activeView === v ? "white" : "#475569",
-          }}>{l}</button>
-        ))}
+        {(() => {
+          const isPl = getLang() === "pl";
+          const tabs = [
+            ["month",      t("analytics.tab.current",   "Current")],
+            ["period",     t("analytics.tab.periods",   "Periods")],
+            ...(isPl ? [["retirement", "Emerytura"]] : []),
+          ];
+          return tabs.map(([v, l]) => (
+            <button key={v} onClick={() => setActiveView(v)} style={{
+              flex: 1, padding: "10px 0", borderRadius: 12, cursor: "pointer",
+              fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+              background: activeView === v ? "linear-gradient(135deg,#1e40af,#3b82f6)" : "#0f1825",
+              border: activeView === v ? "1px solid #2563eb" : "1px solid #1a2744",
+              color: activeView === v ? "white" : "#475569",
+            }}>{l}</button>
+          ));
+        })()}
       </div>
 
-      {/* Retirement/Emerytura view */}
-      {activeView === "retirement" && (
+      {/* Retirement view - tylko w PL */}
+      {activeView === "retirement" && getLang() === "pl" && (
         <div>
           <RetirementCalculator/>
           <div style={{ marginTop: 14, padding: "12px 14px", background: "#0a1a2e", border: "1px solid #1e3a5f44", borderRadius: 12, fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
@@ -491,12 +502,12 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             <Card>
               <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700,
                 textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
-                Przychody — {groupBy === "cat" ? "Kategorie" : "Źródła"}
+                {t("analytics.income.title", "Przychody")} — {groupBy === "cat" ? t("analytics.income.cats", "Kategorie") : t("analytics.income.sources", "Źródła")}
                 <span style={{ color: "#334155", fontWeight: 400, marginLeft: 6 }}>({groupedIncomeData.length})</span>
               </div>
               {groupedIncomeData.length === 0 && (
                 <div style={{ fontSize: 13, color: "#334155", textAlign: "center", padding: 16 }}>
-                  Brak przychodów w wybranym okresie
+                  {t("analytics.income.empty", "Brak przychodów w wybranym okresie")}
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -647,8 +658,8 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}>
                   {dailyExpanded
-                    ? `▲ Pokaż tylko top ${TOP_DAYS}`
-                    : `▼ Pokaż wszystkie dni (jeszcze ${restCount})`}
+                    ? `▲ ${t("analytics.showTop", "Pokaż tylko top")} ${TOP_DAYS}`
+                    : `▼ ${t("analytics.showAllDays", "Pokaż wszystkie dni")} (${t("analytics.moreLeft", "jeszcze")} ${restCount})`}
                 </button>
               )}
             </>

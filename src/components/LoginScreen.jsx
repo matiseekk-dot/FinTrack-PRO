@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FontLoader } from "./FontLoader.jsx";
+import { t } from "../i18n.js";
 
 function LoginScreen({ onSignIn, loading, syncError }) {
   const [pressed, setPressed] = useState(false);
@@ -31,15 +32,15 @@ function LoginScreen({ onSignIn, loading, syncError }) {
         FinTrack PRO
       </div>
       <div style={{ fontSize: 15, color: "#475569", marginBottom: 48, textAlign: "center", lineHeight: 1.6 }}>
-        Twoje finanse pod kontrolą.<br/>Zaloguj się żeby synchronizować dane między urządzeniami.
+        {t("login.tagline", "Twoje finanse pod kontrolą.")}<br/>{t("login.subtitle", "Zaloguj się żeby synchronizować dane między urządzeniami.")}
       </div>
 
       {/* Features */}
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 48 }}>
         {[
-          { icon: "☁️", title: "Sync w chmurze", desc: "Dane dostępne na każdym urządzeniu" },
-          { icon: "🔒", title: "Bezpieczne", desc: "Dane szyfrowane, tylko Ty masz dostęp" },
-          { icon: "📊", title: "Pełna analityka", desc: "Wykresy, cele, raporty miesięczne" },
+          { icon: "☁️", title: t("login.feat.sync.title", "Sync w chmurze"),    desc: t("login.feat.sync.desc",    "Dane dostępne na każdym urządzeniu") },
+          { icon: "🔒", title: t("login.feat.secure.title", "Bezpieczne"),       desc: t("login.feat.secure.desc",  "Dane szyfrowane, tylko Ty masz dostęp") },
+          { icon: "📊", title: t("login.feat.analytics.title", "Pełna analityka"), desc: t("login.feat.analytics.desc", "Wykresy, cele, raporty miesięczne") },
         ].map(({ icon, title, desc }) => (
           <div key={title} style={{
             display: "flex", alignItems: "center", gap: 14,
@@ -71,7 +72,7 @@ function LoginScreen({ onSignIn, loading, syncError }) {
       >
         {loading || pressed ? (
           <span style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>
-            Łączenie…
+            {t("login.connecting", "Łączenie…")}
           </span>
         ) : (
           <>
@@ -83,7 +84,7 @@ function LoginScreen({ onSignIn, loading, syncError }) {
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.32-8.16 2.32-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
             <span style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a" }}>
-              Zaloguj się przez Google
+              {t("login.signInGoogle", "Zaloguj się przez Google")}
             </span>
           </>
         )}
@@ -96,16 +97,16 @@ function LoginScreen({ onSignIn, loading, syncError }) {
         </div>
       )}
       <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.8 }}>
-        Logując się akceptujesz{" "}
+        {t("login.terms.prefix", "Logując się akceptujesz")}{" "}
         <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
           style={{ color: "#475569", textDecoration: "underline" }}>
-          Regulamin
-        </a>{" "}i{" "}
+          {t("login.terms.tos", "Regulamin")}
+        </a>{" "}{t("login.terms.and", "i")}{" "}
         <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
           style={{ color: "#475569", textDecoration: "underline" }}>
-          Politykę prywatności
+          {t("login.terms.privacy", "Politykę prywatności")}
         </a>.<br/>
-        Nie wysyłamy spamu ani nie sprzedajemy danych.
+        {t("login.terms.disclaimer", "Nie wysyłamy spamu ani nie sprzedajemy danych.")}
       </div>
     </div>
   );

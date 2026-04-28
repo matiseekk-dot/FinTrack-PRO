@@ -15,8 +15,8 @@ import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
 import { todayLocal } from "../utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
 import { PinSettings, PIN_ENABLED_KEY } from "./PinLock.jsx";
-import { getLang, setLang } from "../i18n.js";
-import { getProStatus, deactivatePro } from "../lib/tier.js";
+import { getLang, setLang, t } from "../i18n.js";
+import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
@@ -219,7 +219,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     const file = e.target.files[0];
     if (!file) return;
     setImportStatus("loading");
-    setImportMsg("Wczytuję plik…");
+    setImportMsg(t("settings.import.loading", "Wczytuję plik…"));
 
     // Lazy-load XLSX (137 KB gzipped)
     const XLSX = await import("xlsx");
@@ -334,7 +334,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       } catch (err) {
         console.error("Import error:", err);
         setImportStatus("err");
-        setImportMsg("Błąd wczytywania pliku. Upewnij się, że to plik .xlsx z FinTrack.");
+        setImportMsg(t("settings.import.error", "Błąd wczytywania pliku. Upewnij się, że to plik .xlsx z FinTrack."));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -345,7 +345,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     const file = e.target.files[0];
     if (!file) return;
     setImportStatus("loading");
-    setImportMsg("Wczytuję CSV…");
+    setImportMsg(t("settings.import.loadingCsv", "Wczytuję CSV…"));
 
     // Konto docelowe dla zaimportowanych transakcji.
     // Priorytet: defaultAcc (z ustawień) → pierwsze konto z listy → 1 jako ostatnia deska.
@@ -728,9 +728,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         {/* CYCLE SECTION */}
         {/* ── DOMYSLNE KONTO ── */}
-        <SectionTitle>💳 Domyślne konto transakcji</SectionTitle>
+        <SectionTitle>💳 {t("settings.defaultAcc.title", "Domyślne konto transakcji")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-          Konto wypełniane automatycznie przy dodawaniu transakcji.
+          {t("settings.defaultAcc.help", "Konto wypełniane automatycznie przy dodawaniu transakcji.")}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
           {accounts.filter(acc => acc.type === "checking").length === 0 && (
@@ -744,7 +744,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               lineHeight: 1.5,
               marginBottom: 8,
             }}>
-              Brak konta osobistego. Dodaj konto typu "Rachunek bieżący" w zakładce Portfel.
+              {t("settings.defaultAcc.empty", "Brak konta osobistego. Dodaj konto typu \"Rachunek bieżący\" w zakładce Portfel.")}
             </div>
           )}
           {accounts.filter(acc => acc.type === "checking").map(acc => (
@@ -760,16 +760,15 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 <div style={{ fontSize: 11, color: "#475569" }}>{acc.bank}</div>
               </div>
               {defaultAcc === acc.id && (
-                <div style={{ fontSize: 11, color: acc.color, fontWeight: 700 }}>Domyslne</div>
+                <div style={{ fontSize: 11, color: acc.color, fontWeight: 700 }}>{t("settings.default", "Domyślne")}</div>
               )}
             </button>
           ))}
         </div>
 
-        <SectionTitle>📅 Cykl rozliczeniowy</SectionTitle>
+        <SectionTitle>📅 {t("settings.cycle.title", "Cykl rozliczeniowy")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
-          Ustaw dzień miesiąca, od którego zaczyna się Twój cykl. Dzień <strong style={{color:"#e2e8f0"}}>1</strong> = standardowy miesiąc kalendarzowy.
-          Np. dzień <strong style={{color:"#e2e8f0"}}>25</strong> → cykl "Kwiecień" to 25 mar – 24 kwi.
+          {t("settings.cycle.help", "Ustaw dzień miesiąca, od którego zaczyna się Twój cykl. Dzień 1 = standardowy miesiąc kalendarzowy. Np. dzień 25 → cykl \"Kwiecień\" to 25 mar – 24 kwi.")}
         </p>
         {Array.isArray(cycleDayHistory) && cycleDayHistory.length >= 1 && (
           <div style={{
@@ -784,7 +783,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <div style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#94a3b8" }}>Mój miesiąc zaczyna się</span>
+            <span style={{ fontSize: 13, color: "#94a3b8" }}>{t("settings.cycle.label", "Mój miesiąc zaczyna się")}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button onClick={() => changeCycleDay(cycleDay - 1)}
                 style={{ background: "#1a2744", border: "none", borderRadius: 8, width: 30, height: 30,
@@ -899,9 +898,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* EXPORT SECTION */}
-        <SectionTitle>🏷️ Moje kategorie</SectionTitle>
+        <SectionTitle>🏷️ {t("settings.cats.title", "Moje kategorie")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          Dodaj własne kategorie wydatków lub przychodów.
+          {t("settings.cats.help", "Dodaj własne kategorie wydatków lub przychodów.")}
         </p>
 
         {/* Existing custom cats */}
@@ -1139,7 +1138,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Diagnostyka sync (v1.2.9) - dla user-driven debugging gdy PRO nie syncuje */}
-        <SectionTitle>🔧 Diagnostyka licencji</SectionTitle>
+        <SectionTitle>🔧 {t("settings.diag.title", "Diagnostyka PRO")}</SectionTitle>
         <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12,
           padding: 14, marginBottom: 14, fontSize: 12, lineHeight: 1.6 }}>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#94a3b8" }}>
@@ -1148,6 +1147,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               isPro: <strong>{proStatus?.isPro ? "TAK" : "NIE"}</strong>
               {proStatus?.type && ` (${proStatus.type})`}
             </div>
+            {proStatus?.source && (
+              <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
+                źródło: {proStatus.source}
+              </div>
+            )}
             {proStatus?.since && (
               <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
                 aktywowane: {new Date(proStatus.since).toLocaleString("pl-PL")}
@@ -1186,11 +1190,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         {!proStatus?.isPro && (
           <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
-            Brak aktywnej licencji PRO. Jeśli aktywowałeś na drugim urządzeniu i nie syncuje:
+            Brak aktywnej subskrypcji PRO. Jeśli kupiłeś na drugim urządzeniu i nie syncuje:
             <ol style={{ marginTop: 6, paddingLeft: 20, fontSize: 11, color: "#475569" }}>
-              <li>Na drugim urządzeniu: Settings → Diagnostyka → "Wymuś sync"</li>
+              <li>Na drugim urządzeniu: Settings → Diagnostyka PRO → "Wymuś sync"</li>
               <li>Tutaj: hard refresh</li>
-              <li>Po 1-2s licencja powinna się pojawić</li>
+              <li>Po 1-2s subskrypcja powinna się pojawić</li>
             </ol>
           </div>
         )}
@@ -1198,10 +1202,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Język / Language */}
-        <SectionTitle>📤 Eksport danych</SectionTitle>
+        <SectionTitle>📤 {t("settings.export.title", "Eksport danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
-          Pobierz wszystkie swoje dane jako plik Excel (.xlsx) z 7 arkuszami:
-          Transakcje, Konta, Budżety, Płatności, Podsumowanie, Cele + pełny backup JSON.
+          {t("settings.export.help", "Pobierz wszystkie swoje dane jako plik Excel (.xlsx) z 7 arkuszami: Transakcje, Konta, Budżety, Płatności, Podsumowanie, Cele + pełny backup JSON.")}
         </p>
 
         {/* Stats row */}
@@ -1255,7 +1258,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* IMPORT SECTION */}
-        <SectionTitle>📥 Import danych</SectionTitle>
+        <SectionTitle>📥 {t("settings.import.title", "Import danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 6, lineHeight: 1.6 }}>
           Wczytaj plik .xlsx wcześniej wyeksportowany z FinTrack. Dane zostaną
           <span style={{ color: "#f59e0b", fontWeight: 700 }}> zastąpione</span> — zrób
@@ -1347,7 +1350,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Notifications */}
-        <SectionTitle>🔔 Przypomnienia</SectionTitle>
+        <SectionTitle>🔔 {t("settings.reminders.title", "Przypomnienia")}</SectionTitle>
         <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 6 }}>🔔 Automatyczne pop-upy</div>
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
@@ -1361,7 +1364,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         {/* Custom categories */}
         {/* ── SZABLONY TRANSAKCJI ── */}
-        <SectionTitle>⚡ Szablony transakcji</SectionTitle>
+        <SectionTitle>⚡ {t("settings.templates.title", "Szablony transakcji")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
           Szybkie dodawanie — widoczne nad listą transakcji.
         </p>
@@ -1382,11 +1385,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* PIN Lock */}
-        <SectionTitle>🔒 Bezpieczeństwo</SectionTitle>
+        <SectionTitle>🔒 {t("settings.security.title", "Bezpieczeństwo")}</SectionTitle>
         <PinSettings/>
         <Divider/>
 
-        <SectionTitle>👫 Nazwa partnera / partnerki</SectionTitle>
+        <SectionTitle>👫 {t("settings.partner.title", "Nazwa partnera / partnerki")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
           Wyświetlana w module wspólnych rachunków.
         </p>

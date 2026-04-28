@@ -1,4 +1,17 @@
-// Tier management - Free vs PRO
+// Tier management - Free vs PRO.
+//
+// v1.3.0: Refactor po przejściu z Gumroad license keys na Google Play Billing
+// (przez RevenueCat). Główne zmiany:
+//   - activatePro(type, licenseKey) → setProStatus({ type, expiresAt, source })
+//   - proStatus.licenseKey usunięty z payload (nie potrzebne dla Play Store IAP)
+//   - source: "play_store" | "trial" | "manual" pozwala na przyszłą integrację
+//     z RevenueCat (gdzie source = "play_store" + entitlement.expiresDate)
+//
+// RevenueCat integration TODO (osobna sesja):
+//   - Po purchase RevenueCat → webhook → set isPro w Firestore
+//   - Klient nasłuchuje Firestore proStatus → setProStatus({ source: "play_store", ...})
+//   - Gdy entitlement wygasa → setProStatus(null) (RC daje expirationDate)
+
 const PRO_KEY = "ft_pro_status";
 
 const FREE_LIMITS = {
@@ -38,7 +51,7 @@ function getProStatus() {
       type: parsed.type || "unknown",
       since: parsed.since,
       expiresAt: parsed.expiresAt,
-      licenseKey: parsed.licenseKey || null,
+      source: parsed.source || "unknown",
     };
   } catch (_) {
     return { isPro: false, type: null, since: null, expiresAt: null };
@@ -48,8 +61,7 @@ function getProStatus() {
 /**
  * Zwraca raw payload z localStorage żeby App mógł go syncować przez Firestore.
  * Bez wywoływania getProStatus() bo ten sprawdza expiresAt i mógłby zwrócić null
- * dla wygasłej licencji którą i tak chcemy zachować w sync (drugie urządzenie
- * też ma to samo).
+ * dla wygasłej licencji którą i tak chcemy zachować w sync.
  */
 function getProStatusRaw() {
   try {
@@ -63,24 +75,45 @@ function getProStatusRaw() {
 /**
  * Ustaw status PRO z remote sync (Firestore). Używane gdy user zaloguje się
  * na drugim urządzeniu - powinien dostać swoje PRO bez ponownej aktywacji.
- * Tylko dla zalogowanego usera, tylko gdy lokalnie nie ma PRO lub jest stary.
+ * v1.3.0: ignoruje pole licenseKey ze starych payloads (graceful degradation).
  */
 function setProStatusFromRemote(remoteData) {
   if (!remoteData || typeof remoteData !== "object") return;
   if (!remoteData.type || !remoteData.since) return;
-  // Nie nadpisuj jeśli lokalna aktywacja jest świeższa (np. user właśnie wpisał klucz)
+  // Nie nadpisuj jeśli lokalna aktywacja jest świeższa
   const local = getProStatusRaw();
   if (local && local.since && remoteData.since && local.since >= remoteData.since) return;
-  localStorage.setItem(PRO_KEY, JSON.stringify(remoteData));
+  // Sanitization: usuwamy stare licenseKey, normalizujemy source
+  const clean = {
+    type: remoteData.type,
+    since: remoteData.since,
+    expiresAt: remoteData.expiresAt || null,
+    source: remoteData.source || "unknown",
+  };
+  localStorage.setItem(PRO_KEY, JSON.stringify(clean));
 }
 
-function activatePro(type, licenseKey) {
+/**
+ * Ustaw PRO status. Wywoływane przez RevenueCat callback (przyszłość) lub manual
+ * grant w Settings (jeśli zachowamy taką funkcję dla testów / promo codes).
+ *
+ * @param {object} opts
+ * @param {"yearly"|"lifetime"|"trial"} opts.type
+ * @param {string} [opts.expiresAt] - ISO date string. Lifetime = null.
+ * @param {"play_store"|"trial"|"manual"} [opts.source="manual"]
+ */
+function setProStatus({ type, expiresAt = null, source = "manual" }) {
+  if (!type) {
+    console.warn("[tier] setProStatus called without type");
+    return getProStatus();
+  }
   const now = new Date().toISOString();
-  const expiresAt = type === "yearly"
-    ? new Date(Date.now() + 365 * 86400000).toISOString()
-    : null;
+  // Jeśli expiresAt nie podany dla yearly - oblicz +365 dni
+  const finalExpiresAt = expiresAt
+    ? expiresAt
+    : (type === "yearly" ? new Date(Date.now() + 365 * 86400000).toISOString() : null);
   localStorage.setItem(PRO_KEY, JSON.stringify({
-    type, since: now, expiresAt, licenseKey,
+    type, since: now, expiresAt: finalExpiresAt, source,
   }));
   return getProStatus();
 }
@@ -110,6 +143,7 @@ function canAddTransaction(transactions, isPro) {
 
 export {
   getProStatus, getProStatusRaw, setProStatusFromRemote,
-  activatePro, deactivatePro,
+  setProStatus, deactivatePro,
   canAddTransaction,
+  FREE_LIMITS, PRO_LIMITS,
 };

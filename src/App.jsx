@@ -269,6 +269,22 @@ export default function App() {
           localStorage.setItem("ft_onboarded", "1");
           setOnboarded(true);
         }
+        // v1.2.14: forced save 5s po loadzie - migracja state dla userów którzy
+        // mieli buggy v1.2.5-1.2.8 (encrypt RangeError → tx nie zapisane do Firestore,
+        // proStatus nie syncowany). Po loadzie z naprawioną v1.2.13 crypto, czystej
+        // klasyfikacji v1.2.10 itp. - wymuszamy zapis czystej wersji.
+        // 5s żeby nie kolidować z normalnym save flow (debounce 1.5s); plus safety
+        // check że mamy faktyczne dane do zapisania.
+        setTimeout(() => {
+          if (cancelled || !user) return;
+          const s = stateRef.current;
+          const hasData = (s?.transactions?.length || 0) > 0
+                       || (s?.accounts?.length || 0) > 0
+                       || (s?.payments?.length || 0) > 0;
+          if (hasData) {
+            saveToFirestore(user.uid, s);
+          }
+        }, 5000);
       }
     });
     return () => { cancelled = true; };
@@ -500,7 +516,7 @@ export default function App() {
       onComplete={(accData) => {
         // Zastąp domyślne konta pierwszym userskim kontem
         const newAcc = { id: Date.now(), ...accData };
-        setAccounts([newAcc, { id: Date.now()+1, name: "Oszczędności", type: "savings", bank: "", balance: 0, color: "#10b981", iban: "" }]);
+        setAccounts([newAcc, { id: Date.now()+1, name: t("acc.defaultSavings", "Oszczędności"), type: "savings", bank: "", balance: 0, color: "#10b981", iban: "" }]);
         setDefaultAcc(newAcc.id);
         localStorage.setItem("ft_setup_done", "1");
       }}
@@ -510,7 +526,7 @@ export default function App() {
   return (
     <>
     {pinLocked && (
-      <PinScreen onSuccess={() => setPinLocked(false)} title="Wprowadź PIN aby odblokować"/>
+      <PinScreen onSuccess={() => setPinLocked(false)} title={t("pin.unlock", "Wprowadź PIN aby odblokować")}/>
     )}
     {!pinLocked && <div id="app-root" style={{ fontFamily: "'Space Grotesk', sans-serif", background: "#060b14", color: "#e2e8f0", minHeight: "100dvh", maxWidth: 480, margin: "0 auto", position: "relative" }}>
       <FontLoader/>
@@ -604,7 +620,7 @@ export default function App() {
         onForceSyncProStatus={async () => {
           // v1.2.9: manualny force-push proStatus do Firestore.
           // Bypassuje debounce żeby user widział natychmiast efekt + zwraca status.
-          if (!user?.uid) return { ok: false, error: "Nie zalogowany" };
+          if (!user?.uid) return { ok: false, error: t("err.notLoggedIn", "Nie zalogowany") };
           try {
             await saveToFirestore(user.uid, stateRef.current);
             // Czekamy ~3s żeby debounce się odpalił

@@ -143,16 +143,16 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
           fontSize: 12, color: "#cbd5e1", lineHeight: 1.5,
         }}>
           <div style={{ fontWeight: 700, color: "#60a5fa", marginBottom: 6 }}>
-            🛫 Wykryto stare dane z poprzedniej wersji
+            🛫 {t("trips.legacyDetected", "Wykryto stare dane z poprzedniej wersji")}
           </div>
-          Znaleźliśmy 1 wyjazd z poprzedniej wersji apki. Czy go zaimportować?
+          {t("trips.legacyPrompt", "Znaleźliśmy 1 wyjazd z poprzedniej wersji apki. Czy go zaimportować?")}
           <button onClick={performMigration} style={{
             marginTop: 10, background: "#1e3a5f", border: "1px solid #2563eb",
             borderRadius: 8, padding: "6px 12px", color: "#60a5fa",
             fontSize: 12, fontWeight: 700, cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif",
           }}>
-            Importuj
+            {t("trips.import", "Importuj")}
           </button>
         </div>
       )}
@@ -242,7 +242,7 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#475569",
             textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-            Archiwum przed v1.1.2 (tylko podgląd)
+            {t("trips.legacyArchive", "Archiwum przed v1.1.2 (tylko podgląd)")}
           </div>
           {vacationArchive.map((v, i) => (
             <div key={i} style={{
@@ -467,10 +467,10 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
           </div>
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={onEdit} title="Edytuj" style={iconBtn}><Edit2 size={14}/></button>
-            <button onClick={onArchiveToggle} title={trip.archived ? "Przywróć" : "Archiwum"} style={iconBtn}>
+            <button onClick={onArchiveToggle} title={trip.archived ? t("trips.restore", "Przywróć") : t("trips.archive", "Archiwum")} style={iconBtn}>
               {trip.archived ? <RotateCcw size={14}/> : <ArchiveIcon size={14}/>}
             </button>
-            <button onClick={onDelete} title="Usuń" style={{...iconBtn, color: "#ef4444"}}>
+            <button onClick={onDelete} title={t("common.delete", "Usuń")} style={{...iconBtn, color: "#ef4444"}}>
               <Trash2 size={14}/>
             </button>
           </div>
@@ -569,7 +569,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                       color: isExpense ? "#ef4444" : "#10b981" }}>
                       {isExpense ? "−" : "+"}{fmt(Math.abs(tx.amount))}
                     </span>
-                    <button onClick={() => removeTagFromTx(tx.id)} title="Usuń tag" style={{
+                    <button onClick={() => removeTagFromTx(tx.id)} title={t("trips.removeTag", "Usuń tag")} style={{
                       background: "none", border: "none", cursor: "pointer", color: "#475569",
                       padding: 4, borderRadius: 4,
                     }}>
@@ -587,9 +587,9 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
         <div style={{ textAlign: "center", padding: "30px 20px", color: "#64748b", fontSize: 12,
           background: "#0a1120", borderRadius: 14, border: "1px dashed #1a2744" }}>
           <Tag size={20} color="#475569" style={{ marginBottom: 8 }}/>
-          <div>Brak przypisanych transakcji do tego wyjazdu.</div>
+          <div>{t("trips.noTx", "Brak przypisanych transakcji do tego wyjazdu.")}</div>
           <div style={{ fontSize: 11, marginTop: 6 }}>
-            Dodaj nową lub w widoku <strong>Transakcje</strong> użyj „Przypisz do wyjazdu".
+            {t("trips.assignHint", "Dodaj nową lub w widoku Transakcje użyj „Przypisz do wyjazdu\".")}
           </div>
         </div>
       )}
@@ -605,7 +605,7 @@ const iconBtn = {
 
 function TripModal({ trip, setTrip, onClose, onSave }) {
   return (
-    <Modal open={true} onClose={onClose} title={trip.id ? "Edytuj wyjazd" : t("trips.add")}>
+    <Modal open={true} onClose={onClose} title={trip.id ? t("trips.editTitle", "Edytuj wyjazd") : t("trips.add")}>
       <Input
         label={t("trips.name")}
         value={trip.name}
@@ -627,7 +627,7 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
         />
       </div>
       <Input
-        label={t("trips.budget") + " (zł)"}
+        label={t("trips.budget") + " (" + t("common.currencyPLN", "zł") + ")"}
         type="number"
         inputMode="decimal"
         value={trip.budget}

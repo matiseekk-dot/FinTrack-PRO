@@ -8,6 +8,7 @@ import {
 import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs, getCycleRange } from "../utils.js";
 import { getCat, MONTHS, MONTH_NAMES, BASE_CATEGORIES } from "../constants.js";
+import { t } from "../i18n.js";
 
 
 // v1.2.7: klasyfikacja zsynchronizowana z BASE_CATEGORIES (constants.js).
@@ -89,12 +90,12 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
 
   // Diagnoza — pierwsza rzecz do naprawy
   const sub = (() => {
-    if (expRatio >= 1.0)  return "Wydajesz więcej niż zarabiasz";
-    if (savingsRate < 10) return `Oszczędzasz tylko ${savingsRate.toFixed(0)}% — cel to min. 15%`;
-    if (avg3 > 0 && trend > 1.15) return `Wydatki rosną — o ${((trend-1)*100).toFixed(0)}% vs poprzednie mies.`;
-    if (cv > 1.0)         return "Duże skoki wydatków dzień do dnia";
-    if (expRatio > 0.85)  return `Wydano ${(expRatio*100).toFixed(0)}% przychodów — powyżej normy`;
-    if (score >= 75)      return "Finanse pod kontrolą";
+    if (expRatio >= 1.0)  return t("score.spendOver", "Wydajesz więcej niż zarabiasz");
+    if (savingsRate < 10) return `${t("score.savingsLow", "Oszczędzasz tylko")} ${savingsRate.toFixed(0)}% — ${t("score.target15", "cel to min. 15%")}`;
+    if (avg3 > 0 && trend > 1.15) return `${t("score.expGrowing", "Wydatki rosną — o")} ${((trend-1)*100).toFixed(0)}% ${t("score.vsPrevMonths", "vs poprzednie mies.")}`;
+    if (cv > 1.0)         return t("score.bigSwings", "Duże skoki wydatków dzień do dnia");
+    if (expRatio > 0.85)  return `${t("score.spentOf", "Wydano")} ${(expRatio*100).toFixed(0)}% ${t("score.aboveNorm", "przychodów — powyżej normy")}`;
+    if (score >= 75)      return t("score.healthy", "Finanse pod kontrolą");
     return "Jedna kategoria do poprawy";
   })();
 
@@ -140,11 +141,11 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
           <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }}>{sub}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {[
-              { lbl: "Oszczędności", val: savingsRate >= 0 ? savingsRate.toFixed(0)+"%" : "deficit",
+              { lbl: t("stat.savings", "Oszczędności"), val: savingsRate >= 0 ? savingsRate.toFixed(0)+"%" : "deficit",
                 ok: savingsRate >= 15, tip: savingsRate < 15 ? "cel: 15%+" : "" },
-              { lbl: "Trend wydatków", val: avg3 === 0 ? "brak danych" :
-                                    trend < 1 ? "▼"+(Math.min(999,((1-trend)*100)).toFixed(0))+"% vs śr."
-                                              : "▲"+(Math.min(999,((trend-1)*100)).toFixed(0))+"% vs śr.",
+              { lbl: t("stat.expTrend", "Trend wydatków"), val: avg3 === 0 ? t("stat.noData", "brak danych") :
+                                    trend < 1 ? "▼"+(Math.min(999,((1-trend)*100)).toFixed(0))+"% " + t("stat.vsAvg", "vs śr.")
+                                              : "▲"+(Math.min(999,((trend-1)*100)).toFixed(0))+"% " + t("stat.vsAvg", "vs śr."),
                                 ok: avg3 === 0 || trend <= 1.05 },
               { lbl: "Wydano z przych.", val: (expRatio*100).toFixed(0)+"%", ok: expRatio < 0.85,
                 tip: expRatio >= 0.85 ? "norma: <85%" : "" },
@@ -318,7 +319,7 @@ function ExpenseTypesBreakdown({ monthTx, income, allCats = null }) {
   };
 
   const types = [
-    { id: "fixed",     lbl: "Stałe",     val: fixed,      color: "#3b82f6", norm: 50 },
+    { id: "fixed",     lbl: t("exptype.fixed", "Stałe"),     val: fixed,      color: "#3b82f6", norm: 50 },
     { id: "variable",  lbl: "Zmienne",   val: variable,   color: "#f59e0b", norm: 30 },
     { id: "lifestyle", lbl: "Lifestyle", val: lifestyle,  color: "#ec4899", norm: 20 },
   ];
@@ -434,14 +435,14 @@ function ExpenseTypesBreakdown({ monthTx, income, allCats = null }) {
             </div>
           )}
           <div style={{ marginTop: 4, fontSize: 10, color: "#64748b", lineHeight: 1.4 }}>
-            Nie liczone jako wydatek — to przeniesienie kapitału, nie konsumpcja.
+            {t("invest.note", "Nie liczone jako wydatek — to przeniesienie kapitału, nie konsumpcja.")}
           </div>
         </div>
       )}
 
       <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
-        Normy: Stałe &lt;50% · Zmienne &lt;30% · Lifestyle &lt;20%
-        {total > 0 && <span style={{ color: "#475569" }}> · kliknij sekcję żeby rozwinąć</span>}
+        {t("exptype.norms", "Normy: Stałe <50% · Zmienne <30% · Lifestyle <20%")}
+        {total > 0 && <span style={{ color: "#475569" }}> · {t("exptype.clickToExpand", "kliknij sekcję żeby rozwinąć")}</span>}
       </div>
     </div>
   );
@@ -502,13 +503,13 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
     <div style={{ padding: "14px 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
-          letterSpacing: "0.08em" }}>Struktura przychodów · {monthLabel}</div>
+          letterSpacing: "0.08em" }}>{t("income.structure", "Struktura przychodów")} · {monthLabel}</div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <button onClick={() => setLocalMonth(m => m === 0 ? 11 : m - 1)} style={{
             background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
             padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
             display: "flex", alignItems: "center",
-          }} title="Poprzedni miesiąc">
+          }} title={t("income.prevMonth", "Poprzedni miesiąc")}>
             <ChevronLeft size={12}/>
           </button>
           {!isCurrentMonth && (
@@ -516,15 +517,15 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
               background: "#1e3a5f", border: "1px solid #2563eb44", borderRadius: 6,
               padding: "3px 8px", cursor: "pointer", color: "#60a5fa",
               fontSize: 9, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
-            }} title="Powrót do bieżącego cyklu">
-              Dziś
+            }} title={t("income.backToCurrent", "Powrót do bieżącego cyklu")}>
+              {t("income.today", "Dziś")}
             </button>
           )}
           <button onClick={() => setLocalMonth(m => m === 11 ? 0 : m + 1)} style={{
             background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
             padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
             display: "flex", alignItems: "center",
-          }} title="Następny miesiąc">
+          }} title={t("income.nextMonth", "Następny miesiąc")}>
             <ChevronRight size={12}/>
           </button>
         </div>
@@ -534,7 +535,7 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
         <div style={{ padding: "24px 0", textAlign: "center" }}>
           <div style={{ fontSize: 28, marginBottom: 6, opacity: 0.4 }}>💸</div>
           <div style={{ fontSize: 12, color: "#475569" }}>
-            Brak przychodów w {monthLabel.toLowerCase()}
+            {t("income.empty", "Brak przychodów w")} {monthLabel.toLowerCase()}
           </div>
         </div>
       ) : (
@@ -569,7 +570,7 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744" }}>
               <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
                 textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-                Źródła pensji ({sortedMerchants.length})
+                {t("income.salarySources", "Źródła pensji")} ({sortedMerchants.length})
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {sortedMerchants.slice(0, 8).map(([name, val]) => {
@@ -594,7 +595,7 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
                 })}
                 {sortedMerchants.length > 8 && (
                   <div style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 4 }}>
-                    + {sortedMerchants.length - 8} więcej
+                    + {sortedMerchants.length - 8} {t("income.more", "więcej")}
                   </div>
                 )}
               </div>
@@ -654,11 +655,11 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
 
     const topInvest = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat, allCats)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
     if (topInvest === 0 && income > 2000) {
-      list.push({ emoji: "📈", text: "Brak inwestycji w tym cyklu. Rozważ automat. przelew w dniu wyplaty." });
+      list.push({ emoji: "📈", text: t("rec.noInvest", "Brak inwestycji w tym cyklu. Rozważ automat. przelew w dniu wyplaty.") });
     }
 
     if (list.length === 0) {
-      list.push({ emoji: "✓", text: "Na dobrej drodze. Utrzymaj tempo — cel miesięczny realny." });
+      list.push({ emoji: "✓", text: t("rec.onTrack", "Na dobrej drodze. Utrzymaj tempo — cel miesięczny realny.") });
     }
 
     return list.slice(0, 3);

@@ -111,7 +111,7 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Hobby — gdzie schodzą pieniądze
+          {t("hobby.dashboardTitle", "Hobby — gdzie schodzą pieniądze")}
         </div>
         <button onClick={openNew} style={{
           display: "flex", alignItems: "center", gap: 6,
@@ -137,8 +137,7 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
           {summary.cycleTotal > 0 && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
               fontSize: 11, color: "#94a3b8", textAlign: "center" }}>
-              💡 To są pieniądze które <strong style={{ color: "#fbbf24" }}>mógłbyś</strong> przesunąć do oszczędności.
-              Decyduj świadomie — apka tylko pokazuje fakty.
+              💡 {t("hobby.couldSave", "To są pieniądze które MÓGŁBYŚ przesunąć do oszczędności. Decyduj świadomie — apka tylko pokazuje fakty.")}
             </div>
           )}
         </Card>
@@ -362,7 +361,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
                       const cat = (allCats || []).find(x => x.id === c) || getCat(c);
                       return cat.label || c;
                     }).join(" · ")
-                  : "Tylko po słowach kluczowych"
+                  : t("hobby.keywordsOnly", "Tylko po słowach kluczowych")
                 }
                 {hobby.categories.length > 4 && ` +${hobby.categories.length - 4}`}
               </div>
@@ -370,17 +369,17 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           </div>
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={onEdit} title="Edytuj" style={iconBtn}><Edit2 size={14}/></button>
-            <button onClick={onDelete} title="Usuń" style={{...iconBtn, color: "#ef4444"}}><Trash2 size={14}/></button>
+            <button onClick={onDelete} title={t("common.delete", "Usuń")} style={{...iconBtn, color: "#ef4444"}}><Trash2 size={14}/></button>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-          <Stat label="Bieżący cykl"   value={fmt(stats.thisCycle)}   color="#ec4899"/>
-          <Stat label="Ten miesiąc"    value={fmt(stats.thisMonth)}   color="#f43f5e"/>
-          <Stat label="Ten kwartał"    value={fmt(stats.thisQuarter)} color="#a855f7"/>
+          <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.thisCycle)} color="#ec4899"/>
+          <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.thisMonth)} color="#f43f5e"/>
+          <Stat label={t("hobby.thisQuarter", "Ten kwartał")} value={fmt(stats.thisQuarter)} color="#a855f7"/>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <Stat label="Ten rok"        value={fmt(stats.thisYear)}    color="#8b5cf6"/>
+          <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.thisYear)} color="#8b5cf6"/>
           <Stat label="Total"          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
 
@@ -456,7 +455,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
         <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
             textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            Top sklepy / źródła (lifetime)
+            {t("hobby.topMerchants", "Top sklepy / źródła (lifetime)")}
           </div>
           {Object.entries(stats.byMerchant)
             .sort((a, b) => b[1] - a[1])
@@ -482,7 +481,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
             textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10,
             display: "flex", justifyContent: "space-between" }}>
-            <span>Transakcje</span>
+            <span>{t("hobby.txList", "Transakcje")}</span>
             <span style={{ color: "#475569" }}>{txs.length}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -511,7 +510,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
             })}
             {txs.length > 30 && (
               <div style={{ fontSize: 11, color: "#475569", textAlign: "center", padding: "6px 0" }}>
-                + {txs.length - 30} starszych transakcji
+                + {txs.length - 30} {t("hobby.olderTx", "starszych transakcji")}
               </div>
             )}
           </div>
@@ -521,7 +520,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           background: "#0a1120", borderRadius: 14, border: "1px dashed #1a2744" }}>
           {t("hobby.noMatch")}
           <div style={{ fontSize: 11, marginTop: 6, color: "#475569" }}>
-            Sprawdź czy wybrałeś właściwe kategorie albo dodaj słowa kluczowe.
+            {t("hobby.noMatchHint", "Sprawdź czy wybrałeś właściwe kategorie albo dodaj słowa kluczowe.")}
           </div>
         </div>
       )}
@@ -581,7 +580,7 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
   const keywordsStr = Array.isArray(hobby.keywords) ? hobby.keywords.join(", ") : "";
 
   return (
-    <Modal open={true} onClose={onClose} title={hobby.id ? "Edytuj hobby" : t("hobby.add")}>
+    <Modal open={true} onClose={onClose} title={hobby.id ? t("hobby.editTitle", "Edytuj hobby") : t("hobby.add")}>
       <Input
         label={t("hobby.name")}
         value={hobby.name}

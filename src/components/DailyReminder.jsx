@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Flame, PlusCircle, X, CheckCircle2, AlarmClock } from "lucide-react";
 import { todayLocal, dateToLocal } from "../utils.js";
+import { t as i18n } from "../i18n.js";
 
 function DailyReminder({ transactions, onAddTx }) {
   const today = todayLocal();
@@ -49,13 +50,13 @@ function DailyReminder({ transactions, onAddTx }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 10, color: "#475569", fontWeight: 700,
             textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3 }}>
-            Seria
+            {i18n("daily.streak", "Seria")}
           </div>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700,
             color: streak >= 3 ? "#f97316" : "#e2e8f0" }}>
-            {streak} {streak === 1 ? "dzień" : streak < 5 ? "dni" : "dni"}
+            {streak} {streak === 1 ? i18n("daily.day", "dzień") : i18n("daily.days", "dni")}
             <span style={{ fontSize: 11, color: "#475569", marginLeft: 6, fontFamily: "'Space Grotesk', sans-serif" }}>
-              {urgent ? "· dodaj dziś!" : hasToday ? "· świetnie!" : ""}
+              {urgent ? "· " + i18n("daily.addToday", "dodaj dziś!") : hasToday ? "· " + i18n("daily.great", "świetnie!") : ""}
             </span>
           </div>
         </div>

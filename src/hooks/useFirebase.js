@@ -6,6 +6,7 @@ import {
   doc, getDoc, setDoc, onSnapshot, serverTimestamp
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase.js";
+import { t } from "../i18n.js";
 
 function debounce(fn, ms) {
   let t;
@@ -139,7 +140,7 @@ export function useFirebase() {
       if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") {
         return;
       }
-      setSyncError("Logowanie nie powiodło się. Spróbuj ponownie.");
+      setSyncError(t("err.login.failed", "Logowanie nie powiodło się. Spróbuj ponownie."));
       console.error("[FB] signIn error", e);
     }
   }, []);
@@ -191,7 +192,7 @@ export function useFirebase() {
       },
       (err) => {
         console.error("[FB] snapshot error", err);
-        setSyncError("Błąd synchronizacji w czasie rzeczywistym.");
+        setSyncError(t("err.sync.realtime", "Błąd synchronizacji w czasie rzeczywistym."));
       }
     );
 
@@ -225,9 +226,9 @@ export function useFirebase() {
         setSyncError(null);
       } catch (e) {
         if (e.code === "resource-exhausted" || e.message?.includes("exceeded")) {
-          setSyncError("Dokument za duży. Usuń stare transakcje lub wyeksportuj do pliku.");
+          setSyncError(t("err.sync.tooBig", "Dokument za duży. Usuń stare transakcje lub wyeksportuj do pliku."));
         } else {
-          setSyncError("Błąd synchronizacji. Sprawdź połączenie.");
+          setSyncError(t("err.sync.network", "Błąd synchronizacji. Sprawdź połączenie."));
         }
         console.error("[FB] save error", e);
       } finally {

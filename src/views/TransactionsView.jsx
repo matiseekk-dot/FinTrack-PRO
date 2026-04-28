@@ -62,12 +62,12 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     // Walidacja kwoty: nie może być NaN, Infinity, ujemna lub zero
     const parsedAmount = parseFloat(String(form.amount).replace(",", "."));
     if (!isFinite(parsedAmount) || parsedAmount <= 0) {
-      showToast("Wprowadź poprawną kwotę", "error");
+      showToast(t("tx.err.amount", "Wprowadź poprawną kwotę"), "error");
       return;
     }
     // Walidacja daty: musi być poprawną datą
     if (!form.date || isNaN(new Date(form.date).getTime())) {
-      showToast("Wprowadź poprawną datę", "error");
+      showToast(t("tx.err.date", "Wprowadź poprawną datę"), "error");
       return;
     }
     // v1.2.8: dynamicznie sprawdzamy czy form.cat jest income kategorią
@@ -103,8 +103,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         setEditingId(null);
       }
 
-      const txOut  = { id: Date.now(),     date: form.date, desc: `Przelew → ${(accounts.find(a=>a.id===toId)||{name:toId}).name}`, amount: -rawAmt, cat: "inne", acc: fromId };
-      const txIn   = { id: Date.now()+1,   date: form.date, desc: `Przelew ← ${(accounts.find(a=>a.id===fromId)||{name:fromId}).name}`, amount: rawAmt,  cat: "inne", acc: toId  };
+      const txOut  = { id: Date.now(),     date: form.date, desc: `${t("tx.transfer.out", "Przelew")} → ${(accounts.find(a=>a.id===toId)||{name:toId}).name}`, amount: -rawAmt, cat: "inne", acc: fromId };
+      const txIn   = { id: Date.now()+1,   date: form.date, desc: `${t("tx.transfer.in", "Przelew")} ← ${(accounts.find(a=>a.id===fromId)||{name:fromId}).name}`, amount: rawAmt,  cat: "inne", acc: toId  };
       setTransactions(tx => [txIn, txOut, ...tx]);
       if (setAccounts) {
         setAccounts(accs => accs.map(a => {
@@ -142,7 +142,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       }
       setTransactions(tx => tx.map(t => t.id === editingId ? { ...t, ...txData } : t));
       setEditingId(null);
-      showToast("Transakcja zaktualizowana ✓");
+      showToast(t("tx.toast.updated", "Transakcja zaktualizowana ✓"));
       hapticSuccess();
     } else {
       // apply amount to linked account (only savings/checking, not invest)
@@ -154,7 +154,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         }));
       }
       setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
-      showToast("Transakcja dodana ✓");
+      showToast(t("tx.toast.added", "Transakcja dodana ✓"));
       hapticSuccess();
     }
     setForm(f => ({ ...f, currency: 'PLN' }));
@@ -210,11 +210,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 2 }}>
               {tierCheck.allowed
-                ? `${tierCheck.count} / ${tierCheck.limit} transakcji w tym miesiącu`
-                : `Limit ${tierCheck.limit} transakcji osiągnięty`}
+                ? `${tierCheck.count} / ${tierCheck.limit} ${t("tx.tier.txInMonth", "transakcji w tym miesiącu")}`
+                : `${t("tx.tier.limitReached", "Limit")} ${tierCheck.limit} ${t("tx.tier.txReached", "transakcji osiągnięty")}`}
             </div>
             <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-              {tierCheck.allowed ? "Pozostało " + tierCheck.remaining : "Upgrade aby dodawać dalej"}
+              {tierCheck.allowed ? t("tx.tier.remaining", "Pozostało") + " " + tierCheck.remaining : t("tx.tier.upgrade", "Upgrade aby dodawać dalej")}
             </div>
           </div>
           <button onClick={() => openUpgrade && openUpgrade("limit")} style={{
@@ -300,12 +300,12 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           <div style={{ textAlign: "center", padding: "48px 16px" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>💸</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>
-              {search || filterCat !== "all" ? "Brak wyników" : "Brak transakcji"}
+              {search || filterCat !== "all" ? t("tx.empty.noResults", "Brak wyników") : t("tx.empty.noTx", "Brak transakcji")}
             </div>
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 20 }}>
               {search || filterCat !== "all"
-                ? "Spróbuj zmienić filtry wyszukiwania"
-                : "Dodaj pierwszą transakcję używając przycisku poniżej lub szablonu powyżej"}
+                ? t("tx.empty.tryFilters", "Spróbuj zmienić filtry wyszukiwania")
+                : t("tx.empty.addFirst", "Dodaj pierwszą transakcję używając przycisku poniżej lub szablonu powyżej")}
             </div>
             {!search && filterCat === "all" && (
               <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
@@ -313,7 +313,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 borderRadius: 12, padding: "12px 24px", color: "white",
                 fontWeight: 700, fontSize: 14, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",
-              }}>+ Dodaj transakcję</button>
+              }}>+ {t("tx.add", "Dodaj transakcję")}</button>
             )}
           </div>
         )}
@@ -395,7 +395,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           justifyContent: "center", gap: 2, borderRadius: "0 8px 8px 0",
                         }}>
                         <span style={{ fontSize: 16 }}>🗑</span>
-                        <span style={{ fontSize: 9, color: "#fca5a5", fontWeight: 700 }}>Usuń</span>
+                        <span style={{ fontSize: 9, color: "#fca5a5", fontWeight: 700 }}>{t("common.delete", "Usuń")}</span>
                       </button>
                     )}
 
@@ -412,7 +412,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                             currency: "PLN", tripId: null });
                           setModal(true);
                         }}
-                        title="Kopiuj"
+                        title={t("tx.copy", "Kopiuj")}
                         style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,
                           padding: "5px 7px", cursor: "pointer", color: "#475569" }}>
                         <Copy size={12}/>
@@ -426,7 +426,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                             tripId: tx.tripId || null });
                           setModal(true);
                         }}
-                        title="Edytuj"
+                        title={t("common.edit", "Edytuj")}
                         style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,
                           padding: "5px 7px", cursor: "pointer", color: "#60a5fa" }}>
                         <Edit2 size={12}/>
@@ -442,7 +442,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           setTransactions(t => t.filter(x => x.id !== tx.id));
                           showToast(`Usunięto: ${tx.desc}`, "error", 3000);
                         }}
-                        title="Usuń"
+                        title={t("common.delete", "Usuń")}
                         style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,
                           padding: "5px 7px", cursor: "pointer", color: "#f87171" }}>
                         <Trash2 size={12}/>
@@ -457,9 +457,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       </div>
 
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
-      <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }} title={editingId ? "Edytuj transakcję" : "Nowa transakcja"}>
+      <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }} title={editingId ? t("tx.editTitle", "Edytuj transakcję") : t("tx.newTitle", "Nowa transakcja")}>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[["expense","📤 Wydatek","#ef4444"],["income","📥 Przychód","#10b981"],["transfer","🔄 Przelew","#60a5fa"]].map(([v,l,c]) => (
+          {[
+            ["expense",  "📤 " + t("tx.type.expense",  "Wydatek"),  "#ef4444"],
+            ["income",   "📥 " + t("tx.type.income",   "Przychód"), "#10b981"],
+            ["transfer", "🔄 " + t("tx.type.transfer", "Przelew"),  "#60a5fa"],
+          ].map(([v,l,c]) => (
             <button key={v} onClick={() => setForm(f => {
               // v1.2.8: przy zmianie type ustaw sensowny default kategorii.
               // Inaczej user przełącza na "Przychód" a w dropdownie ma "Jedzenie".
@@ -480,11 +484,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         {/* Description with autocomplete */}
         <div style={{ marginBottom: 14, position: "relative" }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6,
-            textTransform: "uppercase", letterSpacing: "0.08em" }}>Opis</div>
+            textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("tx.field.desc", "Opis")}</div>
           <input
             value={form.desc}
             onChange={e => setForm(f => ({...f, desc: e.target.value}))}
-            placeholder="np. Biedronka"
+            placeholder={t("tx.placeholder.desc", "np. Biedronka")}
             autoComplete="off"
             style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
               borderRadius: 10, padding: "12px 14px", color: "#e2e8f0", fontSize: 16,
@@ -578,25 +582,25 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           {/* Rate note */}
           {form.currency && form.currency !== "PLN" && (
             <div style={{ fontSize: 10, color: "#334155", marginTop: 4 }}>
-              Kurs przybliżony · kwota zapisze się w PLN
+              {t("tx.rateNote", "Kurs przybliżony · kwota zapisze się w PLN")}
             </div>
           )}
         </div>
-        <Input label="Data" type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))}/>
+        <Input label={t("tx.date", "Data")} type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))}/>
         {form.type === "expense" && (
-          <Select label="Kategoria" value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
-            <option disabled>── Ważne</option>
+          <Select label={t("tx.category", "Kategoria")} value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
+            <option disabled>── {t("tx.cat.essential", "Ważne")}</option>
             {(allCats||CATEGORIES).filter(c => c.group === "essential" && c.id !== "przychód").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            <option disabled>── Dodatkowe</option>
+            <option disabled>── {t("tx.cat.extra", "Dodatkowe")}</option>
             {(allCats||CATEGORIES).filter(c => (c.group === "lifestyle" || !c.group) && c.id !== "przychód" && c.id !== "inne").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            <option disabled>── Inne</option>
-            <option value="inne">Inne</option>
+            <option disabled>── {t("tx.cat.other", "Inne")}</option>
+            <option value="inne">{t("tx.other", "Inne")}</option>
           </Select>
         )}
         {form.type === "income" && (
           // v1.2.8: picker kategorii dla przychodów. Wcześniej brakował — wszystko leciało jako "przychód".
           // Pokazuje BASE income kategorie + custom z group === "income".
-          <Select label="Kategoria przychodu" value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
+          <Select label={t("tx.incomeCategory", "Kategoria przychodu")} value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
             {(allCats||CATEGORIES).filter(c => c.group === "income").map(c => (
               <option key={c.id} value={c.id}>{c.label}</option>
             ))}
@@ -609,7 +613,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           }).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
         {form.type === "transfer" && (
-          <Select label="Na konto" value={form.toAcc} onChange={e => setForm(f => ({...f, toAcc: e.target.value}))}>
+          <Select label={t("tx.toAccount", "Na konto")} value={form.toAcc} onChange={e => setForm(f => ({...f, toAcc: e.target.value}))}>
             {[...accounts].filter(a => a.id !== parseInt(form.acc)).sort((a,b) => {
               const order = { checking: 0, savings: 1, invest: 2 };
               return (order[a.type]||1) - (order[b.type]||1);
@@ -674,7 +678,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         })()}
 
         <button onClick={addTx} style={{ width: "100%", background: "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {editingId ? "Zapisz zmiany" : "Zapisz transakcję"}
+          {editingId ? t("tx.saveChanges", "Zapisz zmiany") : t("tx.save", "Zapisz transakcję")}
         </button>
       </Modal>
     </div>

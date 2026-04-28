@@ -5,6 +5,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt, cycleTxs } from "../utils.js";
 import { CATEGORIES, getCat, MONTH_NAMES } from "../constants.js";
+import { t } from "../i18n.js";
 
 /**
  * LimitsView - limity miesięczne dla kategorii. Wyciągnięte z GoalsView w v1.2.1
@@ -57,10 +58,10 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
         <div>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600,
             textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Limity miesięczne · {MONTH_NAMES[month]}
+            {t("limits.title", "Limity miesięczne")} · {MONTH_NAMES[month]}
           </div>
           <div style={{ fontSize: 12, color: "#334155", marginTop: 3 }}>
-            Ustaw max kwotę na kategorię
+            {t("limits.subtitle", "Ustaw max kwotę na kategorię")}
           </div>
         </div>
         <button onClick={() => setModal(true)} style={{
@@ -70,7 +71,7 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
           fontSize: 13, fontWeight: 600,
           fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          <PlusCircle size={13}/> Limit
+          <PlusCircle size={13}/> {t("limits.add", "Limit")}
         </button>
       </div>
 
@@ -81,10 +82,10 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
         }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>🚦</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#cbd5e1", marginBottom: 4 }}>
-            Brak limitów
+            {t("limits.empty", "Brak limitów")}
           </div>
           <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-            Ustaw limit miesięczny dla kategorii którą chcesz kontrolować.
+            {t("limits.emptyDesc", "Ustaw limit miesięczny dla kategorii którą chcesz kontrolować.")}
           </div>
           <button onClick={() => setModal(true)} style={{
             background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
@@ -93,7 +94,7 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
             fontFamily: "'Space Grotesk', sans-serif",
             display: "inline-flex", alignItems: "center", gap: 6,
           }}>
-            <PlusCircle size={13}/> Dodaj limit
+            <PlusCircle size={13}/> {t("limits.addFirst", "Dodaj limit")}
           </button>
         </div>
       )}
@@ -126,10 +127,10 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
                     <div style={{ fontSize: 11, marginTop: 2,
                       color: over ? "#ef4444" : warn ? "#f59e0b" : "#475569" }}>
                       {over
-                        ? "! Przekroczono o " + fmt(spent - b.limit)
+                        ? t("limits.over", "! Przekroczono o ") + fmt(spent - b.limit)
                         : warn
-                          ? `🔶 Zostało tylko ${fmt(remain)}`
-                          : `Zostało ${fmt(remain)}`}
+                          ? `🔶 ${t("limits.almostOut", "Zostało tylko")} ${fmt(remain)}`
+                          : `${t("limits.left", "Zostało")} ${fmt(remain)}`}
                     </div>
                   </div>
                 </div>
@@ -168,19 +169,19 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
         })}
       </div>
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Nowy limit miesięczny">
-        <Select label="Kategoria" value={form.cat}
+      <Modal open={modal} onClose={() => setModal(false)} title={t("limits.newTitle", "Nowy limit miesięczny")}>
+        <Select label={t("limits.category", "Kategoria")} value={form.cat}
           onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
           {CATEGORIES.filter(c => !["przychód","inne","sprzedaż","dodatkowe","bukmacherka"].includes(c.id))
             .map(c => <option key={c.id} value={c.id}>{c.label}</option>)
           }
         </Select>
-        <Input label="Limit miesięczny (zł)" type="number" value={form.limit}
-          onChange={e => setForm(f => ({...f, limit: e.target.value}))} placeholder="np. 200"/>
+        <Input label={t("limits.monthly", "Limit miesięczny (zł)")} type="number" value={form.limit}
+          onChange={e => setForm(f => ({...f, limit: e.target.value}))} placeholder={t("limits.placeholder", "np. 200")}/>
         <div style={{ marginBottom: 16, background: "#060b14",
           border: "1px solid #1a2744", borderRadius: 10, padding: "12px 14px" }}>
           <div style={{ fontSize: 12, color: "#64748b" }}>
-            Wydano w tym cyklu: <span style={{ color: "#e2e8f0",
+            {t("limits.spentInCycle", "Wydano w tym cyklu")}: <span style={{ color: "#e2e8f0",
               fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>
               {fmt(spentBycat[form.cat] || 0)}
             </span>
@@ -192,7 +193,7 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
           fontWeight: 700, fontSize: 15, cursor: "pointer",
           fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          Zapisz limit
+          {t("limits.save", "Zapisz limit")}
         </button>
       </Modal>
     </div>

@@ -1,7 +1,8 @@
 {
   "name": "FinTrack PRO",
   "short_name": "FinTrack",
-  "description": "Zaawansowany tracker finansów osobistych. Zero subskrypcji, sync w chmurze.",
+  "id": "/FinTrack-PRO/",
+  "description": "Tracker finansów osobistych z cyklem rozliczeniowym pod dzień wypłaty. Sync w chmurze, custom kategorie, cele oszczędnościowe, kalkulator IKZE/IKE/PPK.",
   "start_url": "/FinTrack-PRO/",
   "scope": "/FinTrack-PRO/",
   "display": "standalone",

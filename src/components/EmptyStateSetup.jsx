@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Wallet, ArrowRight, Check, Plus } from "lucide-react";
 import { FontLoader } from "./FontLoader.jsx";
+import { t } from "../i18n.js";
 
 const BANKS = [
   { id: "pko",     name: "PKO BP",      color: "#004B93", short: "PKO" },
@@ -10,7 +11,7 @@ const BANKS = [
   { id: "pekao",   name: "Pekao",       color: "#E30613", short: "PKO" },
   { id: "revolut", name: "Revolut",     color: "#0066FF", short: "REV" },
   { id: "millennium", name: "Millennium", color: "#722F37", short: "MIL" },
-  { id: "other",   name: "Inny",        color: "#64748b", short: "?" },
+  { id: "other",   name: "_other",      color: "#64748b", short: "?" },
 ];
 
 function EmptyStateSetup({ onComplete }) {
@@ -21,7 +22,7 @@ function EmptyStateSetup({ onComplete }) {
 
   const handleBankSelect = (b) => {
     setBank(b);
-    setAccName(b.name === "Inny" ? "Konto główne" : b.name);
+    setAccName(b.id === "other" ? t("setup.defaultAcc", "Konto główne") : b.name);
     setStep(2);
   };
 
@@ -29,10 +30,10 @@ function EmptyStateSetup({ onComplete }) {
     const parsed = parseFloat(String(balance).replace(",", "."));
     if (!isFinite(parsed)) return;
     onComplete({
-      name: accName || "Konto główne",
+      name: accName || t("setup.defaultAcc", "Konto główne"),
       balance: parsed,
       type: "checking",
-      bank: bank?.name || "",
+      bank: bank?.id === "other" ? "" : (bank?.name || ""),
       color: bank?.color || "#3b82f6",
       iban: "",
     });
@@ -73,10 +74,10 @@ function EmptyStateSetup({ onComplete }) {
           </div>
 
           <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8, letterSpacing: "-0.02em" }}>
-            Dodaj swój bank
+            {t("setup.addBank", "Dodaj swój bank")}
           </h1>
           <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: 28, lineHeight: 1.5 }}>
-            Zacznij od głównego konta. Kolejne dodasz w każdej chwili.
+            {t("setup.addBankDesc", "Zacznij od głównego konta. Kolejne dodasz w każdej chwili.")}
           </p>
 
           <div style={{
@@ -102,7 +103,7 @@ function EmptyStateSetup({ onComplete }) {
                   {b.short}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#cbd5e1", textAlign: "center" }}>
-                  {b.name}
+                  {b.id === "other" ? t("setup.bankOther", "Inny") : b.name}
                 </div>
               </button>
             ))}
@@ -125,7 +126,7 @@ function EmptyStateSetup({ onComplete }) {
             Saldo na koncie
           </h1>
           <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: 28, lineHeight: 1.5 }}>
-            Wpisz aktualne saldo w {bank?.name}. Będzie to Twój punkt startowy.
+            {t("setup.balanceDesc", "Wpisz aktualne saldo w")} {bank?.name}. {t("setup.balanceDesc2", "Będzie to Twój punkt startowy.")}
           </p>
 
           <div style={{ marginBottom: 16 }}>
@@ -136,7 +137,7 @@ function EmptyStateSetup({ onComplete }) {
               type="text"
               value={accName}
               onChange={e => setAccName(e.target.value)}
-              placeholder="np. Osobiste, Wspólne, Firmowe"
+              placeholder={t("setup.accNamePh", "np. Osobiste, Wspólne, Firmowe")}
               style={{
                 width: "100%", padding: "14px 16px",
                 background: "#0d1628", border: "1px solid #1e3a5f",
@@ -185,7 +186,7 @@ function EmptyStateSetup({ onComplete }) {
             fontFamily: "'Space Grotesk', sans-serif",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            Gotowe <ArrowRight size={18}/>
+            {t("setup.done", "Gotowe")} <ArrowRight size={18}/>
           </button>
 
           <button onClick={() => setStep(1)} style={{
@@ -193,7 +194,7 @@ function EmptyStateSetup({ onComplete }) {
             border: "none", color: "#64748b", fontSize: 13,
             cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
           }}>
-            ← Zmień bank
+            ← {t("setup.changeBank", "Zmień bank")}
           </button>
         </>
       )}
