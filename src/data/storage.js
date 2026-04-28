@@ -90,6 +90,15 @@ function migrateData(d) {
   // ensure trips/hobbies są tablicami
   if (!Array.isArray(d.trips))    d.trips    = [];
   if (!Array.isArray(d.hobbies))  d.hobbies  = [];
+  // sanityzacja cycleDayHistory
+  if (Array.isArray(d.cycleDayHistory)) {
+    d.cycleDayHistory = d.cycleDayHistory
+      .filter(e => e && typeof e.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.from)
+        && typeof e.day === "number" && e.day >= 1 && e.day <= 28)
+      .sort((a, b) => a.from.localeCompare(b.from));
+  } else {
+    d.cycleDayHistory = [];
+  }
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
     d.customCats = d.customCats.map(c => {

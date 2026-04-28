@@ -15,7 +15,6 @@ import { InvestmentsView } from "./views/InvestmentsView.jsx";
 import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
 import { GoalsView } from "./views/GoalsView.jsx";
 import { PlansView } from "./views/PlansView.jsx";
-import { HobbyView } from "./views/HobbyView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
@@ -49,6 +48,14 @@ function applyData(d, s) {
   if (d.defaultAcc != null)                                    s.setDefaultAcc(d.defaultAcc);
   if (d.month != null && d.month >= 0 && d.month <= 11)        s.setMonth(d.month);
   if (d.cycleDay != null && d.cycleDay >= 1 && d.cycleDay <= 28) s.setCycleDay(d.cycleDay);
+  if (Array.isArray(d.cycleDayHistory) && d.cycleDayHistory.length > 0) {
+    s.setCycleDayHistory(d.cycleDayHistory);
+  } else if (d.cycleDay != null && d.cycleDay > 1) {
+    // Migracja: stary cycleDay bez historii → twórz initial entry
+    // "from: 1970-01-01" = obowiązuje dla całej dotychczasowej historii.
+    // Userzy którzy chcą inaczej mogą edytować w Settings.
+    s.setCycleDayHistory([{ from: "1970-01-01", day: d.cycleDay }]);
+  }
   if (d.partnerName)                                           s.setPartnerName(d.partnerName);
   if (Array.isArray(d.portfolio))                              s.setPortfolio(d.portfolio);
   if (Array.isArray(d.vacationArchiveData))                    s.setVacationArchive(d.vacationArchiveData);
@@ -84,6 +91,7 @@ export default function App() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cycleDay,     setCycleDay]     = useState(1);
+  const [cycleDayHistory, setCycleDayHistory] = useState([]);
   const [defaultAcc,   setDefaultAcc]   = useState(1);
   const [partnerName,  setPartnerName]  = useState("Partner");
   const [portfolio,    setPortfolio]    = useState([]);
@@ -100,11 +108,20 @@ export default function App() {
   const [syncOk,       setSyncOk]       = useState(false);
 
   const allCategories = useMemo(() => getAllCats(customCats), [customCats]);
+  // effectiveCycleDay: jeśli mamy historię, przekaż array (komponenty resolve'ują per miesiąc);
+  // inaczej przekaż starą liczbę (backward compat dla nowych userów bez historii)
+  const effectiveCycleDay = useMemo(() => {
+    if (Array.isArray(cycleDayHistory) && cycleDayHistory.length > 0) {
+      return cycleDayHistory;
+    }
+    return cycleDay;
+  }, [cycleDay, cycleDayHistory]);
   const stateRef = useRef(null);
   const clearingRef = useRef(false); // blocks Firestore save during clearAllData
   const skipFirestoreLoad = useRef(false); // blocks Firestore load after onboarding choice
   stateRef.current = {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
+    cycleDayHistory,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
     trips, hobbies,
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
@@ -113,7 +130,7 @@ export default function App() {
 
   const capLabel = (c) => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label });
   const setCustomCatsCap = (cats) => setCustomCats(Array.isArray(cats) ? cats.map(capLabel) : cats);
-  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setPartnerName, setPortfolio, setVacationArchive, setTrips, setHobbies };
+  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive, setTrips, setHobbies };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -160,7 +177,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
 
   // Save to Firestore
   useEffect(() => {
@@ -173,7 +190,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
+  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -324,7 +341,6 @@ export default function App() {
     { id: "transactions", label: t("nav.transactions"), Icon: List },
     { id: "payments",     label: t("nav.payments"),     Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
     { id: "plans",        label: t("nav.plans"),        Icon: PiggyBank },
-    { id: "hobby",        label: t("nav.hobby"),        Icon: Heart },
     { id: "analytics",    label: t("nav.analytics"),    Icon: BarChart2 },
     { id: "portfolio",    label: t("nav.accounts"),     Icon: Briefcase },
   ];
@@ -444,13 +460,12 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={cycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts} portfolio={portfolio} setPortfolio={setPortfolio}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={cycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips}/></ErrorBoundary>}
-          {tab === "hobby"        && <ErrorBoundary><HobbyView hobbies={hobbies} setHobbies={setHobbies} transactions={transactions} allCats={allCategories} month={month} cycleDay={cycleDay}/></ErrorBoundary>}
-          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={cycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
+          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips} hobbies={hobbies} setHobbies={setHobbies}/></ErrorBoundary>}
+          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={effectiveCycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -467,7 +482,9 @@ export default function App() {
         payments={payments} paid={paid} goals={goals} customCats={customCats}
         setTransactions={setTransactions} setAccounts={setAccounts} setBudgets={setBudgets}
         setPayments={setPayments} setPaid={setPaid} setGoals={setGoals}
-        cycleDay={cycleDay} setCycleDay={setCycleDay} setCustomCats={setCustomCatsCap}
+        cycleDay={cycleDay} setCycleDay={setCycleDay}
+        cycleDayHistory={cycleDayHistory} setCycleDayHistory={setCycleDayHistory}
+        setCustomCats={setCustomCatsCap}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}

@@ -36,6 +36,7 @@ const TRANSLATIONS = {
 
     // Plans (parent tab)
     "plans.tab.goals": "Cele",
+    "plans.tab.limits": "Limity",
     "plans.tab.trips": "Wyjazdy",
     "plans.tab.hobby": "Hobby",
 

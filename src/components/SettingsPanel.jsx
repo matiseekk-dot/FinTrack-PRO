@@ -23,7 +23,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          goals, customCats, defaultAcc, setDefaultAcc,
                          setTransactions, setAccounts, setBudgets, setCycleDay, setCustomCats,
                          setPayments, setPaid, setGoals,
-                         cycleDay, vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) {
+                         cycleDay, cycleDayHistory = [], setCycleDayHistory,
+                         vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -33,6 +34,37 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [confirmDemo,  setConfirmDemo]  = useState(false);
 
   if (!open) return null;
+
+  // === CycleDay management ===
+  // Zmiana cycleDay tworzy nowy entry w historii od pierwszego dnia bieżącego miesiąca
+  // (lub aktualizuje istniejący entry dla tego miesiąca jeśli już jest).
+  // Stare miesiące zachowują poprzednią wartość — kluczowe dla raportów rocznych.
+  const changeCycleDay = (newDay) => {
+    const day = Math.max(1, Math.min(28, parseInt(newDay) || 1));
+    const today = new Date();
+    const firstOfThisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+
+    // Update bieżącej wartości (UI)
+    setCycleDay(day);
+
+    // Zarządzanie historią
+    if (typeof setCycleDayHistory !== "function") return;
+    setCycleDayHistory(history => {
+      const arr = Array.isArray(history) ? [...history] : [];
+      // Usuń ewentualny istniejący entry dla bieżącego miesiąca (zastępujemy)
+      const filtered = arr.filter(e => e.from !== firstOfThisMonth);
+      // Jeśli nowa wartość = wartość ostatniego entry przed bieżącym miesiącem → nie dodawaj
+      // (no-op zmiana, np. user kliknął +1 i potem -1)
+      const sorted = [...filtered].sort((a, b) => a.from.localeCompare(b.from));
+      const lastBefore = sorted.filter(e => e.from < firstOfThisMonth).pop();
+      if (lastBefore && lastBefore.day === day) {
+        // Nie ma sensu dodawać redundant entry
+        return sorted;
+      }
+      return [...sorted, { from: firstOfThisMonth, day }]
+        .sort((a, b) => a.from.localeCompare(b.from));
+    });
+  };
 
   //    EXPORT (lazy-load XLSX - 137KB gzipped, 415KB raw)
   const handleExport = async () => {
@@ -705,16 +737,26 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           Ustaw dzień miesiąca, od którego zaczyna się Twój cykl. Dzień <strong style={{color:"#e2e8f0"}}>1</strong> = standardowy miesiąc kalendarzowy.
           Np. dzień <strong style={{color:"#e2e8f0"}}>25</strong> → cykl "Kwiecień" to 25 mar – 24 kwi.
         </p>
+        {Array.isArray(cycleDayHistory) && cycleDayHistory.length >= 1 && (
+          <div style={{
+            background: "#0d1f35", border: "1px solid #2563eb44",
+            borderRadius: 10, padding: "10px 12px", marginBottom: 14,
+            fontSize: 11, color: "#94a3b8", lineHeight: 1.5,
+          }}>
+            ℹ️ Zmiana wartości tworzy nowy zapis od <strong style={{color:"#60a5fa"}}>1. dnia bieżącego miesiąca</strong>.
+            Wcześniejsze miesiące zachowują poprzednią wartość — historia raportów się nie rozjeżdża.
+          </div>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <div style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, color: "#94a3b8" }}>Mój miesiąc zaczyna się</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setCycleDay(d => Math.max(1, d - 1))}
+              <button onClick={() => changeCycleDay(cycleDay - 1)}
                 style={{ background: "#1a2744", border: "none", borderRadius: 8, width: 30, height: 30,
                          cursor: "pointer", color: "#94a3b8", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: "#60a5fa", minWidth: 32, textAlign: "center" }}>{cycleDay}</span>
-              <button onClick={() => setCycleDay(d => Math.min(28, d + 1))}
+              <button onClick={() => changeCycleDay(cycleDay + 1)}
                 style={{ background: "#1a2744", border: "none", borderRadius: 8, width: 30, height: 30,
                          cursor: "pointer", color: "#94a3b8", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
             </div>
@@ -724,7 +766,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* Quick presets */}
         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
           {[1, 10, 15, 20, 25, 27].map(d => (
-            <button key={d} onClick={() => setCycleDay(d)} style={{
+            <button key={d} onClick={() => changeCycleDay(d)} style={{
               flex: 1, background: cycleDay === d ? "#1e3a5f" : "#060b14",
               border: `1px solid ${cycleDay === d ? "#2563eb" : "#1a2744"}`,
               borderRadius: 8, padding: "6px 0",
@@ -734,11 +776,91 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             }}>{d}</button>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: "#334155", marginBottom: 20, textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "#334155", marginBottom: 16, textAlign: "center" }}>
           {cycleDay === 1
             ? "Standardowy miesiąc kalendarzowy"
             : `Cykl: ${cycleDay} poprzedniego → ${cycleDay - 1} bieżącego miesiąca`}
         </div>
+
+        {/* Historia cycleDay - widoczna jeśli była zmiana */}
+        {Array.isArray(cycleDayHistory) && cycleDayHistory.length > 1 && (
+          <div style={{
+            background: "#060b14", border: "1px solid #1a2744",
+            borderRadius: 12, padding: "12px 14px", marginBottom: 20,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
+              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 6 }}>
+              📚 Historia zmian cyklu
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8 }}>
+              Stare miesiące używają wartości z czasu kiedy obowiązywały — raporty roczne pozostają spójne.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {[...cycleDayHistory]
+                .sort((a, b) => a.from.localeCompare(b.from))
+                .map((entry, idx) => {
+                  const fromMonth = entry.from.slice(0, 7);
+                  const isInitial = entry.from === "1970-01-01";
+                  const label = isInitial
+                    ? "Początek (zanim zacząłeś logować)"
+                    : `Od ${fromMonth.slice(5,7)}/${fromMonth.slice(0,4)}`;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "6px 10px", background: "#0a1120", borderRadius: 8,
+                      fontSize: 11,
+                    }}>
+                      <span style={{ color: "#cbd5e1" }}>{label}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <input
+                          type="number"
+                          min={1} max={28}
+                          value={entry.day}
+                          onChange={e => {
+                            const newDay = Math.max(1, Math.min(28, parseInt(e.target.value) || 1));
+                            if (typeof setCycleDayHistory === "function") {
+                              setCycleDayHistory(h =>
+                                (h || []).map(x => x.from === entry.from ? { ...x, day: newDay } : x)
+                              );
+                            }
+                          }}
+                          style={{
+                            width: 50, padding: "3px 6px",
+                            background: "#060b14", border: "1px solid #1e3a5f",
+                            borderRadius: 6, color: "#60a5fa", fontSize: 11,
+                            fontFamily: "'DM Mono', monospace", fontWeight: 700,
+                            textAlign: "center",
+                          }}
+                        />
+                        {!isInitial && cycleDayHistory.length > 1 && (
+                          <button
+                            onClick={() => {
+                              if (!window.confirm(`Usunąć ten zapis? Miesiące od ${fromMonth} użyją wartości z poprzedniego zapisu.`)) return;
+                              if (typeof setCycleDayHistory === "function") {
+                                setCycleDayHistory(h => h.filter(e => e.from !== entry.from));
+                              }
+                            }}
+                            title="Usuń ten zapis"
+                            style={{
+                              background: "none", border: "none", cursor: "pointer",
+                              color: "#475569", fontSize: 14, padding: "0 4px",
+                            }}>
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              }
+            </div>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 8, lineHeight: 1.5 }}>
+              💡 Możesz edytować dzień każdego zapisu lub go usunąć. Przydatne jeśli po migracji
+              wartości historyczne są nieprawidłowe.
+            </div>
+          </div>
+        )}
 
         <Divider/>
 

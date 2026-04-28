@@ -16,7 +16,7 @@ function debounce(fn, ms) {
 // Przy realnej skali (1-10k userów, do 5000 tx per user) to działa bez problemu.
 const SYNC_KEYS = [
   "accounts", "transactions", "budgets", "payments", "paid",
-  "goals", "customCats", "cycleDay", "defaultAcc", "partnerName",
+  "goals", "customCats", "cycleDay", "cycleDayHistory", "defaultAcc", "partnerName",
   "portfolio", "month", "vacationArchiveData",
   "trips", "hobbies",
 ];

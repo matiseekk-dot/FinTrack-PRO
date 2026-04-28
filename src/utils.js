@@ -1,15 +1,18 @@
 import { MONTHS, MONTH_NAMES } from "./constants.js";
 
-function buildHistData(transactions, cycleDay = 1) {
+function buildHistData(transactions, cycleDayOrHistory = 1) {
   const monthSet = new Set(transactions.map(t => t.date.slice(0,7)));
   const months   = [...monthSet].sort();
   const last6    = months.slice(-6);
+  // Cycle = 1 (kalendarzowy) jako shortcut tylko dla starego liczbowego argumentu
+  const isCalendarMonth = typeof cycleDayOrHistory === "number" && cycleDayOrHistory <= 1;
   return last6.map(ym => {
-    const [,mm] = ym.split("-");
+    const [year, mm] = ym.split("-");
     const mIdx  = parseInt(mm) - 1;
-    const txs   = cycleDay <= 1
+    const txs   = isCalendarMonth
       ? transactions.filter(t => t.date.startsWith(ym) && t.cat !== "inne")
-      : cycleTxs(transactions, mIdx, cycleDay).filter(t => t.cat !== "inne");
+      : cycleTxs(transactions, mIdx, cycleDayOrHistory, parseInt(year))
+          .filter(t => t.cat !== "inne");
     const income  = txs.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
     const expense = txs.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
     return { m: MONTHS[mIdx], ym, income: Math.round(income), expense: Math.round(expense), balance: Math.round(income - expense) };
@@ -48,8 +51,41 @@ function clampDay(day, year, month1) {
   return Math.min(day, daysInMonth(year, month1));
 }
 
-function getCycleRange(month, cycleDay, year) {
+/**
+ * Z historii cycleDay wybierz właściwą wartość dla danego (year, month).
+ * History format: [{ from: "YYYY-MM-DD", day: number }, ...]
+ * - Sortowane rosnąco po `from`
+ * - Dla danego miesiąca bierzemy ostatni entry którego `from <= 1. dzień miesiąca`
+ *
+ * Zwraca number (cycleDay).
+ *
+ * Jeśli `cycleDayOrHistory` jest liczbą (stary format), zwraca ją bez modyfikacji.
+ * Jeśli jest tablicą ale pustą lub niepoprawną, zwraca fallback (1).
+ */
+function resolveCycleDay(month, cycleDayOrHistory, year) {
+  if (typeof cycleDayOrHistory === "number") return cycleDayOrHistory;
+  if (!Array.isArray(cycleDayOrHistory) || cycleDayOrHistory.length === 0) return 1;
   const y = year || new Date().getFullYear();
+  // Pierwszy dzień miesiąca dla porównania
+  const targetStr = `${y}-${String(month + 1).padStart(2, "0")}-01`;
+  const sorted = [...cycleDayOrHistory]
+    .filter(e => e && typeof e.day === "number" && typeof e.from === "string")
+    .sort((a, b) => a.from.localeCompare(b.from));
+  if (sorted.length === 0) return 1;
+  let result = sorted[0].day;  // fallback do najstarszego entry
+  for (const e of sorted) {
+    if (e.from <= targetStr) {
+      result = e.day;
+    } else {
+      break;
+    }
+  }
+  return result;
+}
+
+function getCycleRange(month, cycleDayOrHistory, year) {
+  const y = year || new Date().getFullYear();
+  const cycleDay = resolveCycleDay(month, cycleDayOrHistory, y);
   if (cycleDay <= 1) {
     const m = month + 1;
     const lastDay = daysInMonth(y, m);
@@ -72,13 +108,14 @@ function getCycleRange(month, cycleDay, year) {
   return [start, end];
 };
 
-function cycleTxs(transactions, month, cycleDay, year) {
-  const [start, end] = getCycleRange(month, cycleDay, year);
+function cycleTxs(transactions, month, cycleDayOrHistory, year) {
+  const [start, end] = getCycleRange(month, cycleDayOrHistory, year);
   return transactions.filter(t => t.date >= start && t.date <= end);
 };
 
-function fmtCycleLabel(month, cycleDay) {
+function fmtCycleLabel(month, cycleDayOrHistory) {
   const y = new Date().getFullYear();
+  const cycleDay = resolveCycleDay(month, cycleDayOrHistory, y);
   if (cycleDay <= 1) return MONTH_NAMES[month] + " " + y;
   const prevMonth = month === 0 ? 11 : month - 1;
   // Clamp day do liczby dni w odpowiednim miesiącu dla ładnego wyświetlenia
@@ -106,4 +143,4 @@ function dateToLocal(d) {
 
 
 export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel,
-         todayLocal, dateToLocal };
+         todayLocal, dateToLocal, resolveCycleDay };
