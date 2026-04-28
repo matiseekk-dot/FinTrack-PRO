@@ -1,5 +1,3 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-
 const FontLoader = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');

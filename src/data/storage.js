@@ -99,6 +99,22 @@ function migrateData(d) {
   } else {
     d.cycleDayHistory = [];
   }
+  // sanityzacja tombstones - obiekt { [arrayKey]: { [id]: timestampMs } }
+  if (d.tombstones && typeof d.tombstones === "object" && !Array.isArray(d.tombstones)) {
+    const cleaned = {};
+    Object.entries(d.tombstones).forEach(([key, byId]) => {
+      if (byId && typeof byId === "object" && !Array.isArray(byId)) {
+        const validIds = {};
+        Object.entries(byId).forEach(([id, ts]) => {
+          if (typeof ts === "number" && ts > 0) validIds[id] = ts;
+        });
+        if (Object.keys(validIds).length > 0) cleaned[key] = validIds;
+      }
+    });
+    d.tombstones = cleaned;
+  } else {
+    d.tombstones = {};
+  }
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
     d.customCats = d.customCats.map(c => {
@@ -219,4 +235,4 @@ function loadSnapshotFromJSON(json) {
 
 
 
-export { LS_KEY, saveToStorage, migrateData, loadFromStorage, downloadJSON, loadSnapshotFromJSON };
+export { saveToStorage, loadFromStorage, downloadJSON, loadSnapshotFromJSON };

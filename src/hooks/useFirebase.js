@@ -19,33 +19,71 @@ const SYNC_KEYS = [
   "goals", "customCats", "cycleDay", "cycleDayHistory", "defaultAcc", "partnerName",
   "portfolio", "month", "vacationArchiveData",
   "trips", "hobbies",
+  "tombstones",  // v1.2.4: { [arrayKey]: { [id]: deletedAtMs } } - blokuje wskrzeszanie
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
 const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals",
   "portfolio", "customCats", "trips", "hobbies"];
 
+// Tombstones starsze niż 30 dni są auto-purgowane przy każdym merge.
+// 30 dni to bezpieczny próg - po tym czasie dane na drugim urządzeniu (które
+// było offline) prawie na pewno były już zsync'owane przez Firestore.
+const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Merge dwóch snapshotów danych z preferencją lokalnych zmian.
  * Używane przy real-time sync (onSnapshot) żeby nie tracić zmian.
+ *
+ * KLUCZOWE v1.2.4: tombstones (lista usuniętych ID per array) blokują wskrzeszanie.
+ * Bez tego: usuwasz tx → debounce save 1.5s → onSnapshot przychodzi z ECHO Firestore
+ * które zawiera STARY remote bez naszego delete → union remote+local → tx wraca.
+ *
+ * Z tombstones: union remote+local FILTRUJE wszystkie ID które są w tombstones.
  */
 function mergeSnapshots(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
-  
+
   const merged = { ...remote };
-  
+
+  // Merge tombstones (union, najnowszy timestamp wygrywa) + purge starszych niż 30 dni
+  const localTomb  = (local && local.tombstones) || {};
+  const remoteTomb = (remote && remote.tombstones) || {};
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  const mergedTomb = {};
+  const allKeys = new Set([...Object.keys(localTomb), ...Object.keys(remoteTomb)]);
+  allKeys.forEach(key => {
+    const combined = { ...(remoteTomb[key] || {}), ...(localTomb[key] || {}) };
+    const filtered = {};
+    Object.entries(combined).forEach(([id, ts]) => {
+      if (typeof ts === "number" && ts >= cutoff) filtered[id] = ts;
+    });
+    if (Object.keys(filtered).length > 0) mergedTomb[key] = filtered;
+  });
+  merged.tombstones = mergedTomb;
+
   SYNC_KEYS.forEach(key => {
+    if (key === "tombstones") return; // już zrobione
+
     const localVal  = local[key];
     const remoteVal = remote[key];
-    
+
     if (localVal === undefined) return;
-    
+
     if (ARRAY_KEYS_WITH_ID.includes(key) && Array.isArray(localVal) && Array.isArray(remoteVal)) {
-      // Tablice z ID - union po ID, lokalne wygrywają dla duplikatów
+      // Tombstones dla tego array
+      const tombs = mergedTomb[key] || {};
+      const isDeleted = (id) => tombs[id] != null;
+
+      // Union po ID, ale FILTRUJEMY deletes z obu stron
       const map = new Map();
-      remoteVal.forEach(item => { if (item && item.id != null) map.set(item.id, item); });
-      localVal.forEach(item => { if (item && item.id != null) map.set(item.id, item); });
+      remoteVal.forEach(item => {
+        if (item && item.id != null && !isDeleted(item.id)) map.set(item.id, item);
+      });
+      localVal.forEach(item => {
+        if (item && item.id != null && !isDeleted(item.id)) map.set(item.id, item);
+      });
       merged[key] = Array.from(map.values());
     }
     else if (Array.isArray(localVal)) {
@@ -61,7 +99,7 @@ function mergeSnapshots(local, remote) {
       merged[key] = localVal;
     }
   });
-  
+
   return merged;
 }
 
@@ -137,8 +175,8 @@ export function useFirebase() {
           ? Date.now() - lastLocalSaveRef.current 
           : Infinity;
         
-        // Ignoruj echo < 3s od własnego save
-        if (timeSinceLocalSave < 3000) return;
+        // Ignoruj echo < 5s od własnego save (1.5s debounce + setDoc latency + onSnapshot propagation)
+        if (timeSinceLocalSave < 5000) return;
         
         if (onRemoteChange) onRemoteChange(data);
       },

@@ -46,7 +46,11 @@ function applyData(d, s) {
   if (Array.isArray(d.hobbies))                                s.setHobbies(d.hobbies);
   if (Array.isArray(d.customCats))                             s.setCustomCats(d.customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label })));
   if (d.defaultAcc != null)                                    s.setDefaultAcc(d.defaultAcc);
-  if (d.month != null && d.month >= 0 && d.month <= 11)        s.setMonth(d.month);
+  // v1.2.4: NIE nadpisujemy month z remote/storage — auto-snap useEffect
+  // w App.jsx ustawi month na bieżący cykl rozliczeniowy. Jeśli applyData
+  // by nadpisała month, Bug A wracałby przy każdym Firestore sync.
+  // Wyjątek: gdy user nawigował manualnie, jego wybór jest preserved przez ref.
+  // (Skip d.month całkowicie - `month` jest UI state, nie persisted reliably.)
   if (d.cycleDay != null && d.cycleDay >= 1 && d.cycleDay <= 28) s.setCycleDay(d.cycleDay);
   if (Array.isArray(d.cycleDayHistory) && d.cycleDayHistory.length > 0) {
     s.setCycleDayHistory(d.cycleDayHistory);
@@ -57,8 +61,25 @@ function applyData(d, s) {
     s.setCycleDayHistory([{ from: "1970-01-01", day: d.cycleDay }]);
   }
   if (d.partnerName)                                           s.setPartnerName(d.partnerName);
-  if (Array.isArray(d.portfolio))                              s.setPortfolio(d.portfolio);
+  if (Array.isArray(d.portfolio)) {
+    // v1.2.4: heuristic recovery dla Bug F (linkedAccId zgubiony przy edycji w v1.2.2-).
+    // Jeśli portfolio item nie ma linkedAccId, ale jego nazwa pasuje do invest acc,
+    // próbuj odtworzyć link. Bez tego Dashboard fallback do frozen acc.balance.
+    const accs = Array.isArray(d.accounts) ? d.accounts : [];
+    const investAccs = accs.filter(a => a && a.type === "invest");
+    const recovered = d.portfolio.map(p => {
+      if (!p || p.linkedAccId != null) return p;
+      const matchByName = investAccs.find(a =>
+        (p.name || "").toLowerCase().includes((a.name || "").toLowerCase().split(" ")[0]) ||
+        (p.ticker || "").toLowerCase().includes((a.name || "").toLowerCase().split(" ")[0])
+      );
+      if (matchByName) return { ...p, linkedAccId: matchByName.id };
+      return p;
+    });
+    s.setPortfolio(recovered);
+  }
   if (Array.isArray(d.vacationArchiveData))                    s.setVacationArchive(d.vacationArchiveData);
+  if (d.tombstones && typeof d.tombstones === "object")        s.setTombstones(d.tombstones);
   if (d.templates) try { localStorage.setItem("ft_templates", JSON.stringify(d.templates)); } catch(_) {}
   if (d.vacation)  try { localStorage.setItem("ft_vacation",  JSON.stringify(d.vacation));  } catch(_) {}
 }
@@ -98,6 +119,9 @@ export default function App() {
   const [goals,        setGoals]        = useState(INITIAL_GOALS);
   const [trips,        setTrips]        = useState([]);
   const [hobbies,      setHobbies]      = useState([]);
+  // v1.2.4: tombstones blokują wskrzeszanie usuniętych elementów przy Firestore real-time sync.
+  // Format: { [arrayKey]: { [id]: deletedAtMs } }. Auto-purge po 30 dniach (w mergeSnapshots).
+  const [tombstones,   setTombstones]   = useState({});
   const [fabOpen,      setFabOpen]      = useState(false);
   const [fabMenu,      setFabMenu]      = useState(false); // long press menu
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
@@ -125,12 +149,52 @@ export default function App() {
     cycleDayHistory,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
     trips, hobbies,
+    tombstones,
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
 
   const capLabel = (c) => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label });
   const setCustomCatsCap = (cats) => setCustomCats(Array.isArray(cats) ? cats.map(capLabel) : cats);
+
+  // === TOMBSTONE WRAPPER ===
+  // Auto-detekuje delete: jeśli ID było w prev a nie ma w newVal, dodaje tombstone.
+  // Bez konieczności modyfikowania views - każde wywołanie setTransactions(t => t.filter(...))
+  // automatycznie generuje tombstone dla brakujących IDs.
+  const wrapWithTombstoneTracking = useCallback((arrayKey, originalSetter) => {
+    return (newValOrFn) => {
+      originalSetter(prev => {
+        const newVal = typeof newValOrFn === "function" ? newValOrFn(prev) : newValOrFn;
+        if (Array.isArray(prev) && Array.isArray(newVal)) {
+          const newIds = new Set();
+          newVal.forEach(x => { if (x && x.id != null) newIds.add(x.id); });
+          const deletedIds = [];
+          prev.forEach(x => {
+            if (x && x.id != null && !newIds.has(x.id)) deletedIds.push(x.id);
+          });
+          if (deletedIds.length > 0) {
+            const now = Date.now();
+            setTombstones(t => {
+              const updated = { ...t, [arrayKey]: { ...(t[arrayKey] || {}) } };
+              deletedIds.forEach(id => { updated[arrayKey][id] = now; });
+              return updated;
+            });
+          }
+        }
+        return newVal;
+      });
+    };
+  }, []);
+
+  // Wrapped setters dla wszystkich critical arrays (gdzie usuwanie jest możliwe).
+  // Ważne: te wrappery zastępują oryginalne setters w propsach do views.
+  const setTransactionsTracked = useMemo(() => wrapWithTombstoneTracking("transactions", setTransactions), [wrapWithTombstoneTracking]);
+  const setAccountsTracked     = useMemo(() => wrapWithTombstoneTracking("accounts",     setAccounts),     [wrapWithTombstoneTracking]);
+  const setPaymentsTracked     = useMemo(() => wrapWithTombstoneTracking("payments",     setPayments),     [wrapWithTombstoneTracking]);
+  const setGoalsTracked        = useMemo(() => wrapWithTombstoneTracking("goals",        setGoals),        [wrapWithTombstoneTracking]);
+  const setPortfolioTracked    = useMemo(() => wrapWithTombstoneTracking("portfolio",    setPortfolio),    [wrapWithTombstoneTracking]);
+  const setTripsTracked        = useMemo(() => wrapWithTombstoneTracking("trips",        setTrips),        [wrapWithTombstoneTracking]);
+  const setHobbiesTracked      = useMemo(() => wrapWithTombstoneTracking("hobbies",      setHobbies),      [wrapWithTombstoneTracking]);
 
   // Wrapper setMonth: gdy user manualnie nawiguje (strzałki w Dashboard, etc.),
   // ustawiamy flag żeby auto-snap nie ingerował.
@@ -143,7 +207,16 @@ export default function App() {
     }
   }, []);
 
-  const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive, setTrips, setHobbies };
+  // setters object przekazywany do applyData.
+  // applyData wywoływane jest z bulk import/load - WSZYSTKIE settery muszą być RAW
+  // (bez tombstone tracking). Inaczej load z Firestore wygeneruje fałszywe tombstones
+  // dla rekordów które są w lokalnym state ale nie w remote.
+  const setters = {
+    setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals,
+    setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
+    setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
+    setTrips, setHobbies, setTombstones,
+  };
 
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
   // Bez tego, jeśli cycleDay > 1 i dziś >= cycleDay, Dashboard pokazuje stary cykl
@@ -206,7 +279,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones]);
 
   // Save to Firestore
   useEffect(() => {
@@ -219,7 +292,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies]);
+  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -489,11 +562,11 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
-          {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts} portfolio={portfolio} setPortfolio={setPortfolio}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
-          {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips} hobbies={hobbies} setHobbies={setHobbies} portfolio={portfolio}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactionsTracked} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+          {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccountsTracked} portfolio={portfolio} setPortfolio={setPortfolioTracked}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
+          {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPaymentsTracked} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
+          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoalsTracked} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactionsTracked} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTripsTracked} hobbies={hobbies} setHobbies={setHobbiesTracked} portfolio={portfolio}/></ErrorBoundary>}
           {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={effectiveCycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 
@@ -509,8 +582,8 @@ export default function App() {
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}
         accounts={accounts} transactions={transactions} budgets={budgets}
         payments={payments} paid={paid} goals={goals} customCats={customCats}
-        setTransactions={setTransactions} setAccounts={setAccounts} setBudgets={setBudgets}
-        setPayments={setPayments} setPaid={setPaid} setGoals={setGoals}
+        setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} setBudgets={setBudgets}
+        setPayments={setPaymentsTracked} setPaid={setPaid} setGoals={setGoalsTracked}
         cycleDay={cycleDay} setCycleDay={setCycleDay}
         cycleDayHistory={cycleDayHistory} setCycleDayHistory={setCycleDayHistory}
         setCustomCats={setCustomCatsCap}
@@ -535,8 +608,8 @@ export default function App() {
 
       {quickAddOpen && (
         <TransactionsView transactions={transactions}
-          setTransactions={(txs) => { setTransactions(txs); setQuickAddOpen(false); }}
-          accounts={accounts} setAccounts={setAccounts} allCats={allCategories}
+          setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); }}
+          accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories}
           _forceOpenModal={true} _onClose={() => setQuickAddOpen(false)}
           trips={trips}
         />

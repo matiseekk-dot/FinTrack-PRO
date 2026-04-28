@@ -99,11 +99,6 @@ const INITIAL_BUDGETS = [];
 
 // Moduł inwestycyjny: dane wprowadzane przez użytkownika (stan w App)
 
-// HIST_DATA is now computed dynamically from transactions in Dashboard
-// This constant is kept as empty placeholder
-const HIST_DATA = [];
-
-
 export { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats,
   INITIAL_ACCOUNTS, INITIAL_PAYMENTS, INITIAL_TEMPLATES, INITIAL_PAID,
-  INITIAL_GOALS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, HIST_DATA };
+  INITIAL_GOALS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS };

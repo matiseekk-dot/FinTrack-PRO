@@ -130,45 +130,9 @@ function getHobbyStats(transactions, hobby, opts = {}) {
   };
 }
 
-/**
- * Sumaryczna statystyka wszystkich hobby - dla widgetu Dashboard.
- * Zwraca top N hobby z kwotami w bieżącym cyklu, posortowane.
- */
-function getTopHobbies(hobbies, transactions, cycleTxs, topN = 3) {
-  if (!Array.isArray(hobbies) || !Array.isArray(transactions)) return [];
-  const cycleIdSet = new Set((cycleTxs || []).map(t => t.id));
-  return hobbies
-    .filter(h => !h.archived)
-    .map(h => {
-      const txs = getHobbyTransactions(transactions, h);
-      const cycle = txs.filter(t => cycleIdSet.has(t.id))
-                       .reduce((s, t) => s + Math.abs(t.amount), 0);
-      return { hobby: h, cycleSpend: Math.round(cycle), txCount: txs.length };
-    })
-    .filter(x => x.cycleSpend > 0)
-    .sort((a, b) => b.cycleSpend - a.cycleSpend)
-    .slice(0, topN);
-}
-
-/**
- * Dla Analytics view - grupowanie wszystkich hobby + ich YoY.
- */
-function getAllHobbiesYoY(hobbies, transactions) {
-  if (!Array.isArray(hobbies) || !Array.isArray(transactions)) return [];
-  return hobbies
-    .filter(h => !h.archived)
-    .map(h => {
-      const stats = getHobbyStats(transactions, h);
-      return { hobby: h, ...stats };
-    });
-}
-
 export {
   DEFAULT_HOBBY_COLORS,
   pickHobbyColor,
-  txMatchesHobby,
   getHobbyTransactions,
   getHobbyStats,
-  getTopHobbies,
-  getAllHobbiesYoY,
 };

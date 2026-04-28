@@ -45,22 +45,6 @@ export function onForegroundMessage(callback) {
   return onMessage(m, callback);
 }
 
-// Local notification fallback (działa bez FCM backend)
-export function scheduleLocalNotification(title, body, delayMs = 0) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-  setTimeout(() => {
-    try {
-      new Notification(title, {
-        body,
-        icon: "/FinTrack-PRO/icon.svg",
-        badge: "/FinTrack-PRO/icon.svg",
-        tag: "fintrack-reminder",
-        requireInteraction: false,
-      });
-    } catch(e) {}
-  }, delayMs);
-}
-
 // Check upcoming payments and schedule local notifications
 export function schedulePaymentReminders(payments, paid) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;

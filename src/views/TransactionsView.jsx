@@ -401,9 +401,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <button
                         onClick={() => {
+                          // Copy: nowa tx z dzisiejszą datą + tych samych pól.
+                          // editingId=null żeby zapis był jako NOWA, nie nadpisywał oryginału.
+                          setEditingId(null);
                           setForm({ date: todayLocal(), desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense" });
+                            type: tx.amount > 0 ? "income" : "expense",
+                            currency: "PLN", tripId: null });
                           setModal(true);
                         }}
                         title="Kopiuj"
@@ -427,8 +431,6 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       </button>
                       <button
                         onClick={() => {
-                          const deletedTx = tx;
-                          const deletedAccBefore = accounts.find(a => a.id === tx.acc);
                           // Remove transaction and reverse account balance
                           setAccounts(accs => accs.map(a =>
                             a.id === tx.acc && a.type !== "invest"
@@ -436,11 +438,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                               : a
                           ));
                           setTransactions(t => t.filter(x => x.id !== tx.id));
-                          // Undo toast — 4 seconds to reverse
-                          showToast(`Usunięto: ${tx.desc} · Cofnij?`, "error", 4000);
-                          const undoTimer = setTimeout(() => {}, 4000);
-                          // Store undo ref on window for access in toast click (workaround)
-                          window._lastDeletedTx = { tx: deletedTx, timer: undoTimer };
+                          showToast(`Usunięto: ${tx.desc}`, "error", 3000);
                         }}
                         title="Usuń"
                         style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,

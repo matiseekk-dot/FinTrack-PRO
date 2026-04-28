@@ -93,11 +93,6 @@ function getAccountType(type) {
   return ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking;
 }
 
-function getAccountGroup(type) {
-  const t = getAccountType(type);
-  return ACCOUNT_GROUPS[t.group] || ACCOUNT_GROUPS.liquid;
-}
-
 function groupAccountsByCategory(accounts) {
   const groups = { liquid: [], invest: [], retirement: [], longterm: [] };
   if (!Array.isArray(accounts)) return groups;
@@ -120,8 +115,8 @@ function groupAccountsByCategory(accounts) {
  * Jeśli invest account nie ma żadnych pozycji portfolio - fallback do a.balance.
  */
 function getEffectiveBalance(account, portfolio) {
+  if (!account || account.type !== "invest") return Number(account?.balance) || 0;
   const baseBalance = Number(account.balance) || 0;
-  if (!account || account.type !== "invest") return baseBalance;
   if (!Array.isArray(portfolio) || portfolio.length === 0) return baseBalance;
   const linked = portfolio.filter(p => p && p.linkedAccId === account.id);
   if (linked.length === 0) return baseBalance;
@@ -138,16 +133,9 @@ function sumByGroup(accounts, portfolio = null) {
   return sums;
 }
 
-// Czy typ konta jest retirement/longterm (nie powinien liczyć się do "monthly cash flow")?
-function isLongTerm(type) {
-  const t = getAccountType(type);
-  return t.group === "retirement" || t.group === "longterm";
-}
-
 export {
   ACCOUNT_TYPES, ACCOUNT_GROUPS,
-  getAccountType, getAccountGroup,
+  getAccountType,
   groupAccountsByCategory, sumByGroup,
   getEffectiveBalance,
-  isLongTerm,
 };

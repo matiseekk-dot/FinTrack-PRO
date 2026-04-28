@@ -201,12 +201,12 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
   );
   const [activeView, setActiveView] = useState("month"); // "month" | "period"
   const [period, setPeriod]         = useState("month"); // month|quarter|half|year
+  const [periodFlow, setPeriodFlow] = useState("expenses"); // expenses | incomes
   const [groupBy, setGroupBy]       = useState("cat");   // cat | place
   const [sortBy, setSortBy]         = useState("total"); // total | count | avg
   // Expandable widgets — domyślnie zwinięte (top X), klik rozwija pełną listę
   const [dailyExpanded,    setDailyExpanded]    = useState(false);
   const [rankingExpanded,  setRankingExpanded]  = useState(false);
-  const [incomeRankExpanded, setIncomeRankExpanded] = useState(false);
   const [shopsExpanded,    setShopsExpanded]    = useState(false);
 
   //    Period filter                                                          
@@ -260,12 +260,48 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
     });
   }, [periodExp, groupBy, sortBy]);
 
+  // v1.2.4 (Image 4): Ranking przychodów w widoku Okresów - mirror groupedData
+  // ale dla przychodów. User chciał żeby tu też móc zobaczyć z jakich kat / miejsc
+  // spływały pieniądze w Q/półroczu/roku.
+  const groupedIncomeData = useMemo(() => {
+    const map = {};
+    periodInc.forEach(t => {
+      const key = groupBy === "cat" ? t.cat : t.desc.trim();
+      if (!map[key]) map[key] = { total: 0, count: 0, cat: t.cat };
+      map[key].total += t.amount;
+      map[key].count += 1;
+    });
+    return Object.entries(map).map(([key, d]) => ({
+      key,
+      total: d.total,
+      count: d.count,
+      avg:   d.count > 0 ? d.total / d.count : 0,
+      cat:   d.cat,
+    })).sort((a,b) => {
+      if (sortBy === "count") return b.count - a.count;
+      if (sortBy === "avg")   return b.avg - a.avg;
+      return b.total - a.total;
+    });
+  }, [periodInc, groupBy, sortBy]);
+
   const PERIOD_LABELS = { month: "Miesiąc", quarter: "Kwartał", half: "Półrocze", year: "Rok" };
   const maxVal = (groupedData[0] ? groupedData[0].total : null) || 1;
+  const maxIncomeVal = (groupedIncomeData[0] ? groupedIncomeData[0].total : null) || 1;
 
-  const monthTx = cycleTxs(transactions, month, cycleDay);
-  const expense = monthTx.filter(t => t.amount < 0 && t.cat !== "inne");
-  const income  = monthTx.filter(t => t.amount > 0 && t.cat !== "inne");
+  // Memoize żeby useMemo niżej (catData/dayData) faktycznie cache'owały - inaczej
+  // każda re-renderyzacja tworzy nowe array references = invalidate cache.
+  const monthTx = useMemo(
+    () => cycleTxs(transactions, month, cycleDay),
+    [transactions, month, cycleDay]
+  );
+  const expense = useMemo(
+    () => monthTx.filter(t => t.amount < 0 && t.cat !== "inne"),
+    [monthTx]
+  );
+  const income = useMemo(
+    () => monthTx.filter(t => t.amount > 0 && t.cat !== "inne"),
+    [monthTx]
+  );
 
   const catData = useMemo(() => {
     const map = {};
@@ -378,65 +414,138 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             </div>
           </div>
 
+          {/* Toggle: wydatki vs przychody */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {[["expenses","Wydatki","#ef4444"],["incomes","Przychody","#10b981"]].map(([v,l,c]) => (
+              <button key={v} onClick={() => setPeriodFlow(v)} style={{
+                flex: 1, padding: "8px 0", borderRadius: 10, cursor: "pointer",
+                fontWeight: 700, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif",
+                background: periodFlow === v ? c + "22" : "#060b14",
+                border: periodFlow === v ? `1px solid ${c}` : "1px solid #1a2744",
+                color: periodFlow === v ? c : "#475569",
+              }}>{l}</button>
+            ))}
+          </div>
+
           {/* Ranked list */}
-          <Card>
-            <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700,
-              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
-              {groupBy === "cat" ? "Kategorie" : "Miejsca"}
-              <span style={{ color: "#334155", fontWeight: 400, marginLeft: 6 }}>({groupedData.length})</span>
-            </div>
-            {groupedData.length === 0 && (
-              <div style={{ fontSize: 13, color: "#334155", textAlign: "center", padding: 16 }}>
-                Brak danych dla wybranego okresu
+          {periodFlow === "expenses" ? (
+            <Card>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+                Wydatki — {groupBy === "cat" ? "Kategorie" : "Miejsca"}
+                <span style={{ color: "#334155", fontWeight: 400, marginLeft: 6 }}>({groupedData.length})</span>
               </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {groupedData.slice(0, 20).map((row, i) => {
-                const cat  = getLocalCat(row.cat);
-                const Icon = cat.icon;
-                const pct  = maxVal > 0 ? (row.total / maxVal) * 100 : 0;
-                return (
-                  <div key={row.key}>
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      alignItems: "center", marginBottom: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                        <span style={{ fontSize: 11, color: "#334155", fontFamily: "'DM Mono', monospace",
-                          width: 16, flexShrink: 0 }}>{i+1}</span>
-                        {groupBy === "cat" && (
-                          <div style={{ background: cat.color+"22", borderRadius: 7, padding: 5, flexShrink: 0 }}>
-                            <Icon size={12} color={cat.color}/>
+              {groupedData.length === 0 && (
+                <div style={{ fontSize: 13, color: "#334155", textAlign: "center", padding: 16 }}>
+                  Brak danych dla wybranego okresu
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {groupedData.slice(0, 20).map((row, i) => {
+                  const cat  = getLocalCat(row.cat);
+                  const Icon = cat.icon;
+                  const pct  = maxVal > 0 ? (row.total / maxVal) * 100 : 0;
+                  return (
+                    <div key={row.key}>
+                      <div style={{ display: "flex", justifyContent: "space-between",
+                        alignItems: "center", marginBottom: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ fontSize: 11, color: "#334155", fontFamily: "'DM Mono', monospace",
+                            width: 16, flexShrink: 0 }}>{i+1}</span>
+                          {groupBy === "cat" && (
+                            <div style={{ background: cat.color+"22", borderRadius: 7, padding: 5, flexShrink: 0 }}>
+                              <Icon size={12} color={cat.color}/>
+                            </div>
+                          )}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden",
+                              textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {groupBy === "cat" ? cat.label : row.key}
+                            </div>
+                            <div style={{ fontSize: 10, color: "#475569" }}>
+                              {row.count}x · sr. {fmt(row.avg)}
+                            </div>
                           </div>
-                        )}
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden",
-                            textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {groupBy === "cat" ? cat.label : row.key}
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14,
+                            fontWeight: 700, color: groupBy === "cat" ? cat.color : "#e2e8f0" }}>
+                            {fmt(row.total)}
                           </div>
-                          <div style={{ fontSize: 10, color: "#475569" }}>
-                            {row.count}x · sr. {fmt(row.avg)}
+                          <div style={{ fontSize: 10, color: "#334155" }}>
+                            {periodTotal > 0 ? (row.total / periodTotal * 100).toFixed(0) : 0}%
                           </div>
                         </div>
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
-                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14,
-                          fontWeight: 700, color: groupBy === "cat" ? cat.color : "#e2e8f0" }}>
-                          {fmt(row.total)}
-                        </div>
-                        <div style={{ fontSize: 10, color: "#334155" }}>
-                          {(row.total / periodTotal * 100).toFixed(0)}%
-                        </div>
+                      <div style={{ background: "#0f1825", borderRadius: 4, height: 4 }}>
+                        <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
+                          background: groupBy === "cat" ? cat.color : "#3b82f6",
+                          opacity: 0.8 }}/>
                       </div>
                     </div>
-                    <div style={{ background: "#0f1825", borderRadius: 4, height: 4 }}>
-                      <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
-                        background: groupBy === "cat" ? cat.color : "#3b82f6",
-                        opacity: 0.8 }}/>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+                Przychody — {groupBy === "cat" ? "Kategorie" : "Źródła"}
+                <span style={{ color: "#334155", fontWeight: 400, marginLeft: 6 }}>({groupedIncomeData.length})</span>
+              </div>
+              {groupedIncomeData.length === 0 && (
+                <div style={{ fontSize: 13, color: "#334155", textAlign: "center", padding: 16 }}>
+                  Brak przychodów w wybranym okresie
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {groupedIncomeData.slice(0, 20).map((row, i) => {
+                  const cat  = getLocalCat(row.cat);
+                  const Icon = cat.icon;
+                  const pct  = maxIncomeVal > 0 ? (row.total / maxIncomeVal) * 100 : 0;
+                  return (
+                    <div key={row.key}>
+                      <div style={{ display: "flex", justifyContent: "space-between",
+                        alignItems: "center", marginBottom: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ fontSize: 11, color: "#334155", fontFamily: "'DM Mono', monospace",
+                            width: 16, flexShrink: 0 }}>{i+1}</span>
+                          {groupBy === "cat" && Icon && (
+                            <div style={{ background: cat.color+"22", borderRadius: 7, padding: 5, flexShrink: 0 }}>
+                              <Icon size={12} color={cat.color}/>
+                            </div>
+                          )}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden",
+                              textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {groupBy === "cat" ? cat.label : row.key}
+                            </div>
+                            <div style={{ fontSize: 10, color: "#475569" }}>
+                              {row.count}x · sr. {fmt(row.avg)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14,
+                            fontWeight: 700, color: "#10b981" }}>
+                            +{fmt(row.total)}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#334155" }}>
+                            {periodIncTotal > 0 ? (row.total / periodIncTotal * 100).toFixed(0) : 0}%
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ background: "#0f1825", borderRadius: 4, height: 4 }}>
+                        <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
+                          background: "#10b981", opacity: 0.8 }}/>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -610,80 +719,6 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
           );
         })()}
       </Card>
-
-      {/* Ranking przychodów - mirror rankingu wydatków, top 5 + expand */}
-      {(() => {
-        const incomeMap = {};
-        monthTx.filter(t => t.amount > 0 && t.cat !== "inne").forEach(t => {
-          incomeMap[t.cat] = (incomeMap[t.cat] || 0) + t.amount;
-        });
-        const incomeData = Object.entries(incomeMap)
-          .map(([cat, val]) => {
-            const info = getCat(cat);
-            return { cat, val, label: info.label, color: info.color, icon: info.icon };
-          })
-          .sort((a, b) => b.val - a.val);
-        if (incomeData.length === 0) return null;
-        const totalInc = incomeData.reduce((s, c) => s + c.val, 0);
-        const TOP = 5;
-        const visible = incomeRankExpanded ? incomeData : incomeData.slice(0, TOP);
-        const restCount = incomeData.length - visible.length;
-        const restSum = incomeData.slice(TOP).reduce((s, c) => s + c.val, 0);
-        return (
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Ranking przychodów</div>
-              {incomeData.length > 5 && (
-                <div style={{ fontSize: 10, color: "#475569" }}>
-                  {incomeRankExpanded ? `${incomeData.length} kat.` : `top 5 z ${incomeData.length}`}
-                </div>
-              )}
-            </div>
-            {visible.map(({ cat, val, label, color, icon: Icon }, i) => {
-              const pct = totalInc > 0 ? (val / totalInc * 100) : 0;
-              const isLast = i === visible.length - 1;
-              return (
-                <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: !isLast || restCount > 0 ? "1px solid #0f1a2e" : "none" }}>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#334155", width: 20, textAlign: "center" }}>#{i+1}</div>
-                  <div style={{ background: color + "1a", borderRadius: 8, padding: 7 }}>{Icon && <Icon size={13} color={color}/>}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color }}>{pct.toFixed(1)}%</span>
-                    </div>
-                    <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3 }}/>
-                    </div>
-                  </div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#94a3b8", width: 90, textAlign: "right" }}>{fmt(val)}</div>
-                </div>
-              );
-            })}
-            {!incomeRankExpanded && restCount > 0 && (
-              <button onClick={() => setIncomeRankExpanded(true)} style={{
-                width: "100%", marginTop: 8, padding: "10px 12px",
-                background: "#0f1825", border: "1px solid #1a2744", borderRadius: 8,
-                color: "#10b981", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                fontFamily: "'Space Grotesk', sans-serif",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}>
-                <span>▼ Pokaż wszystkie ({restCount} więcej)</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", color: "#475569", fontSize: 11 }}>
-                  +{fmt(restSum)}
-                </span>
-              </button>
-            )}
-            {incomeRankExpanded && incomeData.length > 5 && (
-              <button onClick={() => setIncomeRankExpanded(false)} style={{
-                width: "100%", marginTop: 8, padding: "8px 12px",
-                background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
-                color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer",
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}>▲ Pokaż tylko top 5</button>
-            )}
-          </Card>
-        );
-      })()}
 
       {/* Per-sklep / per-miejsce — top 7 + expand do całej listy */}
       {(() => {

@@ -18,7 +18,7 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
-import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
+import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
 import { sumByGroup } from "../lib/accountTypes.js";
 import { InsightsCard } from "../components/InsightsCard.jsx";
@@ -82,7 +82,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 
 function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh, portfolio = [] }) {
   const getLocalCat = (id) => {
-    const found = allCats.find(c => c.id === id) || allCats.find(c => c.id === id);
+    const found = allCats.find(c => c.id === id);
     if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
     return getCat(id);
   };

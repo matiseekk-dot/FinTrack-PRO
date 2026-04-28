@@ -10,7 +10,6 @@
 import { dateToLocal } from "../utils.js";
 
 const ARCHIVE_KEY = "ft_archive_tx";
-const TWO_YEARS_MS = 2 * 365 * 86400000;
 
 function getArchivedTransactions() {
   try {
@@ -49,37 +48,6 @@ function archiveOldTransactions(transactions, cutoffDays = 730) {
   }
 }
 
-function restoreArchivedTransactions(transactions) {
-  const archived = getArchivedTransactions();
-  if (archived.length === 0) return transactions;
-  
-  const existingIds = new Set(transactions.map(t => t.id));
-  const toRestore = archived.filter(t => !existingIds.has(t.id));
-  
-  return [...transactions, ...toRestore];
-}
-
-function clearArchive() {
-  localStorage.removeItem(ARCHIVE_KEY);
-}
-
-function getArchiveStats() {
-  const archived = getArchivedTransactions();
-  if (archived.length === 0) return null;
-  
-  const dates = archived.map(t => t.date).filter(Boolean).sort();
-  return {
-    count: archived.length,
-    oldestDate: dates[0],
-    newestDate: dates[dates.length - 1],
-    sizeKB: Math.round(JSON.stringify(archived).length / 1024),
-  };
-}
-
 export {
   archiveOldTransactions,
-  restoreArchivedTransactions,
-  getArchivedTransactions,
-  getArchiveStats,
-  clearArchive,
 };

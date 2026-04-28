@@ -25,16 +25,6 @@ import { dateToLocal, todayLocal } from "../utils.js";
 
 const TRIP_BUFFER_DAYS = 3;
 
-function getTripById(trips, id) {
-  return Array.isArray(trips) ? trips.find(t => t.id === id) : null;
-}
-
-function getTripsForYear(trips, year) {
-  if (!Array.isArray(trips)) return [];
-  const yyyy = String(year);
-  return trips.filter(t => (t.dateFrom || "").startsWith(yyyy) || (t.dateTo || "").startsWith(yyyy));
-}
-
 /**
  * Zwraca tablicę aktywnych wyjazdów (dziś jest w zakresie ±bufor).
  * Bufor pozwala dodać tx „taxi z lotniska" dzień przed wyjazdem.
@@ -234,10 +224,7 @@ function migrateLegacyVacations() {
 }
 
 export {
-  TRIP_BUFFER_DAYS,
   DEFAULT_TRIP_COLORS,
-  getTripById,
-  getTripsForYear,
   getActiveTrips,
   getSelectableTrips,
   getTripSpending,
@@ -246,5 +233,4 @@ export {
   groupTrips,
   pickTripColor,
   migrateLegacyVacations,
-  shiftDate,
 };

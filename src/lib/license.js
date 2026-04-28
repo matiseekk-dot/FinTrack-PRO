@@ -27,10 +27,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 const SECRET = "ft-license-v1-7b3d9a2c8e1f4056b9ad3e5c8f7d2a1b";
 
 // Base32 alfabet bez 0/O/1/I/L (mniej pomyłek przy ręcznym wpisywaniu)
-const B32_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-
 const TYPE_PREFIX = { Y: "yearly", L: "lifetime", T: "trial" };
-const PREFIX_TYPE = { yearly: "Y", lifetime: "L", trial: "T" };
 
 // === HMAC ===
 async function hmacTag(message) {
@@ -128,28 +125,6 @@ async function validateLicense(rawKey, { db = null, uid = null } = {}) {
   };
 }
 
-// === KEY GENERATION (dla node skryptu) ===
-function randomB32(len) {
-  const bytes = crypto.getRandomValues(new Uint8Array(len));
-  let out = "";
-  for (let i = 0; i < len; i++) out += B32_ALPHABET[bytes[i] % B32_ALPHABET.length];
-  return out;
-}
-
-/**
- * Generuje pojedynczy klucz danego typu. Używaj w node skrypcie do batch
- * generowania kluczy do Gumroad - patrz docs/license-keys.md.
- */
-async function generateKey(type) {
-  const typeChar = PREFIX_TYPE[type];
-  if (!typeChar) throw new Error(`Unknown type: ${type}`);
-  const body1 = randomB32(5);
-  const body2 = randomB32(5);
-  const body = `${body1}-${body2}`;
-  const tag = await hmacTag(`FT-${typeChar}-${body}`);
-  return `FT-${typeChar}-${body}-${tag}`;
-}
-
 // User-facing error messages (PL)
 const ERROR_MESSAGES = {
   invalid_format: "Nieprawidłowy format klucza. Sprawdź czy nie pominąłeś znaku.",
@@ -160,8 +135,5 @@ const ERROR_MESSAGES = {
 
 export {
   validateLicense,
-  generateKey,
-  parseKey,
-  isFormatValid,
   ERROR_MESSAGES,
 };

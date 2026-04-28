@@ -59,10 +59,6 @@ function deactivatePro() {
   localStorage.removeItem(PRO_KEY);
 }
 
-function getLimits(isPro) {
-  return isPro ? PRO_LIMITS : FREE_LIMITS;
-}
-
 function countMonthlyTransactions(transactions) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
@@ -83,7 +79,6 @@ function canAddTransaction(transactions, isPro) {
 }
 
 export {
-  FREE_LIMITS, PRO_LIMITS,
-  getProStatus, activatePro, deactivatePro, getLimits,
-  countMonthlyTransactions, canAddTransaction,
+  getProStatus, activatePro, deactivatePro,
+  canAddTransaction,
 };

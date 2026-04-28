@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { X } from "lucide-react";
 
 function Modal({ open, onClose, title, children }) {

@@ -94,5 +94,4 @@ function clearLocalErrors() {
 export {
   reportError, setupGlobalHandlers,
   exportErrorsForSupport, clearLocalErrors,
-  getLocalErrors,
 };

@@ -73,17 +73,18 @@ export function useStreak(transactions) {
     setStreak(current);
     localStorage.setItem(STREAK_KEY, String(current));
 
-    // Update najdłuższego streaka
-    if (current > longestStreak) {
-      setLongestStreak(current);
-      localStorage.setItem(LONGEST_KEY, String(current));
-    }
-  }, [transactions, longestStreak]);
+    // Update najdłuższego streaka. longestStreak NIE jest w deps żeby uniknąć
+    // dodatkowych re-renderów - useEffect ma się odpalać tylko gdy zmieniają się
+    // transakcje, nie gdy podbijemy longest.
+    setLongestStreak(prev => {
+      if (current > prev) {
+        localStorage.setItem(LONGEST_KEY, String(current));
+        return current;
+      }
+      return prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions]);
 
   return streak;
-}
-
-export function useLongestStreak() {
-  const stored = localStorage.getItem(LONGEST_KEY);
-  return stored ? parseInt(stored) : 0;
 }

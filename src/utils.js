@@ -173,4 +173,4 @@ function dateToLocal(d) {
 
 
 export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel,
-         todayLocal, dateToLocal, resolveCycleDay, getCurrentCycleMonth };
+         todayLocal, dateToLocal, getCurrentCycleMonth };

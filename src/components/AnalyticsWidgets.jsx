@@ -450,17 +450,31 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
     { lbl: "Wygrane",     val: gambling, color: "#f59e0b" },
   ].filter(t => t.val > 0);
 
-  const maxShare = types.length > 0
-    ? (Math.max(...types.map(t => t.val)) / total) * 100
-    : 0;
-  const concentrated = maxShare > 85 && total >= 2000;
-
   const mainMerchants = {};
   incomeTx.filter(t => getIncomeType(t.cat) === "main").forEach(t => {
     const k = (t.desc || "").trim() || "(bez opisu)";
     mainMerchants[k] = (mainMerchants[k] || 0) + t.amount;
   });
-  const topMain = Object.entries(mainMerchants).sort((a,b) => b[1] - a[1])[0];
+  const sortedMerchants = Object.entries(mainMerchants).sort((a,b) => b[1] - a[1]);
+  const topMain = sortedMerchants[0];
+  // v1.2.4 fix Image 3: "Główne źródło" pokazujemy TYLKO gdy
+  //   (a) jest tylko 1 wpis pensyjny (wtedy faktycznie to jest główne źródło)
+  //   (b) lub top wpis stanowi >70% pensji (ma sens nazwać go "głównym")
+  // Wcześniej pokazywało np. "Ekwiwalent 3000zł" jako "główne źródło" mimo że
+  // to tylko 1 z 4 wpisów = mylące (ekwiwalent urlopowy nie jest pensją).
+  const showTopMain = topMain && main > 0 && (
+    sortedMerchants.length === 1 || (topMain[1] / main) > 0.70
+  );
+  // Liczba unikalnych źródeł pensji (do wyświetlenia obok "Pensja")
+  const mainSourceCount = sortedMerchants.length;
+
+  // v1.2.4 fix Image 3: "100% pochodzi z jednego źródła" było triggerowane
+  // gdy wszystkie tx były tej SAMEJ KATEGORII (main), ale z RÓŻNYCH źródeł.
+  // To też mylące - jeśli masz pensję+ekwiwalent+premię jako 3 osobne tx z różnym
+  // desc, to NIE jest "jedno źródło". Concentrated tylko gdy faktycznie 1 merchant
+  // dominuje (>85% z pojedynczego desc).
+  const trueConcentration = topMain ? (topMain[1] / total) * 100 : 0;
+  const concentrated = trueConcentration > 85 && total >= 2000 && sortedMerchants.length <= 2;
 
   const isCurrentMonth = localMonth === parentMonth;
   const monthLabel = MONTH_NAMES[localMonth] || "—";
@@ -530,7 +544,7 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
             })}
           </div>
 
-          {topMain && main > 0 && (
+          {showTopMain && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
               fontSize: 11, color: "#64748b" }}>
               Główne źródło: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
@@ -538,13 +552,22 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
               <span style={{ fontFamily: "'DM Mono', monospace", color: "#10b981" }}>{fmt(topMain[1])}</span>
             </div>
           )}
+          {!showTopMain && main > 0 && mainSourceCount > 1 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
+              fontSize: 11, color: "#64748b" }}>
+              Pensja z {mainSourceCount} źródeł — top: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
+              {" "}<span style={{ fontFamily: "'DM Mono', monospace", color: "#475569" }}>
+                ({((topMain[1]/main)*100).toFixed(0)}%)
+              </span>
+            </div>
+          )}
 
           {concentrated && (
             <div style={{ marginTop: 10, padding: "8px 12px",
               background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
               fontSize: 11, color: "#fbbf24", lineHeight: 1.4 }}>
-              ⚠️ {maxShare.toFixed(0)}% przychodów pochodzi z jednego źródła. Warto rozważyć
-              dywersyfikację - utrata głównego dochodu = utrata prawie całości.
+              ⚠️ {trueConcentration.toFixed(0)}% przychodów pochodzi z jednego źródła ({topMain[0]}).
+              Warto rozważyć dywersyfikację — utrata głównego dochodu = utrata prawie całości.
             </div>
           )}
 
