@@ -600,6 +600,21 @@ export default function App() {
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
+        proStatus={proStatus}
+        onForceSyncProStatus={async () => {
+          // v1.2.9: manualny force-push proStatus do Firestore.
+          // Bypassuje debounce żeby user widział natychmiast efekt + zwraca status.
+          if (!user?.uid) return { ok: false, error: "Nie zalogowany" };
+          try {
+            await saveToFirestore(user.uid, stateRef.current);
+            // Czekamy ~3s żeby debounce się odpalił
+            await new Promise(r => setTimeout(r, 2500));
+            return { ok: true };
+          } catch (e) {
+            console.error("[FT] force sync error", e);
+            return { ok: false, error: String(e) };
+          }
+        }}
       />
       </ErrorBoundary>
 

@@ -27,10 +27,12 @@ const BASE_CATEGORIES = [
   { id: "alkohol",     label: "Alkohol",        icon: Coffee,     color: "#2563eb", group: "lifestyle" },
   { id: "bukmacher",   label: "Zakłady",         icon: TrendingDown,color: "#dc2626", group: "lifestyle" },
   { id: "inne",        label: "Inne",           icon: Wallet,     color: "#6b7280", group: "lifestyle" },
-  { id: "przychód",    label: "Przychód",       icon: DollarSign, color: "#10b981", group: "income" },
-  { id: "sprzedaż",    label: "Sprzedaż",       icon: ArrowUpRight,color: "#34d399", group: "income" },
-  { id: "dodatkowe",   label: "Dodatkowe",      icon: Briefcase,  color: "#a3e635", group: "income" },
-  { id: "bukmacherka", label: "Wygrane",         icon: TrendingUp, color: "#fb923c", group: "income" },
+  { id: "przychód",    label: "Pensja",         icon: DollarSign, color: "#10b981", group: "income" },
+  { id: "sprzedaż",    label: "Sprzedaż (Vinted/Allegro)", icon: ArrowUpRight, color: "#34d399", group: "income" },
+  { id: "partner",     label: "Od partnera",    icon: Gift,       color: "#22d3ee", group: "income" },
+  { id: "dodatkowe",   label: "Dodatkowe (apki/freelance)", icon: Briefcase, color: "#a3e635", group: "income" },
+  { id: "bukmacherka", label: "Wygrane (zakłady)",icon: TrendingUp, color: "#fb923c", group: "income" },
+  { id: "zwrot",       label: "Zwroty (PIT/sklep)", icon: RefreshCw, color: "#0ea5e9", group: "income" },
 ];
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop

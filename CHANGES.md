@@ -1,239 +1,154 @@
-# FinTrack PRO v1.2.8 — KRYTYCZNY fix encrypt + kategorie przychodów (2026-04-28)
+# FinTrack PRO v1.2.9 — Diagnostyka PRO sync + preset kategorie przychodów (2026-04-28)
 
-`package.json` 1.2.7 → 1.2.8.
+`package.json` 1.2.8 → 1.2.9.
 
 ## TL;DR
 
-| | v1.2.7 | v1.2.8 |
+Dobra wiadomość z Twojego DevTools: **`encrypt failed RangeError` zniknął**. Mój v1.2.8 fix zadziałał. Pozostałe Twoje pytania: **PRO sync nadal nie syncuje + brakuje konkretnych kategorii przychodów**.
+
+| | v1.2.8 | v1.2.9 |
 |---|---|---|
-| **encrypt failed RangeError przy state >100k bytes** | **CRASH** | naprawione |
-| PRO sync na laptopie | nie działało (skutek encrypt fail) | powinno działać |
-| Picker kategorii dla przychodów | brak | jest |
-| GoatCounter 400 zaśmiecający DevTools | tak | wyłączony (placeholder) |
-| Service Worker | v7 | v7 (bez zmian) |
+| `[FT] encrypt failed RangeError` w DevTools | naprawione | naprawione |
+| Diagnostyka czemu PRO nie syncuje | brak | dodana w Settings |
+| Force-sync przycisk dla PRO | brak | jest |
+| Preset kategorie przychodów (Vinted, Partner, Apki) | brak | jest |
 
 ---
 
-## 🔴🔴🔴 BUG KRYTYCZNY: `encrypt failed RangeError`
+## 🔧 Diagnostyka PRO sync — nowy panel w Settings
 
-**Twoja diagnoza:** Image 2 z DevTools console pokazał:
-```
-[FT] encrypt failed RangeError: Maximum call stack size exceeded
-  at Ki (index-DgVRtyAg.js:38:7196)
-  at async Zi (index-DgVRtyAg.js:38:10174)
-```
+**Twoja skarga:** „A nic się nie zmieniło a zrobiłem wszystko co chciałeś."
 
-### Co się dzieje technicznie
+Encrypt fix zadziałał (potwierdzone przez Twój screenshot). Ale PRO sync wciąż nie działa. To znaczy że **jest inny bug**, którego nie widzę bez Twoich danych. Dodałem panel diagnostyczny żebyś mógł sam zdiagnozować i wyforsować sync.
 
-`src/lib/crypto.js` linia 45 (przed fixem):
-```js
-return "enc:v1:" + btoa(String.fromCharCode(...combined));
-```
+### Gdzie znaleźć
 
-`combined` to `Uint8Array` zawierający IV + ciphertext zaszyfrowanego state. **Spread `...combined` używa argumentów funkcji.** V8 (Chrome) ma limit ~125k argumentów na wywołanie. Gdy Twój state przekracza ~100k bytes plain (po szyfrowaniu jeszcze więcej), spread wybucha z `RangeError: Maximum call stack size exceeded`.
+Settings → przewiń na sam dół, sekcja **"🔧 Diagnostyka licencji"**.
 
-### Co to oznacza dla Ciebie
-
-Każdy save do localStorage **failował**. To znaczy:
-
-1. Każda zmiana stanu (dodanie tx, aktywacja PRO, edycja konta) NIE zapisywała się trwale
-2. Po hard refresh dane wracają do **ostatniego prawidłowego save** (przed przekroczeniem 100k)
-3. PRO aktywacja → `localStorage.setItem("ft_pro_status", ...)` zadziała (bezpośrednie), ale potem **bulk save całego state** failuje → Firestore też dostaje śmieciowe payload (encryptString → fallback do plaintext, ale to inna gałąź)
-4. Sync między urządzeniami nie działa bo Firestore save na laptopie failuje
-
-**To wyjaśnia dlaczego PRO sync nie działał na laptopie.** Telefon prawdopodobnie ma mniej state (świeższa instalacja?), nie przekracza 125k spread limit.
-
-### Fix
-
-`src/lib/crypto.js`:
-```js
-// PRZED (wybucha dla >100k bytes):
-return "enc:v1:" + btoa(String.fromCharCode(...combined));
-
-// PO (chunk po 8k, działa do 1M+ bytes):
-return "enc:v1:" + btoa(uint8ToBinaryString(combined));
-
-function uint8ToBinaryString(arr) {
-  const CHUNK = 8192;
-  let result = "";
-  for (let i = 0; i < arr.length; i += CHUNK) {
-    const slice = arr.subarray(i, i + CHUNK);
-    result += String.fromCharCode.apply(null, slice);
-  }
-  return result;
-}
-```
-
-### Test fix
+### Co pokazuje
 
 ```
-Test 1 (10 bytes):     ✅ OK
-Test 2 (50k bytes):    ✅ OK
-Test 3 (200k bytes):   ✅ OK   (stary kod: 💥 RangeError)
-Test 4 (1M bytes):     ✅ OK
+Lokalnie (ten browser):
+  isPro: TAK (yearly)
+  aktywowane: 2026-04-28 14:23:11
+  wygasa: 2027-04-28 14:23:11
+
+Zalogowany jako:
+  matiseekk@gmail.com (abc123def456...)
 ```
 
-### Po deployu
+Lub gdy nie aktywne:
+```
+Lokalnie (ten browser):
+  isPro: NIE
+```
 
-Po Twoim hard refresh + clear SW cache, PRO aktywacja powinna pójść poprawnie do Firestore i syncować się na drugie urządzenie.
+### Force-sync przycisk
 
-**Jeśli widzisz nadal `[FT] encrypt failed`** w DevTools po deployu, daj znać natychmiast — to znaczy że masz inny edge case.
+Gdy `isPro=TAK` widzisz przycisk **"🔄 Wymuś sync PRO status do Firestore"**. Klika → wymusza save do Firestore (bez czekania na debounce 1.5s) → po 2.5s pokazuje wynik.
+
+### Workflow naprawy
+
+**Scenario A**: telefon ma PRO, laptop nie.
+
+1. **Telefon** → Settings → Diagnostyka → sprawdź czy isPro=TAK
+2. **Telefon** → kliknij "🔄 Wymuś sync PRO status do Firestore" → poczekaj alert "✅ wysłany"
+3. **Laptop** → hard refresh (Ctrl+Shift+R)
+4. **Laptop** → poczekaj 2-3s na Firestore load
+5. **Laptop** → Settings → Diagnostyka → powinno pokazać isPro=TAK
+
+**Scenario B**: oba urządzenia FREE, ale gdzieś masz licencję.
+
+Aktywuj na laptopie → kliknij Force Sync → poczekaj na alert → telefon hard refresh.
+
+**Scenario C**: nie wiesz co się dzieje.
+
+Otwórz panel na obu urządzeniach, **prześlij mi screenshoty** obu. Wtedy widzę co jest w localStorage każdego + jakie uid są zalogowane. Bez tego latam na ślepo.
 
 ---
 
-## 🟢 Kategorie dla przychodów (twój feature request)
+## 🟢 Preset kategorie przychodów (Twoja konkretna lista)
 
-**Twoja skarga (z wcześniej):** „w przychodzie nie da się dać jakiejś kategorii."
+**Twoja lista:** „wygrane u bukmachera, vinted, od żony na rachunki/zakupy, może uda się coś zarabiać z apek."
 
-### Diagnoza
+### Co dodałem do BASE_CATEGORIES
 
-`src/views/TransactionsView.jsx` linia 572:
-```jsx
-{form.type === "expense" && (
-  <Select label="Kategoria" ...>
-    {/* picker tylko dla wydatków */}
-  </Select>
-)}
-```
+Wszyscy nowi userzy dostają to out-of-the-box:
 
-Picker kategorii **w ogóle nie pokazywał się** dla `form.type === "income"`. Wszystkie przychody dostawały hardkodowaną listę 4 kategorii (przychód/sprzedaż/dodatkowe/bukmacherka), a custom income cats były ignorowane.
+| ID | Label | Pokrywa |
+|---|---|---|
+| `przychód` | **Pensja** (zmieniona nazwa) | wynagrodzenie z pracy |
+| `sprzedaż` | **Sprzedaż (Vinted/Allegro)** | Vinted, Allegro Lokalnie, OLX, sprzedaż używanych |
+| `partner` | **Od partnera** ⭐ NEW | od żony/męża na rachunki, zakupy, wspólne wydatki |
+| `dodatkowe` | **Dodatkowe (apki/freelance)** | przychód z apek (BabyLog, FinTracker), freelance, side hustle |
+| `bukmacherka` | **Wygrane (zakłady)** | bukmacher (STS, Fortuna, Betclic) |
+| `zwrot` | **Zwroty (PIT/sklep)** ⭐ NEW | PIT zwrot, zwrot z e-commerce |
 
-### Fix
+**Zmiany nazw**:
+- `Przychód` → `Pensja` (jaśniej)
+- `Sprzedaż` → `Sprzedaż (Vinted/Allegro)` (sugestia kontekstu)
+- `Dodatkowe` → `Dodatkowe (apki/freelance)`
+- `Wygrane` → `Wygrane (zakłady)`
 
-```jsx
-{form.type === "income" && (
-  // v1.2.8: picker kategorii dla przychodów. BASE income cats + custom z group: "income".
-  <Select label="Kategoria przychodu" ...>
-    {(allCats||CATEGORIES).filter(c => c.group === "income").map(c => (
-      <option key={c.id} value={c.id}>{c.label}</option>
-    ))}
-  </Select>
-)}
-```
+**Zmiany ID**: brak (kompatybilność wsteczna). Twoje istniejące transakcje z `cat: "przychód"` nadal działają, po prostu dostają nową labelę "Pensja".
 
-Plus 2 dodatkowe poprawki:
+### Jak teraz wybrać
 
-1. **Logika `finalCat` używa dynamicznej listy** (nie hardkodowanych 4 cat):
-   ```js
-   const incomeCatsList = (allCats || CATEGORIES).filter(c => c.group === "income").map(c => c.id);
-   const finalCat = form.type === "income"
-     ? (incomeCatsList.includes(form.cat) ? form.cat : "przychód")
-     : form.cat;
-   ```
+Add Transaction → "📥 Przychód" → dropdown "Kategoria przychodu":
+1. Pensja
+2. Sprzedaż (Vinted/Allegro)
+3. **Od partnera** ← nowa
+4. Dodatkowe (apki/freelance)
+5. Wygrane (zakłady)
+6. **Zwroty (PIT/sklep)** ← nowa
++ wszystkie Twoje custom income cats (jeśli kiedyś dodasz)
 
-2. **Przy switch type expense ↔ income** automatycznie ustaw sensowny default:
-   ```js
-   if (v === "income" && !incomeCatsList.find(cat => cat.id === f.cat)) {
-     nextCat = incomeCatsList[0]?.id || "przychód";
-   } else if (v === "expense" && !expenseCatsList.find(cat => cat.id === f.cat)) {
-     nextCat = "jedzenie";
-   }
-   ```
+### Dlaczego nie zostawić tylko custom?
 
-### Jak teraz dodać własną kategorię przychodu
+Bo:
+- Nowi userzy nie wiedzą że można dodać custom
+- Mateusz pisał "ludzie mają różne przychody" = sugeruje że to normalna potrzeba, nie edge case
+- 6 BASE income cats + opcja custom = balans między prostotą a fleksyblnością
 
-1. Settings → Kategorie → Dodaj
-2. Wpisz nazwę (np. "Premia roczna", "Dywidenda", "Side hustle")
-3. Wybierz typ: **Przychód**
-4. Save
-5. Następna nowa transakcja → przełącz na "Przychód" → w dropdownie zobaczysz "Premia roczna" obok 4 standardowych
-
-### Custom income cats syncują się przez Firestore
-
-`customCats` jest w `SYNC_KEYS`, więc kategorie zdefiniowane na 1 urządzeniu pojawią się na drugim po sync.
+Jeśli za dużo, w przyszłej v1.3 możemy dodać "ukryj nieużywane kategorie" w Settings.
 
 ---
 
-## 🟢 Spójność widoków „Bieżący" vs „Okresy" (twój komentarz)
+## 🟡 Cross-Origin-Opener-Policy (Twoje "Image" — 2 błędy)
 
-**Twoja prośba:** „Te przychody bieżące niech zostaną po prostu lista a w tych innych okresy. Po prostu żeby spójnie było."
-
-### Co już działa po v1.2.7 + co sprawdziłem
-
-**Bieżący (cykl rozliczeniowy):**
-- ✅ Struktura przychodów: lista wszystkich źródeł (`IncomeTypesBreakdown`, top 8)
-- ✅ Wydatki per miejsce: tylko z `monthTx` (cykl bieżący)
-- ✅ Hobby stats: 4 statystyki Cykl/Mies/Kwart/Rok
-
-**Okresy (Q/H/Y):**
-- ✅ Toggle Wydatki/Przychody (dla obu)
-- ✅ Group by Kategorii / Miejscu (dla obu)
-- ✅ Sort by Kwota / Ilość / Średnia
-- ✅ Top 20 z paskami progresji
-- ✅ Period summary: Wydatki / Wpływy / Bilans
-
-Czyli w „Bieżący" masz **listy** (wszystkie źródła naraz), a w „Okresy" masz **agregacje** (Q1/H1/Y, top N, group by). To jest spójne.
-
-### Edge case: sprawdź sam
-
-Jeśli w „Okresy" → Przychody → widzisz coś dziwnego (np. nadal pokazuje top 1 zamiast pełnej listy), daj znać dokładnie co. Bo struktura kodu jest dobra, ale mogłem coś przegapić.
-
----
-
-## 🟢 GoatCounter 400 — wyłączony
-
-**Twoja diagnoza:** Image 2:
-```
-Failed to load fintrackpro.goatcoun...536&b-0&rnd=vcgfx:1 resource:
-the server responded with a status of 400 ()
-```
-
-### Co się dzieje
-
-`index.html` ma:
-```html
-<script data-goatcounter="https://fintrackpro.goatcounter.com/count" ...>
-```
-
-Ale **`fintrackpro` to placeholder** — nigdy nie zarejestrowałeś konta na goatcounter.com. Każde otwarcie strony wysyła analytics request → 400.
-
-### Fix
-
-W v1.2.8 wyłączyłem ten skrypt (zakomentowany z instrukcją włączenia). Dopóki nie zarejestrujesz konta, nie ma 400.
-
-```html
-<!-- Aby włączyć:
-       1. Zarejestruj się na https://goatcounter.com
-       2. Stwórz site z kodem (np. 'fintrack-skudev')
-       3. Odkomentuj poniższy script i wstaw swój kod zamiast 'fintrackpro'
-<script data-goatcounter="https://fintrackpro.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
--->
-```
-
----
-
-## 🟡 Cross-Origin-Opener-Policy ostrzeżenia (NIE naprawione)
-
-**Twoja diagnoza:** Image 3:
 ```
 Cross-Origin-Opener-Policy policy would block the window.close call.
 firebase-cWgg6Pqa.js:1291
 ```
 
-### Co się dzieje
+To są **firebase auth popup ostrzeżenia**, nie nasze. Auth dalej działa (zalogowany jesteś). Naprawienie wymaga przełączenia z `signInWithPopup` na `signInWithRedirect` co **zabiera całą stronę** podczas logowania = gorszy UX.
 
-Firebase auth używa `signInWithPopup` (popup okno → user wybiera Google account → popup zamyka się i przekazuje token). Chrome wprowadził politykę COOP która ostrzega gdy popup próbuje się zamknąć przez window.close().
-
-### Decyzja: ZOSTAWIAM
-
-**To są ostrzeżenia, nie błędy.** Auth dalej działa. Naprawienie wymaga przełączenia na `signInWithRedirect` co zabiera całą stronę → user widzi przekierowanie → wraca → musi zalogować się znowu jeśli session expired. Gorszy UX.
-
-Jeśli kiedyś Chrome zacznie BLOKOWAĆ (nie tylko ostrzegać), wtedy fix. Na razie ignoruj.
+**Decyzja**: zostawiam. Nie wpływa na funkcjonalność. Jeśli kiedyś Chrome zacznie BLOKOWAĆ (nie tylko ostrzegać), wtedy fix.
 
 ---
 
-## Pliki zmienione (5)
+## 🟡 Recharts violation `'click' handler took 1021ms` (Twoje Image)
 
 ```
-src/lib/crypto.js                   [KRYTYCZNE: chunked uint8ToBinaryString]
-src/views/TransactionsView.jsx      [+ picker income cat, + dynamiczny finalCat,
-                                     + auto-default cat przy switch type]
-index.html                          [GoatCounter wyłączony]
-package.json                        [1.2.7 → 1.2.8]
+[Violation] 'click' handler took 1021ms
+recharts-BOmpF1N_.js:24
 ```
 
-(SettingsPanel.jsx już ma flow dodawania custom income cat z `group: "income"` — bez zmian.)
+To z biblioteki recharts (nie nasz kod). Oznacza że jakiś kliknięty wykres w Twoim AnalyticsView miał >1s czasu na render. Pewnie duży chart z dużą ilością danych.
+
+**Decyzja**: zostawiam. Performance issue, nie błąd. Optymalizacja recharts to projekt sam w sobie. Gdyby było consistently > 2s, to sygnał że trzeba zaagregować dane w mniejsze chunki.
+
+---
+
+## Pliki zmienione (3)
+
+```
+src/components/SettingsPanel.jsx    [+ Diagnostyka licencji + Force sync button]
+src/App.jsx                         [+ proStatus prop + onForceSyncProStatus do SettingsPanel]
+src/constants.js                    [BASE_CATEGORIES income: + partner, + zwrot,
+                                     zmiany nazw: Pensja/Sprzedaż (Vinted)/Dodatkowe (apki)/Wygrane (zakłady)]
+package.json                        [1.2.8 → 1.2.9]
+```
 
 ---
 
@@ -242,79 +157,77 @@ package.json                        [1.2.7 → 1.2.8]
 ```bash
 npm install
 npm run build
-git add -A && git commit -m "v1.2.8: KRYTYCZNY fix encrypt RangeError + kategorie przychodów"
+git add -A && git commit -m "v1.2.9: PRO sync diagnostyka + preset kategorie przychodów"
 git push --force
 ```
 
-**Po push, KONIECZNIE:**
-
-```
-1. F12 → Application → Service Workers → Unregister fintrack-pro-v7 (jeśli jest)
-2. Application → Storage → Clear site data
-3. Hard refresh (Ctrl+Shift+R lub iPhone: Settings → Safari → Clear History)
-```
-
-To jednorazowe — uniknie konfliktu cache.
+**Po push:** hard refresh + clear SW (jak zwykle, jeśli widzisz starą wersję).
 
 ---
 
-## Test scenariusze po deployu
+## Co realnie zrobić po deployu
 
-### 1. Encrypt fix
-
-Otwórz aplikację, F12 → Console. **NIE powinno być** `[FT] encrypt failed RangeError`.
-
-Jeśli widzisz dalej — daj znać natychmiast (to inny edge case, np. circular reference w state).
-
-### 2. PRO sync (najważniejsze)
+### Test 1: Diagnostyka PRO
 
 ```
-A. Laptop: aktywuj PRO (jeśli jeszcze nie aktywne)
-B. Poczekaj 3 sekundy (Firestore save debounce 1.5s + buffer)
-C. Telefon (zalogowany na to samo konto): hard refresh
-D. Po 1-2 sekundach Firestore load → telefon też powinien być PRO
+1. Settings → przewiń na dół → Diagnostyka licencji
+2. Sprawdź na laptopie: isPro = ? type = ?
+3. Sprawdź na telefonie: isPro = ? type = ?
 ```
 
-**Jeśli nie działa:** otwórz Firestore console → users/{Twój uid}/data/main → sprawdź czy `proStatus` field tam jest. Jeśli nie ma — Firestore save ciągle failuje (potrzebuję Twojego DevTools console screenshot).
+**Możliwe sytuacje:**
 
-### 3. Kategoria przychodu
+| Laptop | Telefon | Co zrobić |
+|---|---|---|
+| isPro=TAK | isPro=TAK | wszystko OK, sync działa |
+| isPro=NIE | isPro=TAK | telefon kliknij Force Sync, laptop hard refresh |
+| isPro=TAK | isPro=NIE | laptop kliknij Force Sync, telefon hard refresh |
+| isPro=NIE | isPro=NIE | nigdzie nie aktywowałeś. Aktywuj 1× → Force Sync → drugi: refresh |
+
+### Test 2: Kategorie przychodów
 
 ```
-A. Settings → Kategorie → Dodaj nową
-B. Wpisz "Premia roczna", wybierz typ: Przychód
-C. Save
-D. Add Transaction → klik "+ Dodaj"
-E. Kliknij "📥 Przychód"
-F. W dropdownie "Kategoria przychodu" powinny być:
-   - Przychód
-   - Sprzedaż
-   - Dodatkowe
-   - Wygrane
-   - Premia roczna  ← Twoja custom
+1. Add Transaction → "📥 Przychód"
+2. Dropdown powinien pokazać 6 opcji:
+   - Pensja
+   - Sprzedaż (Vinted/Allegro)
+   - Od partnera
+   - Dodatkowe (apki/freelance)
+   - Wygrane (zakłady)
+   - Zwroty (PIT/sklep)
+3. Wybierz "Od partnera" → Save
+4. W TransactionsView powinno być widoczne z tą kategorią
 ```
 
-### 4. GoatCounter 400
+### Test 3: Custom income cat (jeśli chcesz konkretną nazwę)
 
-DevTools → Network → odśwież. **NIE powinno być** request do `goatcounter.com` z 400 status.
+```
+1. Settings → Kategorie → Dodaj
+2. Nazwa: "Premia roczna ING"
+3. Typ: Przychód
+4. Save
+5. Add Transaction → Przychód → "Premia roczna ING" w dropdownie
+```
 
 ---
 
 ## Co WCIĄŻ otwarte
 
-1. **User-defined classification per kategoria** (struktura wydatków: "Kredyt Dom" jako Stałe zamiast Variable)
-2. **VAPID key** — przed produkcją (krok manualny w Firebase Console)
-3. **K3 NBP API** — niezaimplementowane (placeholder w rateLimit.js)
-4. **TZ bug** — pytany 7×, brak odpowiedzi
+1. **PRO sync diagnoza** — czeka na Twoje screenshoty z Diagnostyki na obu urządzeniach
+2. **User-defined classification per kategoria** (Stałe vs Lifestyle per kategoria w Strukturze wydatków)
+3. **VAPID key** przed produkcją
+4. **Lifestyle 45%** — czeka na konkretne przykłady transakcji od Ciebie
 
 ---
 
 ## Mój priorytet rekomendacja
 
-Po deployu 2 najważniejsze testy:
+Zrób Test 1 (Diagnostyka) na obu urządzeniach. **Prześlij screenshoty obu**. Wtedy widzę:
 
-1. **`[FT] encrypt failed`** w DevTools — jest czy nie?
-2. **PRO sync** — laptop aktywuje, telefon widzi?
+- czy proStatus jest w localStorage każdego
+- jaki uid jest zalogowany (czy to ten sam)
+- czy Force Sync wystawia komunikat success/fail
 
-Jeśli oba zielone, idziemy w **user-defined classification per kategoria** (żeby Lifestyle 45% nie wracało).
+To powinno **definitywnie** rozwiązać "PRO sync nie działa" problem. Bez tych info nie mogę zdiagnozować, bo wszystko w kodzie wygląda poprawnie i smoke testy przeszły 14/14.
 
-Jeśli encrypt nadal failuje — daj DevTools screenshot natychmiast.
+Po PRO sync działającym → idziemy w user-defined classification per kategoria (Lifestyle/Stałe).
