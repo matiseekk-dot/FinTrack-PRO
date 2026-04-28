@@ -1,269 +1,285 @@
-# FinTrack PRO v1.2.2 — 4 bugfixy ze zrzutów ekranu (2026-04-28)
+# FinTrack PRO v1.2.3 — Bug F (Inwestycje), Bug G (edycja duplikuje), 4 UX (2026-04-28)
 
-`package.json` 1.2.1 → 1.2.2.
+`package.json` 1.2.2 → 1.2.3.
 
 ## TL;DR
 
-Cztery konkretne bugi z Twoich screenshotów + jeden nieadresowany (Bug F czeka na info).
-
-| # | Bug | Status |
+| # | Co | Status |
 |---|-----|--------|
-| A | Pierwszy dzień nowego cyklu pokazuje stary cykl jako bieżący ("100% przekroczony, 0 dni do końca") | ✅ Fix |
-| B | Trip selector przy dodawaniu tx pokazuje tylko aktywne wyjazdy — nie da się tagować pre-trip wydatków | ✅ Fix |
-| C | IncomeTypesBreakdown nie ma nawigacji wstecz | ✅ Fix |
-| D | "Poduszka finansowa" goal pokazuje stary `acc.balance` zamiast `getEffectiveBalance(acc, portfolio)` | ✅ Fix |
-| E | Limity 110% (Muzyka, Zakłady) | ✅ Auto-fix przez Bug A |
-| F | Inwestycje 11 000 zł "nie zgadza się" | ⏳ Potrzebuję info — patrz koniec |
+| **F** | Inwestycje 11 000 zł zamiast 11 308,56 — Dashboard używał frozen acc.balance | ✅ Fix |
+| **G** | Edycja transakcji typu „transfer" duplikuje ją w widoku transakcji | ✅ Fix |
+| 1 | Struktura wydatków — kliknij Stałe/Zmienne/Lifestyle żeby zobaczyć kategorie pod spodem | ✅ Done |
+| 2 | Wydatki dzienne — top 7 dni + przycisk „Pokaż wszystkie" | ✅ Done |
+| 3 | Ranking wydatków — top 5 + expand · NOWY widget Ranking przychodów | ✅ Done |
+| 4 | Wydatki per miejsce — top 7 + expand do top 30 | ✅ Done |
 
-Build zielony (vite 2384 modułów, 22.8s, 344KB raw / 86KB gzip).
-Smoke testy: `getCurrentCycleMonth` 10/10, `changeCycleDay` 5/5 (zachowane z v1.2.1), integracja Bug A 7/7.
+Build zielony (vite 2384 modułów, 37s, 351KB raw / 87KB gzip — +7KB względem v1.2.2). Smoke testy F+G pass.
 
 ---
 
-## Bug A — Edge case: dziś = pierwszy dzień nowego cyklu
+## Bug F — Inwestycje 11 000 zamiast 11 308,56
 
-### Co widziałeś
+### Dlaczego myliło na screenshocie
 
-Screenshoty Image 1 + Image 2:
-- 28 kwietnia, +9 952,09 zł, 8 transakcji ✓
-- Limity „Muzyka 110%", „Zakłady 110%" 🔴
-- „Możesz jeszcze wydać 0,00 zł — Budżet wyczerpany" 🔴
-- „Prognoza końca miesiąca −13 303,00 zł, ~23 738,00 zł szac. wydatki" 🔴
-- „100% miesiąca minęło, 0 dni do końca" 🔴
+Image 1 z poprzedniego turn'a (Portfel → Inwestycje):
+- XTBINW 1 szt × avg 10800 PLN, current 11 308,56 zł
+- pnlPLN +508,56 (+4.71%)
 
-### Dlaczego
+Image 1 dwa tury wcześniej (Dashboard):
+- INWESTYCJE 11 000,00 zł
 
-Twój `cycleDay = 28`. To znaczy że cykl rozliczeniowy „kwietniowy" trwa **28.03 – 27.04**. Wczoraj (27.04) ten cykl się skończył. Dziś (28.04) jest **pierwszym dniem nowego cyklu** (28.04 – 27.05).
+Różnica 308,56 zł = **portfolio nie syncuje z Dashboardem**.
 
-Stary kod: `month = new Date().getMonth()` → zwraca `3` (kwiecień). Dashboard używa `month=3` jako „bieżący cykl rozliczeniowy" → ale ten cykl już wczoraj się zakończył. Stąd 100% przekroczony, 0 dni do końca, limity 110%.
+### Root cause
+
+`InvestmentsView.jsx` linia 46 (stary save):
+```js
+const item = { id: editItem ? editItem.id : Date.now(), ticker: ..., qty, ..., account, currency };
+```
+
+Gdy edytujesz item który był wcześniej dodany przez „Dodaj z konta" (linia 241-254), dostawał on `linkedAccId: acc.id` (np. 5 = XTB Inwestycyjne). Ale przy edycji ten klucz **nie istnieje w form** (form ma tylko ticker/name/qty/avgPrice/currentPrice/account/currency). Skoro `save()` budował item od zera, `linkedAccId` znikało po pierwszej edycji.
+
+Dashboard wywołuje `getEffectiveBalance(account, portfolio)`:
+```js
+if (!account || account.type !== "invest") return baseBalance;
+const linked = portfolio.filter(p => p && p.linkedAccId === account.id);
+if (linked.length === 0) return baseBalance;  // ← TU: skoro linkedAccId zniknął
+return linked.reduce((s, p) => s + p.valuePLN, 0);
+```
+
+Gdy `linked.length === 0`, fallback na `acc.balance` (frozen 11000 — ostatnio zapisany w accounts).
 
 ### Fix
 
-Nowy helper `getCurrentCycleMonth(cycleDayHistory)` w `utils.js`:
+`InvestmentsView.jsx` save spread'uje istniejący item:
 ```js
-function getCurrentCycleMonth(cycleDayOrHistory) {
-  const today = new Date();
-  const m = today.getMonth();
-  const day = resolveCycleDay(m, cycleDayOrHistory, today.getFullYear());
-  if (day <= 1) return m;                                    // calendar mode
-  if (today.getDate() >= day) {
-    return m + 1 > 11 ? 0 : m + 1;                            // wrap dec → jan
-  }
-  return m;
+const base = editItem ? { ...editItem } : { id: Date.now() };
+const item = { ...base, ticker: ..., qty, ..., account, currency };
+```
+
+`linkedAccId`, jak każde inne pole spoza form, przechodzi z editItem do nowego item. Dashboard znowu znajduje match → liczy `sum(valuePLN)` = 11 308,56 zł.
+
+### Co zrobić po deployu
+
+1. Hard refresh (Ctrl+Shift+R)
+2. Otwórz Portfel → Inwestycje, znajdź XTBINW
+3. Kliknij Edytuj, kliknij Zapisz (bez zmian w polach) — to zapisze item z odzyskanym linkedAccId
+4. Dashboard od razu pokaże 11 308,56 zł zamiast 11 000
+
+Po fix nowe edycje już nie zgubią linka.
+
+### Pomocniczy walidator (na przyszłość)
+
+Jeśli to się powtórzy, w DevTools console sprawdź:
+```js
+const stored = JSON.parse(localStorage.getItem("fintrack_v1"));
+stored.portfolio.forEach(p => console.log(p.ticker, "linkedAccId:", p.linkedAccId));
+```
+
+`undefined` przy invest account = bug F powtórzony.
+
+---
+
+## Bug G — Edycja transferu duplikuje
+
+### Co widziałeś (Image 3)
+
+W liście transakcji widać jednocześnie:
+- Przelew ← Konto PKO (+5000)
+- Przelew → Konto Revolut (−5000)
+
+Te dwie się sumują w obu kierunkach przy edycji — czyli pewnie były wcześniej, edytowałeś, kod dodał kolejne 2 zamiast nadpisać.
+
+### Root cause
+
+`TransactionsView.jsx` linia 82-99 (stary kod):
+```js
+if (form.type === "transfer" && form.toAcc && parseInt(form.toAcc) !== parseInt(form.acc)) {
+  // ... tworzy 2 nowe tx (txOut + txIn) ...
+  setTransactions(tx => [txIn, txOut, ...tx]);
+  // ... aktualizuje balance kont ...
+  setModal(false);
+  return;
 }
 ```
 
-Logika: jeśli `today.getDate() >= cycleDay`, jesteśmy już w nowym cyklu, więc bieżący month to `current+1`.
+Brak checka `if (editingId)`. Niezależnie czy to nowy transfer czy edycja istniejącego — kod wstawia 2 nowe rekordy + zostawia stary niezmieniony.
 
-W `App.jsx`:
-1. Nowy `userNavigatedMonthRef` useRef — ustawia się gdy user kliknie strzałkę
-2. Wrapper `setMonthByUser` → ustawia flag + standard setMonth
-3. Auto-snap useEffect po loadzie: jeśli user nie nawigował manualnie, snap month do `getCurrentCycleMonth(...)`
-4. Dashboard dostaje `setMonth={setMonthByUser}` zamiast `setMonth`
-
-Po fix dla Twojego przypadku (28.04, cycleDay=28): Dashboard pokazuje cykl majowy 28.04–27.05 jako bieżący → 0% przekroczony, prognoza pełna.
-
-### Edge case: zmiana cycleDay w środku miesiąca
-
-Twoja sytuacja po migracji:
-- `cycleDayHistory: [{from: "2024-11-01", day: 26}, {from: "2026-04-01", day: 28}]`
-- Cykl marcowy (cd=26): 26.02 – 25.03
-- Cykl kwietniowy (cd=28): 28.03 – 27.04
-- **Luka: 26-27.03 (2 dni)** — tx z tych dni nie wpadną do żadnego cyklu miesięcznego
-
-Tx z tej luki pojawiają się w widoku „Wszystkie transakcje", ale nie wchodzą do żadnej sumy cyklu. Jeśli masz tam jakieś, można:
-- Edytować tx i zmienić datę na 25.03 (wpadną w cykl marca) lub 28.03 (wpadną w cykl kwietnia)
-- Albo zignorować — to 2 dni z 1.5 roku Twojej historii, nie zmieniają wniosków
-
-Pełna implementacja „bezstratnej" historii cycleDay wymaga refactoru `getCycleRange` (split cyklu na pół-cykle przy zmianie). Odkładam — gdyby było potrzebne, daj znać.
-
----
-
-## Bug B — Trip selector pokazuje tylko aktywne wyjazdy
-
-### Co widziałeś
-
-Image 3: w modalu dodawania tx, sekcja „PRZYPISZ DO WYJAZDU" pokazuje tylko `Bez tagu` + `Ostrawa`. Drugi wyjazd (Serbia/Turcja) nie istnieje w selektorze.
-
-### Dlaczego
-
-W v1.2.0 selektor używał `getActiveTrips(trips)` który zwraca tylko wyjazdy gdzie dziś jest między `dateFrom-3` a `dateTo+3`. Wyjazdy w przyszłości (Serbia za 2-3 miesiące) były niewidoczne.
-
-To blokuje legitne use case: rezerwacja hotelu na 3 miesiące przed wyjazdem, lot kupiony 6 miesięcy wcześniej, etc.
+Dla normalnych tx (expense/income) niżej w kodzie jest osobny branch z `if (editingId)` który robi `tx.map(t => t.id === editingId ? {...t, ...txData} : t)`. Ale do tego brancha kod nigdy nie dochodzi gdy type=transfer, bo wcześniej `return`.
 
 ### Fix
 
-Nowa funkcja `getSelectableTrips(trips)` w `lib/trips.js`:
-- Aktywne (dziś w zakresie ±3 dni) → pokazuje + zielony znacznik ●
-- Nadchodzące do **90 dni naprzód** → pokazuje
-- Niedawno zakończone do **14 dni wstecz** → pokazuje (na wypadek tx wprowadzonych z opóźnieniem)
-- Sortowanie: najpierw aktywne, potem chronologicznie
+W transferze, gdy `editingId` jest set, **najpierw usuwamy starą tx** (i odwracamy jej balance), potem dodajemy nową parę:
 
-W `TransactionsView.jsx`:
-- `selectable = getSelectableTrips(trips)` — lista dostępnych w UI
-- `active = getActiveTrips(trips)` — używane tylko jako preselect/wyróżnienie wizualne (zielona kropka, jaśniejszy kolor tekstu)
-
-Edge case: lot na 7 miesięcy do przodu nadal nie będzie tagowalny (poza 90 dniami). Jeśli to jest dla Ciebie real use case (np. rezerwacja hotelu w styczniu na lipiec), zmień `TRIP_FUTURE_DAYS` w `lib/trips.js`. Albo edytuj tx ręcznie po dodaniu wyjazdu.
-
----
-
-## Bug C — IncomeTypesBreakdown bez nawigacji
-
-### Co widziałeś
-
-Image 4: STRUKTURA PRZYCHODÓW pokazuje „Pensja 100% 10.4k zł" + „Główne źródło: Ekwiwalent — 3000,00 zł". Mówisz że nie ma wszystkiego i nie da się cofnąć do zeszłego miesiąca.
-
-### Dlaczego
-
-Pochodna Bug A — widget dostawał `monthTx` pre-filtered z parent (AnalyticsView) który używał `month` z Dashboardu. Dla bieżącego cyklu (28.04 – 27.05) widget widzi tylko jedną tx przychodową (Ekwiwalent 3000) bo to dopiero pierwszy dzień. Nie ma jeszcze pensji ani Vinted.
-
-Plus widget nie miał własnej navigacji — user nie mógł przeskoczyć do zeszłego cyklu.
-
-### Fix
-
-W `AnalyticsWidgets.jsx` IncomeTypesBreakdown:
-- Sygnatura zmieniona: `(transactions, month, cycleDay)` zamiast `(monthTx)`
-- Lokalny `localMonth` state (initialized z `parentMonth`)
-- Strzałki ◀ ▶ w nagłówku do nawigacji
-- Przycisk „Dziś" (widoczny gdy `localMonth ≠ parentMonth`) - powrót do bieżącego
-- Header pokazuje aktualnie wybrany miesiąc: „STRUKTURA PRZYCHODÓW · Kwiecień"
-- Empty state „Brak przychodów w [miesiąc]" zamiast `return null`
-
-Dlaczego lokalny state a nie globalny `setMonth`? Bo nie chcemy żeby kliknięcie strzałki w widget przesuwało CAŁY Analytics. User może chcieć zerknąć na zeszłe przychody nie ruszając reszty.
-
----
-
-## Bug D — Goal pokazuje stary acc.balance
-
-### Co widziałeś
-
-Image 5: „Poduszka finansowa 22% — 11 000,00 zł / 50 000,00 zł — XTB Inwestycyjne". Mówisz że nie zgadza się kwota.
-
-### Dlaczego
-
-W v1.1.1 fix K6 dodał `getEffectiveBalance(acc, portfolio)` który dla kont typu `invest` sumuje wartość pozycji z `portfolio[]` (gdzie `linkedAccId === acc.id`). Dashboard tego używa przez `sumByGroup`.
-
-Ale `GoalsView` przeoczyłem:
 ```js
-const effectiveSaved = acc ? acc.balance : goal.saved;  // stary balance
+if (editingId) {
+  const oldTx = transactions.find(t => t.id === editingId);
+  if (oldTx) {
+    if (setAccounts) {
+      setAccounts(accs => accs.map(a =>
+        a.type !== "invest" && a.id === oldTx.acc
+          ? { ...a, balance: parseFloat((a.balance - oldTx.amount).toFixed(2)) }
+          : a
+      ));
+    }
+    setTransactions(tx => tx.filter(t => t.id !== editingId));
+  }
+  setEditingId(null);
+}
+// ... potem standardowa logika dodawania pary tx
 ```
 
-Gdy XTB Inwestycyjne ma frozen `acc.balance = 11000` ale portfolio aktualizuje się rynkowo (np. faktyczna wartość 12 500 zł), goal nadal pokazuje 11 000.
+### Edge case który był w starym kodzie
 
-### Fix
+Edycja jednej połowy transferu (np. „Przelew ← Konto PKO") usuwa z bazy tylko tę jedną tx i tworzy nową parę. Druga połowa starego transferu (`Przelew → Konto Revolut`) zostaje **osierocona**. Statystyki nie cierpią (transfery są kategorii "inne" więc się nie liczą do wydatków/przychodów), ale w widoku transakcji jest brzydko.
 
-`GoalsView.jsx`:
-- Import `getEffectiveBalance` z `lib/accountTypes.js`
-- Nowy prop `portfolio = []`
-- `const effectiveSaved = acc ? getEffectiveBalance(acc, portfolio) : goal.saved`
+Pełny fix wymaga linkowania par transferów (np. wspólny `transferId`) — odkładam do v1.3.0. Na razie po edycji transferu **sprawdź czy nie ma osieroconej drugiej połowy** i ręcznie ją usuń.
 
-Wire propa: `App.jsx → PlansView → GoalsView`. PlansView dostała `portfolio` jako prop i przekazuje do GoalsView.
+Lepsze rozwiązanie: jeśli chcesz zmienić transfer — usuń starą parę (oba klucze są jeden po drugim w liście) i dodaj świeżą.
 
 ---
 
-## Bug E — Limity 110%
+## Feature 1 — Struktura wydatków expandable
 
-Pochodna Bug A. Po naprawie A, Dashboard pokazuje bieżący cykl (28.04-27.05) → limity są na 0% bo dopiero pierwszy dzień. Auto-fix.
+### Co widziałeś (Image 4)
+
+```
+STRUKTURA WYDATKÓW
+Stałe        58% doch.   6.1k zł
+Zmienne     114% doch.  11.9k zł
+Lifestyle   117% doch.  12.3k zł
+```
+
+I uwaga: „dobrze byłoby wiedzieć co się kryje pod tymi kategoriami".
+
+### Co zrobiłem
+
+W `AnalyticsWidgets.jsx` `ExpenseTypesBreakdown` jest teraz klikalny:
+- Klik na „Stałe" → rozwinie pod spodem listę kategorii pod tym typem (Rachunki, Zakupy z ich kwotami i %)
+- Klik na „Zmienne" → Jedzenie / Transport / Zdrowie
+- Klik na „Lifestyle" → Kawiarnia / Rozrywka / Muzyka / Ubrania / Prezenty / Alkohol / Bukmacher / Inne
+- Tylko jedna sekcja może być otwarta na raz (klik innej zamyka poprzednią)
+- Wskaźnik ▶/▼ przy nazwie typu
+
+### Co cię może zaskoczyć
+
+Mapowanie cat → typ jest hardkodowane w pliku `AnalyticsWidgets.jsx` linia 13-20:
+```js
+const EXPENSE_TYPES = {
+  investment: ["inwestycje"],
+  fixed:      ["rachunki","zakupy"],
+  uncontrollable: ["rzad","rząd"],
+  variable:   ["jedzenie","transport","zdrowie"],
+  lifestyle:  ["kawiarnia","rozrywka","muzyka","ubrania","prezenty","alkohol","bukmacher","inne"],
+};
+```
+
+Nie wiem czy to mapowanie się zgadza z Twoją intuicją. „Auto" które jest Twoją top kategorią z Image 6 (2276 zł) **nie jest tu wymienione** = traktowane jako fallback (default w `getExpenseType` zwraca `"variable"`). Ale przy expandzie zobaczysz Auto pod „Zmienne".
+
+Jeśli chcesz przenieść Auto do „Stałe" (bo to kredyt+benzyna, bardziej fixed niż variable) — daj znać, zmienię mapowanie.
 
 ---
 
-## Bug F — Inwestycje 11 000 zł nie zgadza się ⏳
+## Feature 2 — Wydatki dzienne top 7 + expand
 
-### Co widziałeś
+Wcześniej: lista wszystkich 30 dni miesiąca, dużo scrollowania.
 
-Image 1: w sekcji „Gotówka dostępna" pasek „INWESTYCJE 11 000,00 zł". W „Majątek łączny" też „INWESTYCJE 11 000,00 zł".
+Teraz: domyślnie **top 7 dni z największymi wydatkami** (sortowane malejąco po kwocie). Pod listą przycisk „▼ Pokaż wszystkie dni (jeszcze X)" → rozwija pełną listę chronologicznie.
 
-Mówisz że to się nie zgadza.
+Logika koloru bez zmian: kolor barbeli zależy od średniej dziennej:
+- ≤ 1.3× śr. → zielony
+- 1.3-2× śr. → pomarańczowy
+- > 2× śr. → czerwony
 
-### Czego nie wiem
+Twoje top 7 z screenshota Image 5: 28 (6194), 01 (2888), 11 (2146), 26 (1674), 10 (1389), 25 (1080), 14 (998).
 
-Nie wiem co konkretnie powinno być wartością. Możliwości:
-1. Konto „XTB Inwestycyjne" ma faktyczną zawartość portfela ≠ 11 000 (np. 14 500 z aktualnej wyceny ETF), ale balance konta jest stary (11 000) i `portfolio[]` jest pusty/bez `linkedAccId` → effectiveBalance fallback do `acc.balance = 11000`
-2. Masz w portfolio kilka pozycji z `valuePLN` które się sumują do np. 13 500, ale Dashboard pokazuje 11 000 → bug w `sumByGroup` lub `getEffectiveBalance`
-3. „11 000" to suma kilku invest accounts ale pominęło jakieś (np. konto bez `type: invest` ale z investmentami)
-4. Suma się zgadza księgowo (=11 000 zł na saldzie XTB), ale Ty oczekujesz że to się aktualizuje rynkowo i **nie aktualizuje się** bo nie wpisałeś świeżych cen
+---
 
-### Co potrzebuję
+## Feature 3 — Ranking wydatków top 5 + expand · Ranking przychodów
 
-- W aplikacji: **Portfel → Inwestycje** — ile pozycji widzisz, jaka jest suma `valuePLN` po prawej?
-- W aplikacji: **Portfel → Konta** — co konto „XTB Inwestycyjne" ma jako balance, czy jego typ to `invest`?
-- Czego oczekujesz że ma być pokazane jako „Inwestycje 11 000"? Aktualna wycena rynkowa portfela? Saldo cash konta XTB? Suma cash + papiery?
+### Wydatki
 
-Jak odpowiesz, naprawię w v1.2.3.
+Wcześniej: pełna lista 11+ kategorii.
+
+Teraz: top 5 + przycisk „▼ Pokaż wszystkie kategorie (X więcej) +YYYY zł" pokazujący ile suma z reszty. Po expandzie przycisk „▲ Pokaż tylko top 5".
+
+### Przychody — nowy widget
+
+Mirror rankingu wydatków, z zielonym akcentem (ikona/przycisk #10b981). Pokazuje:
+- # rankingu
+- Ikona kategorii
+- Nazwa + % udziału
+- Pasek progress
+- Kwota
+
+Top 5 + expand identycznie jak wydatki. Wyświetla się **tylko jeśli są przychody w bieżącym cyklu** (inaczej cały widget jest hidden — nie pokazuje pustego wiersza).
+
+---
+
+## Feature 4 — Wydatki per miejsce top 7 + expand do top 30
+
+Wcześniej: top 15 hardkodowane.
+
+Teraz: top 7 default + expand do top 30 (limit żeby nie wybuchnąć przy 200 unique miejscach z 1.5 roku Twojej historii). Stopka „Pokazano top 30 miejsc · X pominięto (drobne wydatki)" gdy więcej niż 30.
+
+### Drobny side-effect
+
+`maxVal` (do skali pasków) jest teraz liczony z **widocznych pozycji**, nie z całej listy. To znaczy że po expandzie paski zachowują się tak samo (najwyższy bar = top1 = 100%) ale gdy zwijasz to 7. miejsce ma znowu 100% — pewnie ci się to spodoba bo łatwiej porównać miejsca między sobą.
 
 ---
 
 ## Pliki
 
-### Nowe (0)
-Brak — wszystkie zmiany w istniejących plikach.
-
-### Zmodyfikowane (7)
+### Zmodyfikowane (5)
 ```
-src/utils.js                              [+ getCurrentCycleMonth helper, eksport]
-src/App.jsx                               [+ userNavigatedMonthRef, setMonthByUser, auto-snap useEffect, portfolio do PlansView]
-src/lib/trips.js                          [+ getSelectableTrips funkcja + export]
-src/views/TransactionsView.jsx            [Trip selector używa getSelectableTrips zamiast getActiveTrips, znacznik ● dla aktywnych]
-src/views/PlansView.jsx                   [+ portfolio prop, przekazane do GoalsView]
-src/views/GoalsView.jsx                   [import getEffectiveBalance, + portfolio prop, effectiveSaved używa portfolio]
-src/components/AnalyticsWidgets.jsx       [IncomeTypesBreakdown — own month state + ChevronLeft/Right navigator + empty state]
-src/views/AnalyticsView.jsx               [IncomeTypesBreakdown wywołanie zaktualizowane]
-package.json                              [1.2.1 → 1.2.2]
+src/views/InvestmentsView.jsx             [Bug F: spread editItem w save()]
+src/views/TransactionsView.jsx            [Bug G: editingId guard w transfer branch]
+src/components/AnalyticsWidgets.jsx       [Feature 1: ExpenseTypesBreakdown expand + getCat import]
+src/views/AnalyticsView.jsx               [Feature 2,3,4: 4 expand state'y + refactor 4 sekcji + nowy ranking przychodów]
+package.json                              [1.2.2 → 1.2.3]
 ```
 
-### Bundle size
-| Wersja  | index.js (raw) | index.js (gzipped) |
-|---------|----------------|---------------------|
-| v1.1.1  | 308 KB         | 78 KB               |
-| v1.2.0  | 354 KB         | 87 KB               |
-| v1.2.1  | 342 KB         | 85 KB               |
-| v1.2.2  | 344 KB         | 86 KB               |
+### Bundle
+| Wersja  | index.js (raw) | gzip |
+|---------|---------|------|
+| v1.2.2  | 344 KB  | 86 KB |
+| v1.2.3  | 351 KB  | 87 KB |
 
-+2KB / +1KB gzip. Akceptowalne dla 4 buugfixów + IncomeTypes navigator.
++7KB / +1KB gzip — koszt 1 fixu + 4 expandów + nowy widget przychodów. Akceptowalne.
 
 ---
 
-## Deployment + manual smoke test
+## Manual smoke test
 
-```bash
-npm install
-npm run build
-git add -A && git commit -m "v1.2.2: Bug A cycleDay edge case + Bug B/C/D fixes"
-git push --force
-```
-
-### Manual smoke test (po deployu)
-
-**Dziś (28.04):**
-1. Hard refresh (Ctrl+Shift+R)
-2. Dashboard:
-   - Wpłynęło/Wydano powinny pokazywać sumy z cyklu **majowego** (28.04-27.05) — czyli prawie 0 bo dopiero pierwszy dzień
-   - Limity Muzyka/Zakłady → 0% (jeśli dziś nic nie wydałeś w tych kat)
-   - „Możesz jeszcze wydać" > 0 zł
-   - „Prognoza końca miesiąca" pokazuje normalną kwotę (nie −13k)
-   - „X% miesiąca minęło · X dni do końca" → ~3% / 29 dni
-3. Strzałkę ◀ kliknij w Dashboard:
-   - Powinieneś widzieć **kwiecień** (cykl 28.03-27.04 = ten który się zakończył wczoraj)
-   - Limity 110% TAM (bo był stary cykl)
-   - Wpłynęło/Wydano = sumy z 28.03-27.04
-4. Goal „Poduszka finansowa":
-   - Sprawdź czy procent się zgadza z aktualnym `valuePLN` z portfolio
-5. Modal „Dodaj transakcję" → expense → przewiń do „PRZYPISZ DO WYJAZDU":
-   - Powinny być widoczne: aktywne (z ● kropka) + nadchodzące do 90 dni + niedawno zakończone do 14 dni
-   - Jeśli masz Serbia (lipiec) — powinna już być widoczna jeśli za < 90 dni, niewidoczna jeśli > 90 dni
-6. Analiza → przewiń do STRUKTURA PRZYCHODÓW:
-   - W headerze widoczne strzałki ◀ ▶
-   - Kliknij ◀ — przeskoczy do marca, pokaże Twoje przychody marcowe
-   - Pojawi się przycisk „Dziś" — kliknij żeby wrócić
-
-### Krótki manual test żeby potwierdzić że Bug A faktycznie naprawiony
-
-Jutro (29.04) otwórz apkę → Dashboard powinien dalej pokazywać cykl majowy 28.04-27.05. Po hard refresh — to samo. Kliknij ◀ → kwietniowy. Kliknij ▶ → majowy. To znaczy że auto-snap działa i strzałki też.
+1. Hard refresh.
+2. **Bug F**: Portfel → Inwestycje → XTBINW → Edytuj → Zapisz (bez zmian) → wróć na Dashboard. Sprawdź czy „Inwestycje" pokazuje 11 308,56 zł zamiast 11 000.
+3. **Bug G**: Dodaj świeży transfer (Konto PKO → Konto Revolut, 100 zł). Pojawią się 2 wpisy w transakcjach. Edytuj jeden z nich (np. zmień kwotę na 200), zapisz. Sprawdź:
+   - Dwa nowe wpisy z 200 zł
+   - **Pierwsza para 100 zł zniknęła** (przynajmniej jedna połowa — patrz edge case w sekcji Bug G)
+4. **Feature 1**: Analiza → Struktura wydatków → klik na „Stałe" → rozwinie się lista (Rachunki, Zakupy itd.) z kwotami. Klik ponownie zwija.
+5. **Feature 2**: Analiza → Wydatki dzienne → tylko top 7 dni → klik „Pokaż wszystkie dni" → cała lista chronologicznie.
+6. **Feature 3**:
+   - Analiza → Ranking wydatków → top 5 → klik „Pokaż wszystkie kategorie" → cała lista
+   - Pod nim NOWA karta „Ranking przychodów" → top 5 zielonych pozycji → expand identycznie
+7. **Feature 4**: Analiza → Wydatki per miejsce → top 7 → klik „Pokaż więcej miejsc" → top 30.
 
 ---
 
-## Wciąż otwarte
+## Wciąż otwarte (pytania bez odpowiedzi)
 
-- TZ bug („streak/daily reminder/data tx pokazuje złą datę") — **nadal czekam na konkretny przypadek**. Po hard refresh którą datę widzisz że jest zła i gdzie?
-- Bug F (Inwestycje 11 000) — czekam na info z Portfel → Inwestycje
-- 27 z audytu wciąż nieadresowane (K3 NBP, K4 ServiceWorker, K5 VAPID, ~15 ważnych, O3 GoalsView refactor)
+Z poprzednich zrzutów:
+
+1. **TZ bug** — pytałem 3 razy, wciąż nie wiem gdzie konkretnie data się rozjeżdża. Po dzisiejszych fixach przypomnij mi jeśli faktycznie to widzisz: który widok / które pole / jaka data jest błędna vs powinna być.
+
+2. **Insighty z Image 2** — pokazują „2276,36 zł na Auto / 14 736,99 mniej / 27 316,32 rocznie". Jeśli wiesz że to są stare dane sprzed v1.2.2 — będą poprawne po hard refresh dziś. Jeśli po refresh nadal źle — daj wiedzieć jakie liczby tam widzisz vs jakie powinny być.
+
+3. **Auto klasyfikacja kategorii** — chcesz żeby „Auto" było pod „Stałe" zamiast „Zmienne"? Jeśli tak, edytujemy mapowanie. Inne kategorie też możesz przenieść — pisz które.
+
+## Audyt — zaległości
+
+Z 39 z audytu O3 wciąż 27 nieadresowane:
+- 3 krytyczne: K3 NBP API, K4 Service Worker, K5 VAPID/FCM
+- ~15 ważnych
+- O3 GoalsView refactor (zostało po v1.2.1)
+
+Daj znać kiedy bierzesz tydzień 2 — najpilniejsze K3+K4+K5 (pieniądze + notyfikacje).

@@ -203,6 +203,11 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
   const [period, setPeriod]         = useState("month"); // month|quarter|half|year
   const [groupBy, setGroupBy]       = useState("cat");   // cat | place
   const [sortBy, setSortBy]         = useState("total"); // total | count | avg
+  // Expandable widgets — domyślnie zwinięte (top X), klik rozwija pełną listę
+  const [dailyExpanded,    setDailyExpanded]    = useState(false);
+  const [rankingExpanded,  setRankingExpanded]  = useState(false);
+  const [incomeRankExpanded, setIncomeRankExpanded] = useState(false);
+  const [shopsExpanded,    setShopsExpanded]    = useState(false);
 
   //    Period filter                                                          
   const getPeriodTx = () => {
@@ -487,7 +492,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
         );
       })()}
 
-      {/* Daily spending */}
+      {/* Daily spending — top 7 dni + expand */}
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Wydatki dzienne</div>
@@ -498,55 +503,189 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
         {(() => {
           const avgDaily = dayData.length > 0 ? dayData.reduce((s,d) => s+d.v, 0) / dayData.length : 0;
           const maxVal   = dayData.length > 0 ? Math.max(...dayData.map(d => d.v)) : 1;
+          const TOP_DAYS = 7;
+          const sortedByVal = [...dayData].sort((a, b) => b.v - a.v);
+          const topDays = sortedByVal.slice(0, TOP_DAYS);
+          const restCount = dayData.length - topDays.length;
+          // Wyświetlana lista: top w kolejności malejącej, lub wszystkie chronologicznie po expand
+          const visibleDays = dailyExpanded ? dayData : topDays;
           return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              {dayData.map(({ d, v }) => {
-                const pct   = maxVal > 0 ? (v / maxVal) * 100 : 0;
-                const color = v > avgDaily * 2 ? "#ef4444" : v > avgDaily * 1.3 ? "#f59e0b" : "#10b981";
-                return (
-                  <div key={d} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontSize: 10, color: "#475569", fontFamily: "'DM Mono', monospace", width: 20, flexShrink: 0, textAlign: "right" }}>{d}</div>
-                    <div style={{ flex: 1, background: "#060b14", borderRadius: 4, height: 20, overflow: "hidden" }}>
-                      <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 4,
-                        display: "flex", alignItems: "center", paddingLeft: 6, minWidth: v > 0 ? 2 : 0,
-                        transition: "width 0.4s ease" }}>
-                        {pct > 25 && <span style={{ fontSize: 10, color: "white", fontFamily: "'DM Mono', monospace", fontWeight: 600, whiteSpace: "nowrap" }}>{fmt(v)}</span>}
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {visibleDays.map(({ d, v }) => {
+                  const pct   = maxVal > 0 ? (v / maxVal) * 100 : 0;
+                  const color = v > avgDaily * 2 ? "#ef4444" : v > avgDaily * 1.3 ? "#f59e0b" : "#10b981";
+                  return (
+                    <div key={d} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 10, color: "#475569", fontFamily: "'DM Mono', monospace", width: 20, flexShrink: 0, textAlign: "right" }}>{d}</div>
+                      <div style={{ flex: 1, background: "#060b14", borderRadius: 4, height: 20, overflow: "hidden" }}>
+                        <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 4,
+                          display: "flex", alignItems: "center", paddingLeft: 6, minWidth: v > 0 ? 2 : 0,
+                          transition: "width 0.4s ease" }}>
+                          {pct > 25 && <span style={{ fontSize: 10, color: "white", fontFamily: "'DM Mono', monospace", fontWeight: 600, whiteSpace: "nowrap" }}>{fmt(v)}</span>}
+                        </div>
                       </div>
+                      {pct <= 25 && v > 0 && <div style={{ fontSize: 10, color, fontFamily: "'DM Mono', monospace", width: 70, flexShrink: 0 }}>{fmt(v)}</div>}
                     </div>
-                    {pct <= 25 && v > 0 && <div style={{ fontSize: 10, color, fontFamily: "'DM Mono', monospace", width: 70, flexShrink: 0 }}>{fmt(v)}</div>}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+              {restCount > 0 && (
+                <button onClick={() => setDailyExpanded(e => !e)} style={{
+                  width: "100%", marginTop: 10, padding: "8px 12px",
+                  background: "#0f1825", border: "1px solid #1a2744", borderRadius: 8,
+                  color: "#60a5fa", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>
+                  {dailyExpanded
+                    ? `▲ Pokaż tylko top ${TOP_DAYS}`
+                    : `▼ Pokaż wszystkie dni (jeszcze ${restCount})`}
+                </button>
+              )}
+            </>
           );
         })()}
       </Card>
 
-      {/* Category list with percentages */}
+      {/* Category list with percentages — top 5 + expand */}
       <Card>
-        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Ranking wydatków</div>
-        {catData.map(({ cat, val, label, color, icon: Icon }, i) => {
-          const pct = totalExp > 0 ? (val / totalExp * 100) : 0;
-          return (
-            <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < catData.length-1 ? "1px solid #0f1a2e" : "none" }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#334155", width: 20, textAlign: "center" }}>#{i+1}</div>
-              <div style={{ background: color + "1a", borderRadius: 8, padding: 7 }}><Icon size={13} color={color}/></div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color }}>{pct.toFixed(1)}%</span>
-                </div>
-                <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3 }}/>
-                </div>
-              </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#94a3b8", width: 90, textAlign: "right" }}>{fmt(val)}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Ranking wydatków</div>
+          {catData.length > 5 && (
+            <div style={{ fontSize: 10, color: "#475569" }}>
+              {rankingExpanded ? `${catData.length} kat.` : `top 5 z ${catData.length}`}
             </div>
+          )}
+        </div>
+        {(() => {
+          const TOP = 5;
+          const visible = rankingExpanded ? catData : catData.slice(0, TOP);
+          const restCount = catData.length - visible.length;
+          const restSum = catData.slice(TOP).reduce((s, c) => s + c.val, 0);
+          return (
+            <>
+              {visible.map(({ cat, val, label, color, icon: Icon }, i) => {
+                const pct = totalExp > 0 ? (val / totalExp * 100) : 0;
+                const isLast = i === visible.length - 1;
+                return (
+                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: !isLast || restCount > 0 ? "1px solid #0f1a2e" : "none" }}>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#334155", width: 20, textAlign: "center" }}>#{i+1}</div>
+                    <div style={{ background: color + "1a", borderRadius: 8, padding: 7 }}><Icon size={13} color={color}/></div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color }}>{pct.toFixed(1)}%</span>
+                      </div>
+                      <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3 }}/>
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#94a3b8", width: 90, textAlign: "right" }}>{fmt(val)}</div>
+                  </div>
+                );
+              })}
+              {!rankingExpanded && restCount > 0 && (
+                <button onClick={() => setRankingExpanded(true)} style={{
+                  width: "100%", marginTop: 8, padding: "10px 12px",
+                  background: "#0f1825", border: "1px solid #1a2744", borderRadius: 8,
+                  color: "#60a5fa", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <span>▼ Pokaż wszystkie kategorie ({restCount} więcej)</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", color: "#475569", fontSize: 11 }}>
+                    +{fmt(restSum)}
+                  </span>
+                </button>
+              )}
+              {rankingExpanded && catData.length > 5 && (
+                <button onClick={() => setRankingExpanded(false)} style={{
+                  width: "100%", marginTop: 8, padding: "8px 12px",
+                  background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
+                  color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>▲ Pokaż tylko top 5</button>
+              )}
+            </>
           );
-        })}
+        })()}
       </Card>
 
-      {/* Per-sklep / per-miejsce */}
+      {/* Ranking przychodów - mirror rankingu wydatków, top 5 + expand */}
+      {(() => {
+        const incomeMap = {};
+        monthTx.filter(t => t.amount > 0 && t.cat !== "inne").forEach(t => {
+          incomeMap[t.cat] = (incomeMap[t.cat] || 0) + t.amount;
+        });
+        const incomeData = Object.entries(incomeMap)
+          .map(([cat, val]) => {
+            const info = getCat(cat);
+            return { cat, val, label: info.label, color: info.color, icon: info.icon };
+          })
+          .sort((a, b) => b.val - a.val);
+        if (incomeData.length === 0) return null;
+        const totalInc = incomeData.reduce((s, c) => s + c.val, 0);
+        const TOP = 5;
+        const visible = incomeRankExpanded ? incomeData : incomeData.slice(0, TOP);
+        const restCount = incomeData.length - visible.length;
+        const restSum = incomeData.slice(TOP).reduce((s, c) => s + c.val, 0);
+        return (
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Ranking przychodów</div>
+              {incomeData.length > 5 && (
+                <div style={{ fontSize: 10, color: "#475569" }}>
+                  {incomeRankExpanded ? `${incomeData.length} kat.` : `top 5 z ${incomeData.length}`}
+                </div>
+              )}
+            </div>
+            {visible.map(({ cat, val, label, color, icon: Icon }, i) => {
+              const pct = totalInc > 0 ? (val / totalInc * 100) : 0;
+              const isLast = i === visible.length - 1;
+              return (
+                <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: !isLast || restCount > 0 ? "1px solid #0f1a2e" : "none" }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#334155", width: 20, textAlign: "center" }}>#{i+1}</div>
+                  <div style={{ background: color + "1a", borderRadius: 8, padding: 7 }}>{Icon && <Icon size={13} color={color}/>}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color }}>{pct.toFixed(1)}%</span>
+                    </div>
+                    <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3 }}/>
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#94a3b8", width: 90, textAlign: "right" }}>{fmt(val)}</div>
+                </div>
+              );
+            })}
+            {!incomeRankExpanded && restCount > 0 && (
+              <button onClick={() => setIncomeRankExpanded(true)} style={{
+                width: "100%", marginTop: 8, padding: "10px 12px",
+                background: "#0f1825", border: "1px solid #1a2744", borderRadius: 8,
+                color: "#10b981", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Space Grotesk', sans-serif",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span>▼ Pokaż wszystkie ({restCount} więcej)</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", color: "#475569", fontSize: 11 }}>
+                  +{fmt(restSum)}
+                </span>
+              </button>
+            )}
+            {incomeRankExpanded && incomeData.length > 5 && (
+              <button onClick={() => setIncomeRankExpanded(false)} style={{
+                width: "100%", marginTop: 8, padding: "8px 12px",
+                background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
+                color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}>▲ Pokaż tylko top 5</button>
+            )}
+          </Card>
+        );
+      })()}
+
+      {/* Per-sklep / per-miejsce — top 7 + expand do całej listy */}
       {(() => {
         const shopMap = {};
         const skipCats = ["inne", "inwestycje", "przychód", "sprzedaż", "dodatkowe", "bukmacherka"];
@@ -558,17 +697,28 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             shopMap[key].count++;
             shopMap[key].total += Math.abs(t.amount);
           });
-        const shops = Object.entries(shopMap)
+        const allShops = Object.entries(shopMap)
           .filter(([,d]) => d.count >= 1)
-          .sort((a,b) => b[1].total - a[1].total)
-          .slice(0, 15);
-        if (shops.length === 0) return null;
-        const maxVal = shops[0][1].total;
+          .sort((a,b) => b[1].total - a[1].total);
+        if (allShops.length === 0) return null;
+        const TOP = 7;
+        const EXPANDED_LIMIT = 30; // przy expand nie pokazuj wszystkich (np. 200) tylko sensowny limit
+        const visible = shopsExpanded ? allShops.slice(0, EXPANDED_LIMIT) : allShops.slice(0, TOP);
+        const restCount = allShops.length - visible.length;
+        const restSum = allShops.slice(visible.length).reduce((s, [,d]) => s + d.total, 0);
+        const maxVal = visible[0][1].total;
         return (
           <Card>
-            <div style={{ fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>🏪 Wydatki per miejsce</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>🏪 Wydatki per miejsce</div>
+              {allShops.length > TOP && (
+                <div style={{ fontSize: 10, color: "#475569" }}>
+                  {shopsExpanded ? `${visible.length} z ${allShops.length}` : `top ${TOP} z ${allShops.length}`}
+                </div>
+              )}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {shops.map(([name, data]) => {
+              {visible.map(([name, data]) => {
                 const cat   = getCat(data.cat);
                 const Icon  = cat.icon;
                 const pct   = maxVal > 0 ? (data.total / maxVal) * 100 : 0;
@@ -591,6 +741,33 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
                 );
               })}
             </div>
+            {!shopsExpanded && restCount > 0 && (
+              <button onClick={() => setShopsExpanded(true)} style={{
+                width: "100%", marginTop: 12, padding: "10px 12px",
+                background: "#0f1825", border: "1px solid #1a2744", borderRadius: 8,
+                color: "#60a5fa", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Space Grotesk', sans-serif",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span>▼ Pokaż więcej miejsc ({Math.min(restCount, EXPANDED_LIMIT - TOP)} więcej)</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", color: "#475569", fontSize: 11 }}>
+                  +{fmt(restSum)}
+                </span>
+              </button>
+            )}
+            {shopsExpanded && allShops.length > TOP && (
+              <button onClick={() => setShopsExpanded(false)} style={{
+                width: "100%", marginTop: 12, padding: "8px 12px",
+                background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
+                color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}>▲ Pokaż tylko top {TOP}</button>
+            )}
+            {allShops.length > EXPANDED_LIMIT && shopsExpanded && (
+              <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
+                Pokazano top {EXPANDED_LIMIT} miejsc · {allShops.length - EXPANDED_LIMIT} pominięto (drobne wydatki)
+              </div>
+            )}
           </Card>
         );
       })()}

@@ -280,16 +280,29 @@ function Insights({ transactions, month, cycleDay, income, expense, catData }) {
 };
 
 function ExpenseTypesBreakdown({ monthTx, income }) {
+  const [expanded, setExpanded] = useState(null); // "fixed" | "variable" | "lifestyle" | null
+
   const fixed      = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="fixed").reduce((s,t)=>s+Math.abs(t.amount),0);
   const variable   = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="variable").reduce((s,t)=>s+Math.abs(t.amount),0);
   const lifestyle  = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
   const investment = monthTx.filter(t=>t.amount<0&&getExpenseType(t.cat)==="investment").reduce((s,t)=>s+Math.abs(t.amount),0);
   const total = fixed + variable + lifestyle;
 
+  // Breakdown per kategoria w obrębie typu - rozwinięcie pokaże co się kryje pod "Stałe" itd.
+  const breakdownByType = (typeId) => {
+    const map = {};
+    monthTx
+      .filter(t => t.amount < 0 && getExpenseType(t.cat) === typeId)
+      .forEach(t => { map[t.cat] = (map[t.cat] || 0) + Math.abs(t.amount); });
+    return Object.entries(map)
+      .map(([cat, val]) => ({ cat, val, info: getCat(cat) }))
+      .sort((a, b) => b.val - a.val);
+  };
+
   const types = [
-    { lbl: "Stale",     val: fixed,      color: "#3b82f6", norm: 50 },
-    { lbl: "Zmienne",   val: variable,   color: "#f59e0b", norm: 30 },
-    { lbl: "Lifestyle", val: lifestyle,  color: "#ec4899", norm: 20 },
+    { id: "fixed",     lbl: "Stałe",     val: fixed,      color: "#3b82f6", norm: 50 },
+    { id: "variable",  lbl: "Zmienne",   val: variable,   color: "#f59e0b", norm: 30 },
+    { id: "lifestyle", lbl: "Lifestyle", val: lifestyle,  color: "#ec4899", norm: 20 },
   ];
 
   return (
@@ -298,26 +311,75 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
         letterSpacing: "0.08em", marginBottom: 12 }}>Struktura wydatkow</div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {types.map(({ lbl, val, color, norm }) => {
+        {types.map(({ id, lbl, val, color, norm }) => {
           const pct    = total > 0 ? val / total * 100 : 0;
           const pctInc = income > 0 ? val / income * 100 : 0;
           const over   = pctInc > norm;
+          const isOpen = expanded === id;
+          const breakdown = isOpen ? breakdownByType(id) : null;
+
           return (
-            <div key={lbl}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{lbl}</span>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: over ? "#f59e0b" : "#475569" }}>
-                    {pctInc.toFixed(0)}% doch. {over ? "↑" : ""}
+            <div key={id}>
+              <div onClick={() => val > 0 && setExpanded(isOpen ? null : id)}
+                style={{ cursor: val > 0 ? "pointer" : "default" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0",
+                    display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {val > 0 && <span style={{ fontSize: 9, color: "#475569" }}>{isOpen ? "▼" : "▶"}</span>}
+                    {lbl}
                   </span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12,
-                    fontWeight: 700, color }}>{fmtShort(val)} zl</span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: over ? "#f59e0b" : "#475569" }}>
+                      {pctInc.toFixed(0)}% doch. {over ? "↑" : ""}
+                    </span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12,
+                      fontWeight: 700, color }}>{fmtShort(val)} zl</span>
+                  </div>
+                </div>
+                <div style={{ background: "#060b14", borderRadius: 4, height: 6 }}>
+                  <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
+                    background: color, opacity: over ? 1 : 0.7, transition: "width 0.5s" }}/>
                 </div>
               </div>
-              <div style={{ background: "#060b14", borderRadius: 4, height: 6 }}>
-                <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
-                  background: color, opacity: over ? 1 : 0.7, transition: "width 0.5s" }}/>
-              </div>
+
+              {/* Expanded - lista kategorii pod tym typem */}
+              {isOpen && breakdown && breakdown.length > 0 && (
+                <div style={{
+                  marginTop: 8, marginLeft: 12, padding: "8px 12px",
+                  background: "#060b14", border: "1px solid #1a2744", borderRadius: 8,
+                  display: "flex", flexDirection: "column", gap: 6,
+                }}>
+                  {breakdown.map(({ cat, val: catVal, info }) => {
+                    const Icon = info.icon;
+                    const catPct = val > 0 ? (catVal / val * 100) : 0;
+                    return (
+                      <div key={cat} style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        fontSize: 11,
+                      }}>
+                        <div style={{
+                          background: info.color + "22", borderRadius: 6, padding: 4,
+                          flexShrink: 0,
+                        }}>
+                          {Icon && <Icon size={11} color={info.color}/>}
+                        </div>
+                        <span style={{ color: "#cbd5e1", fontWeight: 500, flex: 1 }}>
+                          {info.label}
+                        </span>
+                        <span style={{ color: "#475569", fontSize: 10 }}>
+                          {catPct.toFixed(0)}%
+                        </span>
+                        <span style={{
+                          fontFamily: "'DM Mono', monospace", fontWeight: 700,
+                          color: info.color, minWidth: 70, textAlign: "right",
+                        }}>
+                          {fmt(catVal)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -342,6 +404,7 @@ function ExpenseTypesBreakdown({ monthTx, income }) {
 
       <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
         Normy: Stale &lt;50% · Zmienne &lt;30% · Lifestyle &lt;20%
+        {total > 0 && <span style={{ color: "#475569" }}> · kliknij sekcję żeby rozwinąć</span>}
       </div>
     </div>
   );

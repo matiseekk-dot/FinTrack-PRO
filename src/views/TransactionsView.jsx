@@ -82,6 +82,25 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     if (form.type === "transfer" && form.toAcc && parseInt(form.toAcc) !== parseInt(form.acc)) {
       const fromId = parseInt(form.acc);
       const toId   = parseInt(form.toAcc);
+
+      // Edge case: user edytuje istniejącą tx i zmienia type na "transfer".
+      // Bez tego: stara tx zostaje, nowe 2 dodają się = duplikacja.
+      // Fix: usuń starą + zwróć balance, potem dodaj nową parę.
+      if (editingId) {
+        const oldTx = transactions.find(t => t.id === editingId);
+        if (oldTx) {
+          if (setAccounts) {
+            setAccounts(accs => accs.map(a =>
+              a.type !== "invest" && a.id === oldTx.acc
+                ? { ...a, balance: parseFloat((a.balance - oldTx.amount).toFixed(2)) }
+                : a
+            ));
+          }
+          setTransactions(tx => tx.filter(t => t.id !== editingId));
+        }
+        setEditingId(null);
+      }
+
       const txOut  = { id: Date.now(),     date: form.date, desc: `Przelew → ${(accounts.find(a=>a.id===toId)||{name:toId}).name}`, amount: -rawAmt, cat: "inne", acc: fromId };
       const txIn   = { id: Date.now()+1,   date: form.date, desc: `Przelew ← ${(accounts.find(a=>a.id===fromId)||{name:fromId}).name}`, amount: rawAmt,  cat: "inne", acc: toId  };
       setTransactions(tx => [txIn, txOut, ...tx]);

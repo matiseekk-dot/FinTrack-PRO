@@ -43,7 +43,11 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
     const val   = qty * cur;
     const pnl   = qty * (cur - avg);
     const pnlPct = avg > 0 ? ((cur - avg) / avg * 100) : 0;
-    const item  = { id: editItem ? editItem.id : Date.now(), ticker: form.ticker.toUpperCase(), name: form.name, qty, avgPrice: avg, currentPrice: cur, valuePLN: val, pnlPLN: pnl, pnlPct, account: form.account, currency: form.currency };
+    // Spread editItem żeby zachować pola spoza form (np. linkedAccId z "Dodaj z konta").
+    // Bez tego edycja gubi link do konta i Dashboard przestaje pokazywać aktualną wycenę
+    // → fallback do frozen acc.balance.
+    const base = editItem ? { ...editItem } : { id: Date.now() };
+    const item  = { ...base, ticker: form.ticker.toUpperCase(), name: form.name, qty, avgPrice: avg, currentPrice: cur, valuePLN: val, pnlPLN: pnl, pnlPct, account: form.account, currency: form.currency };
     if (editItem) setPortfolio(p => p.map(x => x.id === editItem.id ? item : x));
     else          setPortfolio(p => [...p, item]);
     setModal(false);
