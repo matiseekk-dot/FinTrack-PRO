@@ -42,11 +42,27 @@ async function encryptString(plaintext) {
     const combined = new Uint8Array(iv.length + ciphertext.byteLength);
     combined.set(iv, 0);
     combined.set(new Uint8Array(ciphertext), iv.length);
-    return "enc:v1:" + btoa(String.fromCharCode(...combined));
+    // KRYTYCZNE: NIE używaj String.fromCharCode(...combined) bo spread args ma limit
+    // ~125k w V8 i przy dużym state (>100k bytes plain) rzuca RangeError: Maximum
+    // call stack size exceeded. Używamy chunked iteration.
+    return "enc:v1:" + btoa(uint8ToBinaryString(combined));
   } catch (e) {
     console.error("[FT] encrypt failed", e);
     return plaintext;
   }
+}
+
+// Konwersja Uint8Array → binary string bez ryzyka stack overflow.
+// Standard String.fromCharCode(...arr) używa spread który ma limit ~125k argumentów.
+// Rozbijamy na chunki po 8k (z dużym marginesem) i konkatenujemy.
+function uint8ToBinaryString(arr) {
+  const CHUNK = 8192;
+  let result = "";
+  for (let i = 0; i < arr.length; i += CHUNK) {
+    const slice = arr.subarray(i, i + CHUNK);
+    result += String.fromCharCode.apply(null, slice);
+  }
+  return result;
 }
 
 async function decryptString(ciphertext) {

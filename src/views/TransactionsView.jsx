@@ -70,9 +70,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       showToast("Wprowadź poprawną datę", "error");
       return;
     }
-    const incomeCategories = ["przychód","sprzedaż","dodatkowe","bukmacherka"];
+    // v1.2.8: dynamicznie sprawdzamy czy form.cat jest income kategorią
+    // (BASE + custom z group: "income"), zamiast twardo zakodowanej listy.
+    const incomeCatsList = (allCats || CATEGORIES).filter(c => c.group === "income").map(c => c.id);
     const finalCat = form.type === "income"
-      ? (incomeCategories.includes(form.cat) ? form.cat : "przychód")
+      ? (incomeCatsList.includes(form.cat) ? form.cat : "przychód")
       : form.cat;
     const RATES = { EUR: 4.28, USD: 3.92, GBP: 5.02, CZK: 0.172, HUF: 0.011, PLN: 1 };
     const rate   = RATES[form.currency] || 1;
@@ -458,7 +460,19 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }} title={editingId ? "Edytuj transakcję" : "Nowa transakcja"}>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {[["expense","📤 Wydatek","#ef4444"],["income","📥 Przychód","#10b981"],["transfer","🔄 Przelew","#60a5fa"]].map(([v,l,c]) => (
-            <button key={v} onClick={() => setForm(f => ({...f, type: v}))} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}>
+            <button key={v} onClick={() => setForm(f => {
+              // v1.2.8: przy zmianie type ustaw sensowny default kategorii.
+              // Inaczej user przełącza na "Przychód" a w dropdownie ma "Jedzenie".
+              const incomeCatsList = (allCats || CATEGORIES).filter(cat => cat.group === "income");
+              const expenseCatsList = (allCats || CATEGORIES).filter(cat => cat.group === "essential" || cat.group === "lifestyle");
+              let nextCat = f.cat;
+              if (v === "income" && !incomeCatsList.find(cat => cat.id === f.cat)) {
+                nextCat = incomeCatsList[0]?.id || "przychód";
+              } else if (v === "expense" && !expenseCatsList.find(cat => cat.id === f.cat)) {
+                nextCat = "jedzenie";
+              }
+              return { ...f, type: v, cat: nextCat };
+            })} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}>
               {l}
             </button>
           ))}
@@ -577,6 +591,15 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             {(allCats||CATEGORIES).filter(c => (c.group === "lifestyle" || !c.group) && c.id !== "przychód" && c.id !== "inne").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             <option disabled>── Inne</option>
             <option value="inne">Inne</option>
+          </Select>
+        )}
+        {form.type === "income" && (
+          // v1.2.8: picker kategorii dla przychodów. Wcześniej brakował — wszystko leciało jako "przychód".
+          // Pokazuje BASE income kategorie + custom z group === "income".
+          <Select label="Kategoria przychodu" value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
+            {(allCats||CATEGORIES).filter(c => c.group === "income").map(c => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
           </Select>
         )}
         <Select label={form.type === "transfer" ? "Z konta" : "Konto"} value={form.acc} onChange={e => setForm(f => ({...f, acc: e.target.value}))}>
