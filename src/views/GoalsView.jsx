@@ -17,6 +17,7 @@ import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal, dateToLocal } from "../utils.js";
 import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { getEffectiveBalance } from "../lib/accountTypes.js";
 import { useToast } from "../hooks/useToast.js";
 import { RecurringReminder, MiniComparison } from "../components/SharedWidgets.jsx";
 function BudgetView({ transactions, budgets, setBudgets, month, cycleDay = 1 }) {
@@ -239,7 +240,7 @@ function ForecastTab() {
   );
 };
 
-function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive, allCats = [] }) {
+function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive, allCats = [], portfolio = [] }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
     if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
@@ -384,7 +385,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
           )}
           {goals.map(goal => {
             const acc  = accounts.find(a => a.id === goal.accId);
-            const effectiveSaved = acc ? acc.balance : goal.saved;
+            const effectiveSaved = acc ? getEffectiveBalance(acc, portfolio) : goal.saved;
             const pct  = Math.min(100, goal.target > 0 ? (effectiveSaved / goal.target * 100) : 0);
             const done = effectiveSaved >= goal.target;
             return (

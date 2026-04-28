@@ -478,7 +478,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
             <FinancialScore income={monthInc} expense={monthExp} transactions={transactions}
               month={month} cycleDay={cycleDay} elapsedDays={elapsed}/>
             <ExpenseTypesBreakdown monthTx={monthTx} income={monthInc}/>
-            <IncomeTypesBreakdown monthTx={monthTx}/>
+            <IncomeTypesBreakdown transactions={transactions} month={month} cycleDay={cycleDay}/>
             <Insights transactions={transactions} month={month} cycleDay={cycleDay}
               income={monthInc} expense={monthExp} catData={catData}/>
             <Recommendations income={monthInc} expense={monthExp} catData={catData}

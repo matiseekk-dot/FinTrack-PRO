@@ -18,7 +18,7 @@ import { useHaptic } from "../hooks/useHaptic.js";
 import { t } from "../i18n.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
-import { getActiveTrips } from "../lib/trips.js";
+import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
 function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
   const getLocalCat = (id) => {
     const found = (allCats || []).find(c => c.id === id);
@@ -577,14 +577,18 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           </Select>
         )}
 
-        {/* Trip selector - pokazuj tylko gdy expense + (aktywny wyjazd ISTNIEJE lub edytujemy tx z tripId) */}
+        {/* Trip selector — pokazuje aktywne (preselect) + nadchodzące do 90 dni
+            + niedawno zakończone do 14 dni. Pre-trip wydatki tagowalne (np. rezerwacja
+            hotelu na Serbię 2 miesiące przed wyjazdem). */}
         {form.type === "expense" && (() => {
+          const selectable = getSelectableTrips(trips || []);
           const active = getActiveTrips(trips || []);
+          const activeIds = new Set(active.map(t => t.id));
           const editingHasTrip = editingId && form.tripId != null;
-          if (active.length === 0 && !editingHasTrip) return null;
-          // Jeśli edytujemy tx z tripId którego już nie ma w aktywnych - dodaj do listy
-          const allOptions = [...active];
-          if (editingHasTrip && !active.find(t => t.id === form.tripId)) {
+          if (selectable.length === 0 && !editingHasTrip) return null;
+          // Jeśli edytujemy tx z tripId którego nie ma w selectable - dodaj
+          const allOptions = [...selectable];
+          if (editingHasTrip && !selectable.find(t => t.id === form.tripId)) {
             const orphan = (trips || []).find(t => t.id === form.tripId);
             if (orphan) allOptions.unshift(orphan);
           }
@@ -608,15 +612,18 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 </button>
                 {allOptions.map(trip => {
                   const selected = form.tripId === trip.id;
+                  const isActive = activeIds.has(trip.id);
                   return (
                     <button key={trip.id} onClick={() => setForm(f => ({ ...f, tripId: trip.id }))} style={{
                       padding: "6px 12px", borderRadius: 8, cursor: "pointer",
                       fontSize: 12, fontWeight: 600,
                       background: selected ? trip.color + "33" : "#060b14",
                       border: `1px solid ${selected ? trip.color : "#1a2744"}`,
-                      color: selected ? trip.color : "#64748b",
+                      color: selected ? trip.color : (isActive ? "#cbd5e1" : "#64748b"),
                       fontFamily: "'Space Grotesk', sans-serif",
+                      display: "inline-flex", alignItems: "center", gap: 5,
                     }}>
+                      {isActive && <span style={{ color: "#10b981", fontSize: 8 }}>●</span>}
                       {trip.name}
                     </button>
                   );

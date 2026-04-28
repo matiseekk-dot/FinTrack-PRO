@@ -83,6 +83,36 @@ function resolveCycleDay(month, cycleDayOrHistory, year) {
   return result;
 }
 
+/**
+ * Zwraca "month index" reprezentujący BIEŻĄCY CYKL ROZLICZENIOWY (nie kalendarzowy).
+ *
+ * Edge case kluczowy: jeśli cycleDay > 1 i dziś >= cycleDay, jesteśmy już w
+ * NOWYM cyklu, który "zawiera się" w następnym miesiącu kalendarzowym.
+ *
+ * Przykład: cycleDay=28, dziś=28.04.2026.
+ *   - Cykl "kwietniowy" = 28.03 - 27.04 → SKOŃCZONY wczoraj
+ *   - Cykl "majowy"     = 28.04 - 27.05 → BIEŻĄCY (zaczął się dziś)
+ *   - Funkcja zwraca 4 (maj), nie 3 (kwiecień).
+ *
+ * Bez tej korekty Dashboard pokazuje stary cykl (100% przekroczony,
+ * "0 dni do końca", limity 110%) — bo `month = today.getMonth()` jest
+ * jeszcze kwietnia.
+ */
+function getCurrentCycleMonth(cycleDayOrHistory) {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const day = resolveCycleDay(m, cycleDayOrHistory, y);
+  if (day <= 1) return m;  // standardowy miesiąc kalendarzowy
+  if (today.getDate() >= day) {
+    // Jesteśmy już w nowym cyklu - przeskocz na następny miesiąc
+    // (z wrap grudzień → styczeń, ale wtedy też year +1 - to jest osobny issue
+    //  bo getCycleRange ma year-locking; wrap działa OK dla styczeń-listopad)
+    return m + 1 > 11 ? 0 : m + 1;
+  }
+  return m;
+}
+
 function getCycleRange(month, cycleDayOrHistory, year) {
   const y = year || new Date().getFullYear();
   const cycleDay = resolveCycleDay(month, cycleDayOrHistory, y);
@@ -143,4 +173,4 @@ function dateToLocal(d) {
 
 
 export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel,
-         todayLocal, dateToLocal, resolveCycleDay };
+         todayLocal, dateToLocal, resolveCycleDay, getCurrentCycleMonth };

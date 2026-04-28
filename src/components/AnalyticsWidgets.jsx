@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, ArrowUpRight, ArrowDownLeft,
   CreditCard, ShoppingBag, Utensils, Zap, Coffee, Building,
   Gift, DollarSign, Flame, AlertCircle, Scissors, Target, LineChart as LineChartIcon,
-  Lightbulb, Minus
+  Lightbulb, Minus, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs, getCycleRange } from "../utils.js";
@@ -363,16 +363,23 @@ const getIncomeType = (cat) => {
   return "side"; // fallback: nieznana kat. przychodu = traktuj jako boczne
 };
 
-function IncomeTypesBreakdown({ monthTx }) {
+function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycleDay = 1 }) {
+  // Lokalny month state - pozwala user'owi nawigować wstecz w widget niezależnie
+  // od reszty AnalyticsView. Default: bieżący month z parent (gdy widget się mountuje).
+  // Brak resync z parent: jeśli user przełączy parent month, ale chce zostać w innym
+  // - kliknie "Dziś" żeby wrócić.
+  const [localMonth, setLocalMonth] = useState(parentMonth);
+
+  const monthTx = useMemo(
+    () => cycleTxs(transactions, localMonth, cycleDay),
+    [transactions, localMonth, cycleDay]
+  );
   const incomeTx = monthTx.filter(t => t.amount > 0 && t.cat !== "inne");
-  if (incomeTx.length === 0) return null;
 
   const main     = incomeTx.filter(t => getIncomeType(t.cat) === "main").reduce((s,t) => s + t.amount, 0);
   const side     = incomeTx.filter(t => getIncomeType(t.cat) === "side").reduce((s,t) => s + t.amount, 0);
   const gambling = incomeTx.filter(t => getIncomeType(t.cat) === "gambling").reduce((s,t) => s + t.amount, 0);
   const total    = main + side + gambling;
-
-  if (total <= 0) return null;
 
   const types = [
     { lbl: "Pensja",      val: main,     color: "#10b981" },
@@ -380,13 +387,11 @@ function IncomeTypesBreakdown({ monthTx }) {
     { lbl: "Wygrane",     val: gambling, color: "#f59e0b" },
   ].filter(t => t.val > 0);
 
-  // Wskaźnik dywersyfikacji - jaki % z największego źródła
   const maxShare = types.length > 0
     ? (Math.max(...types.map(t => t.val)) / total) * 100
     : 0;
-  const concentrated = maxShare > 85 && total >= 2000;  // >2k bo małe kwoty zniekształcają
+  const concentrated = maxShare > 85 && total >= 2000;
 
-  // Top merchant w main income (np. nazwa pracodawcy)
   const mainMerchants = {};
   incomeTx.filter(t => getIncomeType(t.cat) === "main").forEach(t => {
     const k = (t.desc || "").trim() || "(bez opisu)";
@@ -394,56 +399,97 @@ function IncomeTypesBreakdown({ monthTx }) {
   });
   const topMain = Object.entries(mainMerchants).sort((a,b) => b[1] - a[1])[0];
 
+  const isCurrentMonth = localMonth === parentMonth;
+  const monthLabel = MONTH_NAMES[localMonth] || "—";
+
   return (
     <div style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.08em", marginBottom: 12 }}>Struktura przychodów</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.08em" }}>Struktura przychodów · {monthLabel}</div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <button onClick={() => setLocalMonth(m => m === 0 ? 11 : m - 1)} style={{
+            background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
+            padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
+            display: "flex", alignItems: "center",
+          }} title="Poprzedni miesiąc">
+            <ChevronLeft size={12}/>
+          </button>
+          {!isCurrentMonth && (
+            <button onClick={() => setLocalMonth(parentMonth)} style={{
+              background: "#1e3a5f", border: "1px solid #2563eb44", borderRadius: 6,
+              padding: "3px 8px", cursor: "pointer", color: "#60a5fa",
+              fontSize: 9, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+            }} title="Powrót do bieżącego cyklu">
+              Dziś
+            </button>
+          )}
+          <button onClick={() => setLocalMonth(m => m === 11 ? 0 : m + 1)} style={{
+            background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
+            padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
+            display: "flex", alignItems: "center",
+          }} title="Następny miesiąc">
+            <ChevronRight size={12}/>
+          </button>
+        </div>
+      </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {types.map(({ lbl, val, color }) => {
-          const pct = (val / total) * 100;
-          return (
-            <div key={lbl}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{lbl}</span>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "#475569" }}>
-                    {pct.toFixed(0)}%
-                  </span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12,
-                    fontWeight: 700, color }}>{fmtShort(val)} zl</span>
+      {total <= 0 ? (
+        <div style={{ padding: "24px 0", textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 6, opacity: 0.4 }}>💸</div>
+          <div style={{ fontSize: 12, color: "#475569" }}>
+            Brak przychodów w {monthLabel.toLowerCase()}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {types.map(({ lbl, val, color }) => {
+              const pct = (val / total) * 100;
+              return (
+                <div key={lbl}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{lbl}</span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "#475569" }}>
+                        {pct.toFixed(0)}%
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12,
+                        fontWeight: 700, color }}>{fmtShort(val)} zl</span>
+                    </div>
+                  </div>
+                  <div style={{ background: "#060b14", borderRadius: 4, height: 6 }}>
+                    <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
+                      background: color, opacity: 0.85, transition: "width 0.5s" }}/>
+                  </div>
                 </div>
-              </div>
-              <div style={{ background: "#060b14", borderRadius: 4, height: 6 }}>
-                <div style={{ width: pct + "%", height: "100%", borderRadius: 4,
-                  background: color, opacity: 0.85, transition: "width 0.5s" }}/>
-              </div>
+              );
+            })}
+          </div>
+
+          {topMain && main > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
+              fontSize: 11, color: "#64748b" }}>
+              Główne źródło: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
+              {" — "}
+              <span style={{ fontFamily: "'DM Mono', monospace", color: "#10b981" }}>{fmt(topMain[1])}</span>
             </div>
-          );
-        })}
-      </div>
+          )}
 
-      {topMain && main > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-          fontSize: 11, color: "#64748b" }}>
-          Główne źródło: <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{topMain[0]}</span>
-          {" — "}
-          <span style={{ fontFamily: "'DM Mono', monospace", color: "#10b981" }}>{fmt(topMain[1])}</span>
-        </div>
+          {concentrated && (
+            <div style={{ marginTop: 10, padding: "8px 12px",
+              background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
+              fontSize: 11, color: "#fbbf24", lineHeight: 1.4 }}>
+              ⚠️ {maxShare.toFixed(0)}% przychodów pochodzi z jednego źródła. Warto rozważyć
+              dywersyfikację - utrata głównego dochodu = utrata prawie całości.
+            </div>
+          )}
+
+          <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
+            Razem: {fmt(total)} · {types.length} {types.length === 1 ? "źródło" : "źródła"}
+          </div>
+        </>
       )}
-
-      {concentrated && (
-        <div style={{ marginTop: 10, padding: "8px 12px",
-          background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
-          fontSize: 11, color: "#fbbf24", lineHeight: 1.4 }}>
-          ⚠️ {maxShare.toFixed(0)}% przychodów pochodzi z jednego źródła. Warto rozważyć
-          dywersyfikację - utrata głównego dochodu = utrata prawie całości.
-        </div>
-      )}
-
-      <div style={{ marginTop: 8, fontSize: 10, color: "#334155", textAlign: "center" }}>
-        Razem: {fmt(total)} · {types.length} {types.length === 1 ? "źródło" : "źródła"}
-      </div>
     </div>
   );
 };

@@ -26,6 +26,7 @@ function PlansView({
   allCats,
   trips, setTrips,
   hobbies, setHobbies,
+  portfolio,
 }) {
   const [subTab, setSubTab] = useState("goals");
 
@@ -76,6 +77,7 @@ function PlansView({
           transactions={transactions} month={month} cycleDay={cycleDay}
           vacationArchive={vacationArchive} setVacationArchive={setVacationArchive}
           allCats={allCats}
+          portfolio={portfolio}
         />
       )}
 

@@ -18,7 +18,7 @@ import { PlansView } from "./views/PlansView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
 import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
-import { todayLocal } from "./utils.js";
+import { todayLocal, getCurrentCycleMonth } from "./utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES, getAllCats } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
@@ -119,6 +119,7 @@ export default function App() {
   const stateRef = useRef(null);
   const clearingRef = useRef(false); // blocks Firestore save during clearAllData
   const skipFirestoreLoad = useRef(false); // blocks Firestore load after onboarding choice
+  const userNavigatedMonthRef = useRef(false); // gdy user kliknie strzałkę w Dashboard, blokuje auto-snap
   stateRef.current = {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     cycleDayHistory,
@@ -130,7 +131,35 @@ export default function App() {
 
   const capLabel = (c) => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label });
   const setCustomCatsCap = (cats) => setCustomCats(Array.isArray(cats) ? cats.map(capLabel) : cats);
+
+  // Wrapper setMonth: gdy user manualnie nawiguje (strzałki w Dashboard, etc.),
+  // ustawiamy flag żeby auto-snap nie ingerował.
+  const setMonthByUser = useCallback((newMonth) => {
+    userNavigatedMonthRef.current = true;
+    if (typeof newMonth === "function") {
+      setMonth(prev => newMonth(prev));
+    } else {
+      setMonth(newMonth);
+    }
+  }, []);
+
   const setters = { setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals, setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay, setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive, setTrips, setHobbies };
+
+  // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
+  // Bez tego, jeśli cycleDay > 1 i dziś >= cycleDay, Dashboard pokazuje stary cykl
+  // (100% przekroczony, "0 dni do końca", limity 110% itd.).
+  // Snap się wykonuje raz - po loadzie - i tylko jeśli user nie nawigował manualnie.
+  useEffect(() => {
+    if (!loaded) return;
+    if (userNavigatedMonthRef.current) return;
+    const correctMonth = getCurrentCycleMonth(
+      Array.isArray(cycleDayHistory) && cycleDayHistory.length > 0 ? cycleDayHistory : cycleDay
+    );
+    if (correctMonth !== month) {
+      setMonth(correctMonth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, cycleDay, cycleDayHistory]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -460,11 +489,11 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonth} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactions} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccounts} portfolio={portfolio} setPortfolio={setPortfolio}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPayments} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactions} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips} hobbies={hobbies} setHobbies={setHobbies}/></ErrorBoundary>}
+          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoals} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactions} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTrips} hobbies={hobbies} setHobbies={setHobbies} portfolio={portfolio}/></ErrorBoundary>}
           {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={effectiveCycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 

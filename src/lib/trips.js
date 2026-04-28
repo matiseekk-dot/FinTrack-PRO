@@ -50,6 +50,36 @@ function getActiveTrips(trips, todayStr = todayLocal()) {
   });
 }
 
+/**
+ * Wyjazdy "wybieralne" w modal dodawania transakcji - szerszy zakres niż active.
+ * Obejmuje: aktywne (preselect) + nadchodzące do 90 dni naprzód
+ * + niedawno zakończone (do 14 dni wstecz, na wypadek tx wprowadzonych z opóźnieniem).
+ *
+ * Use case: rezerwacja hotelu na wyjazd 3 miesiące naprzód powinna być tagowalna.
+ * Lot kupiony pół roku wcześniej już nie - to skrajny przypadek, wtedy edytuj tx
+ * ręcznie albo użyj bulk-tag (TODO v1.3.x).
+ */
+const TRIP_PRESELECT_DAYS = TRIP_BUFFER_DAYS;        // ±3 dni - preselect
+const TRIP_FUTURE_DAYS    = 90;                       // do 90 dni naprzód - dostępne w selektorze
+const TRIP_PAST_DAYS      = 14;                       // do 14 dni wstecz - dostępne w selektorze
+
+function getSelectableTrips(trips, todayStr = todayLocal()) {
+  if (!Array.isArray(trips)) return [];
+  return trips.filter(t => {
+    if (t.archived) return false;
+    if (!t.dateFrom || !t.dateTo) return false;
+    const fromExt = shiftDate(t.dateFrom, -TRIP_FUTURE_DAYS);  // 90 dni przed startem
+    const toExt   = shiftDate(t.dateTo,   +TRIP_PAST_DAYS);    // 14 dni po końcu
+    return todayStr >= fromExt && todayStr <= toExt;
+  }).sort((a, b) => {
+    // Najpierw aktywne, potem najbliższe nadchodzące, potem niedawno zakończone
+    const aActive = getActiveTrips([a], todayStr).length > 0;
+    const bActive = getActiveTrips([b], todayStr).length > 0;
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    return (a.dateFrom || "").localeCompare(b.dateFrom || "");
+  });
+}
+
 function shiftDate(dateStr, deltaDays) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + deltaDays);
@@ -209,6 +239,7 @@ export {
   getTripById,
   getTripsForYear,
   getActiveTrips,
+  getSelectableTrips,
   getTripSpending,
   getYearlyTripsSummary,
   getTripsTrendYoY,
