@@ -67,6 +67,10 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
   };
 
   const openEdit = (hobby) => {
+    // v1.3.4 fix: detailsId musi być wyczyszczone, inaczej `if (detailsId) return <HobbyDetails>`
+    // przerywa render zanim dojdzie do {modalHobby && <HobbyModal>} na końcu komponenta.
+    // Bez tego klik "Edit" w details widoku nic nie robi (modal renderuje się ale jest niewidoczny).
+    setDetailsId(null);
     setModalHobby({
       ...hobby,
       yearlyTarget: hobby.yearlyTarget ? String(hobby.yearlyTarget) : "",
