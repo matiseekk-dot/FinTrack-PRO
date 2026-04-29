@@ -693,9 +693,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                    {pro.type === "lifetime" && "Dożywotni dostęp · dziękuję za wsparcie!"}
-                    {pro.type === "yearly" && pro.expiresAt && `Ważny do ${new Date(pro.expiresAt).toLocaleDateString("pl-PL")}`}
-                    {pro.type === "trial" && "Wersja próbna"}
+                    {pro.type === "lifetime" && t("settings.pro.lifetime", "Dożywotni dostęp · dziękuję za wsparcie!")}
+                    {pro.type === "yearly" && pro.expiresAt && `${t("settings.pro.validUntil", "Ważny do")} ${new Date(pro.expiresAt).toLocaleDateString(getLang() === "en" ? "en-US" : "pl-PL")}`}
+                    {pro.type === "trial" && t("settings.pro.trial", "Wersja próbna")}
                   </div>
                 </div>
               </div>
@@ -712,15 +712,15 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                   <Crown size={14} color="#fbbf24"/>
                   <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
-                    Upgrade do PRO
+                    {t("settings.upgrade.cta", "Upgrade do PRO")}
                   </span>
                 </div>
                 <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                  99 zł/rok · bez limitów · bez reklam
+                  {t("settings.upgrade.subtitle", "99 zł/rok · bez limitów · bez reklam")}
                 </div>
               </div>
               <div style={{ background: "white", color: "#1e40af", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 800 }}>
-                Kup
+                {t("settings.upgrade.buy", "Kup")}
               </div>
             </button>
           );
@@ -776,8 +776,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             borderRadius: 10, padding: "10px 12px", marginBottom: 14,
             fontSize: 11, color: "#94a3b8", lineHeight: 1.5,
           }}>
-            ℹ️ Zmiana wartości tworzy nowy zapis od <strong style={{color:"#60a5fa"}}>1. dnia bieżącego miesiąca</strong>.
-            Wcześniejsze miesiące zachowują poprzednią wartość — historia raportów się nie rozjeżdża.
+            ℹ️ {t("settings.cycle.changeNote", "Zmiana wartości tworzy nowy zapis od 1. dnia bieżącego miesiąca. Wcześniejsze miesiące zachowują poprzednią wartość — historia raportów się nie rozjeżdża.")}
           </div>
         )}
 
@@ -811,7 +810,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         </div>
         <div style={{ fontSize: 11, color: "#334155", marginBottom: 16, textAlign: "center" }}>
           {cycleDay === 1
-            ? "Standardowy miesiąc kalendarzowy"
+            ? t("settings.cycle.standard", "Standardowy miesiąc kalendarzowy")
             : `Cykl: ${cycleDay} poprzedniego → ${cycleDay - 1} bieżącego miesiąca`}
         </div>
 
@@ -827,7 +826,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               📚 Historia zmian cyklu
             </div>
             <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8 }}>
-              Stare miesiące używają wartości z czasu kiedy obowiązywały — raporty roczne pozostają spójne.
+              {t("settings.cycle.historyHelp", "Stare miesiące używają wartości z czasu kiedy obowiązywały — raporty roczne pozostają spójne.")}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {[...cycleDayHistory]
@@ -836,7 +835,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                   const fromMonth = entry.from.slice(0, 7);
                   const isInitial = entry.from === "1970-01-01";
                   const label = isInitial
-                    ? "Początek (zanim zacząłeś logować)"
+                    ? t("settings.cycle.beforeLogging", "Początek (zanim zacząłeś logować)")
                     : `Od ${fromMonth.slice(5,7)}/${fromMonth.slice(0,4)}`;
                   return (
                     <div key={idx} style={{
@@ -869,12 +868,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                         {!isInitial && cycleDayHistory.length > 1 && (
                           <button
                             onClick={() => {
-                              if (!window.confirm(`Usunąć ten zapis? Miesiące od ${fromMonth} użyją wartości z poprzedniego zapisu.`)) return;
+                              if (!window.confirm(`${t("settings.cycle.deleteEntryConfirm1", "Usunąć ten zapis?")} ${t("settings.cycle.deleteEntryConfirm2", "Miesiące od")} ${fromMonth} ${t("settings.cycle.deleteEntryConfirm3", "użyją wartości z poprzedniego zapisu.")}`)) return;
                               if (typeof setCycleDayHistory === "function") {
                                 setCycleDayHistory(h => h.filter(e => e.from !== entry.from));
                               }
                             }}
-                            title="Usuń ten zapis"
+                            title={t("settings.cycle.deleteEntry", "Usuń ten zapis")}
                             style={{
                               background: "none", border: "none", cursor: "pointer",
                               color: "#475569", fontSize: 14, padding: "0 4px",
@@ -889,8 +888,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               }
             </div>
             <div style={{ fontSize: 10, color: "#475569", marginTop: 8, lineHeight: 1.5 }}>
-              💡 Możesz edytować dzień każdego zapisu lub go usunąć. Przydatne jeśli po migracji
-              wartości historyczne są nieprawidłowe.
+              💡 {t("settings.cycle.editTip", "Możesz edytować dzień każdego zapisu lub go usunąć. Przydatne jeśli po migracji wartości historyczne są nieprawidłowe.")}
             </div>
           </div>
         )}
@@ -919,7 +917,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                   }}>
                     <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
                       textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Edytuj kategorię · ID: {cat.id}
+                      {t("settings.cats.editing", "Edytuj kategorię")} · ID: {cat.id}
                     </div>
 
                     {/* Label */}
@@ -953,11 +951,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
                           marginBottom: 6, textTransform: "uppercase" }}>
-                          Typ w strukturze wydatków
+                          {t("settings.cats.expenseType", "Typ w strukturze wydatków")}
                         </div>
                         <div style={{ display: "flex", gap: 6 }}>
                           {[
-                            ["fixed",     "Stałe",     "#3b82f6"],
+                            ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
                             ["variable",  "Zmienne",   "#f59e0b"],
                             ["lifestyle", "Lifestyle", "#ec4899"],
                           ].map(([v, l, col]) => (
@@ -1008,7 +1006,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                       {cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}
                     </span>
                     <span style={{ fontSize: 11, color: "#334155" }}>
-                      {cat.type === "income" ? "przychód" : "wydatek"}
+                      {cat.type === "income" ? t("settings.cats.income", "przychód") : t("settings.cats.expense", "wydatek")}
                     </span>
                     {/* Pokaż expenseType jako mały badge */}
                     {cat.type === "expense" && cat.expenseType && (
@@ -1022,7 +1020,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                                   : cat.expenseType === "variable"  ? "#fbbf24"
                                   :                                   "#f472b6",
                       }}>
-                        {cat.expenseType === "fixed" ? "Stałe"
+                        {cat.expenseType === "fixed" ? t("settings.cats.fixed", "Stałe")
                          : cat.expenseType === "variable" ? "Zmienne"
                          : "Lifestyle"}
                       </span>
@@ -1036,12 +1034,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                       <Edit2 size={13}/>
                     </button>
                     <button onClick={() => {
-                      if (confirm(`Usunąć kategorię "${cat.label}"?\n\nUwaga: transakcje z tą kategorią pozostaną, ale stracą kolor i nazwę.`)) {
+                      if (confirm(`${t("settings.cats.deleteConfirm1", "Usunąć kategorię")} "${cat.label}"?\n\n${t("settings.cats.deleteConfirm2", "Uwaga: transakcje z tą kategorią pozostaną, ale stracą kolor i nazwę.")}`)) {
                         setCustomCats(c => c.filter(x => x.id !== cat.id));
                       }
                     }}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}
-                      title="Usuń">
+                      title={t("common.delete", "Usuń")}>
                       <Trash2 size={13}/>
                     </button>
                   </div>
@@ -1054,7 +1052,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* Add new custom cat */}
         <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {[["expense","Wydatek"],["income","Przychód"]].map(([v,l]) => (
+            {[["expense", t("settings.cats.expense2", "Wydatek")],["income", t("settings.cats.income2", "Przychód")]].map(([v,l]) => (
               <button key={v} onClick={() => setNewCatType(v)} style={{
                 flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
                 fontFamily: "'Space Grotesk', sans-serif",
@@ -1067,7 +1065,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           <input
             value={newCatLabel}
             onChange={e => setNewCatLabel(e.target.value)}
-            placeholder="Nazwa kategorii (np. Siłownia)"
+            placeholder={t("settings.cats.namePlaceholder", "Nazwa kategorii (np. Siłownia)")}
             style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
               padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif",
               outline: "none", marginBottom: 10, WebkitAppearance: "none" }}
@@ -1088,11 +1086,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           {newCatType === "expense" && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase" }}>
-                Typ w strukturze wydatków
+                {t("settings.cats.expenseType", "Typ w strukturze wydatków")}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 {[
-                  ["fixed",     "Stałe",     "#3b82f6"],
+                  ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
                   ["variable",  "Zmienne",   "#f59e0b"],
                   ["lifestyle", "Lifestyle", "#ec4899"],
                 ].map(([v, l, c]) => (
@@ -1106,7 +1104,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 ))}
               </div>
               <div style={{ fontSize: 10, color: "#475569", marginTop: 4, lineHeight: 1.4 }}>
-                Stałe = miesięczne (kredyt, czynsz). Zmienne = potrzebne (jedzenie, zdrowie). Lifestyle = przyjemności.
+                {t("settings.cats.typeHelp", "Stałe = miesięczne (kredyt, czynsz). Zmienne = potrzebne (jedzenie, zdrowie). Lifestyle = przyjemności.")}
               </div>
             </div>
           )}
@@ -1115,7 +1113,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             onClick={() => {
               if (!newCatLabel.trim()) return;
               const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
-              if (CATEGORIES.find(c => c.id === id)) { alert("Kategoria o tej nazwie już istnieje"); return; }
+              if (CATEGORIES.find(c => c.id === id)) { alert(t("settings.cats.alreadyExists", "Kategoria o tej nazwie już istnieje")); return; }
               const capLabel = newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1);
               setCustomCats(c => [...c, {
                 id, label: capLabel,
@@ -1131,7 +1129,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
               borderRadius: 10, padding: "11px 0", color: "white", fontWeight: 700, fontSize: 14,
               cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-            + Dodaj kategorię
+            + {t("settings.cats.addBtn", "Dodaj kategorię")}
           </button>
         </div>
 
@@ -1149,7 +1147,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </div>
             {proStatus?.source && (
               <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
-                źródło: {proStatus.source}
+                {t("settings.diag.source", "źródło")}: {proStatus.source}
               </div>
             )}
             {proStatus?.since && (
@@ -1174,9 +1172,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           <button onClick={async () => {
             const result = await onForceSyncProStatus();
             if (result?.ok) {
-              alert("✅ PRO status wysłany do Firestore.\n\nNa drugim urządzeniu:\n1. Hard refresh\n2. Po 1-2s zobaczysz PRO");
+              alert(t("settings.diag.syncOk", "✅ PRO status wysłany do Firestore.\n\nNa drugim urządzeniu:\n1. Hard refresh\n2. Po 1-2s zobaczysz PRO"));
             } else {
-              alert("❌ Sync failed: " + (result?.error || "nieznany błąd"));
+              alert(t("settings.diag.syncFail", "❌ Sync failed: ") + (result?.error || t("settings.diag.unknownError", "nieznany błąd")));
             }
           }} style={{
             width: "100%", background: "linear-gradient(135deg,#1e3a5f,#1e40af)",
@@ -1184,17 +1182,17 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             color: "#93c5fd", fontWeight: 700, fontSize: 13, cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif", marginBottom: 14,
           }}>
-            🔄 Wymuś sync PRO status do Firestore
+            🔄 {t("settings.diag.forceSync", "Wymuś sync PRO status do Firestore")}
           </button>
         )}
 
         {!proStatus?.isPro && (
           <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
-            Brak aktywnej subskrypcji PRO. Jeśli kupiłeś na drugim urządzeniu i nie syncuje:
+            {t("settings.diag.noProHint1", "Brak aktywnej subskrypcji PRO. Jeśli kupiłeś na drugim urządzeniu i nie syncuje:")}
             <ol style={{ marginTop: 6, paddingLeft: 20, fontSize: 11, color: "#475569" }}>
-              <li>Na drugim urządzeniu: Settings → Diagnostyka PRO → "Wymuś sync"</li>
+              <li>{t("settings.diag.noProHint2", "Na drugim urządzeniu: Settings → Diagnostyka PRO → \"Wymuś sync\"")}</li>
               <li>Tutaj: hard refresh</li>
-              <li>Po 1-2s subskrypcja powinna się pojawić</li>
+              <li>{t("settings.diag.noProHint4", "Po 1-2s subskrypcja powinna się pojawić")}</li>
             </ol>
           </div>
         )}
@@ -1210,9 +1208,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
           {[
-            { label: "Transakcji",  val: transactions.length, color: "#3b82f6" },
-            { label: "Kont",        val: accounts.length,     color: "#10b981" },
-            { label: "Budżetów",    val: budgets.length,      color: "#8b5cf6" },
+            { label: t("settings.stats.tx",       "Transakcji"),  val: transactions.length, color: "#3b82f6" },
+            { label: t("settings.stats.accounts", "Kont"),        val: accounts.length,     color: "#10b981" },
+            { label: t("settings.stats.budgets", "Budżetów"),    val: budgets.length,      color: "#8b5cf6" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ background: "#060b14", border: "1px solid #1a2744",
                                        borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
@@ -1231,7 +1229,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           fontFamily: "'Space Grotesk', sans-serif",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
-          <span style={{ fontSize: 18 }}>⬇</span> Eksportuj do Excel (.xlsx)
+          <span style={{ fontSize: 18 }}>⬇</span> {t("settings.export.btn", "Eksportuj do Excel (.xlsx)")}
         </button>
 
         <div style={{ height: 10 }}/>
@@ -1260,9 +1258,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* IMPORT SECTION */}
         <SectionTitle>📥 {t("settings.import.title", "Import danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 6, lineHeight: 1.6 }}>
-          Wczytaj plik .xlsx wcześniej wyeksportowany z FinTrack. Dane zostaną
-          <span style={{ color: "#f59e0b", fontWeight: 700 }}> zastąpione</span> — zrób
-          eksport przed importem jeśli chcesz zachować kopię.
+          {t("settings.import.help1", "Wczytaj plik .xlsx wcześniej wyeksportowany z FinTrack. Dane zostaną")}
+          <span style={{ color: "#f59e0b", fontWeight: 700 }}> {t("settings.import.replaced", "zastąpione")}</span>{t("settings.import.help2", " — zrób eksport przed importem jeśli chcesz zachować kopię.")}
         </p>
 
         {/* Column legend */}
@@ -1297,7 +1294,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           fontFamily: "'Space Grotesk', sans-serif",
           transition: "border-color 0.2s",
         }}>
-          <span style={{ fontSize: 20 }}>📂</span> Wybierz plik .xlsx (FinTrack backup)
+          <span style={{ fontSize: 20 }}>📂</span> {t("settings.import.btnXlsx", "Wybierz plik .xlsx (FinTrack backup)")}
           <input type="file" accept=".xlsx,.xls" onChange={handleImport}
                  style={{ display: "none" }}/>
         </label>
@@ -1308,18 +1305,18 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           color: "#10b981", fontWeight: 700, fontSize: 13,
           fontFamily: "'Space Grotesk', sans-serif", marginTop: 8,
         }}>
-          <span style={{ fontSize: 18 }}>🏦</span> Import wyciągu CSV (PKO BP / mBank / ING / Revolut)
+          <span style={{ fontSize: 18 }}>🏦</span> {t("settings.import.btnCsv", "Import wyciągu CSV (PKO BP / mBank / ING / Revolut)")}
           <input type="file" accept=".csv,.txt" onChange={handleImportCSV}
                  style={{ display: "none" }}/>
         </label>
         {accounts.length > 0 && (
           <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", textAlign: "center" }}>
-            Transakcje trafią do: <span style={{ color: "#10b981", fontWeight: 600 }}>
+            {t("settings.import.targetAcc", "Transakcje trafią do")}: <span style={{ color: "#10b981", fontWeight: 600 }}>
               {(accounts.find(a => a.id === defaultAcc) || accounts[0]).name}
             </span>
             {" · "}
             <span style={{ color: "#475569" }}>
-              (zmień domyślne konto wyżej)
+              ({t("settings.import.changeAcc", "zmień domyślne konto wyżej")})
             </span>
           </div>
         )}
@@ -1340,7 +1337,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             <div>
               <div style={{ fontSize: 13, fontWeight: 600,
                             color: importStatus === "ok" ? "#86efac" : importStatus === "err" ? "#fca5a5" : "#94a3b8" }}>
-                {importStatus === "ok" ? "Import zakończony!" : importStatus === "err" ? "Błąd importu" : "Wczytuję…"}
+                {importStatus === "ok" ? t("settings.import.statusOk", "Import zakończony!") : importStatus === "err" ? t("settings.import.statusErr", "Błąd importu") : t("settings.import.statusLoading", "Wczytuję…")}
               </div>
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>{importMsg}</div>
             </div>
@@ -1354,9 +1351,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 6 }}>🔔 Automatyczne pop-upy</div>
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-            Gdy otworzysz aplikację, automatycznie pojawi się żółty banner z listą płatności
-            które są <strong style={{color:"#fcd34d"}}>dziś</strong>, <strong style={{color:"#fcd34d"}}>jutro</strong> lub <strong style={{color:"#fcd34d"}}>za 3 dni</strong>.
-            Działa bez żadnych uprawnień — tylko zamknij banner klikając ×.
+            {t("settings.reminders.help", "Gdy otworzysz aplikację, automatycznie pojawi się żółty banner z listą płatności które są dziś, jutro lub za 3 dni. Działa bez żadnych uprawnień — tylko zamknij banner klikając ×.")}
           </div>
         </div>
 
@@ -1366,7 +1361,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* ── SZABLONY TRANSAKCJI ── */}
         <SectionTitle>⚡ {t("settings.templates.title", "Szablony transakcji")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          Szybkie dodawanie — widoczne nad listą transakcji.
+          {t("settings.templates.help", "Szybkie dodawanie — widoczne nad listą transakcji.")}
         </p>
         <TemplatesEditor/>
 
@@ -1391,7 +1386,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <SectionTitle>👫 {t("settings.partner.title", "Nazwa partnera / partnerki")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-          Wyświetlana w module wspólnych rachunków.
+          {t("settings.partner.help", "Wyświetlana w module wspólnych rachunków.")}
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
           <input
@@ -1409,9 +1404,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         {/* Data reset */}
         <Divider/>
-        <SectionTitle>️ Resetowanie danych</SectionTitle>
+        <SectionTitle>♻️ {t("settings.reset.title", "Resetowanie danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          Załaduj przykładowe dane żeby zobaczyć jak apka wygląda w pełni, lub zresetuj wszystko do czystego stanu.
+          {t("settings.reset.help", "Załaduj przykładowe dane żeby zobaczyć jak apka wygląda w pełni, lub zresetuj wszystko do czystego stanu.")}
         </p>
         <button
           onClick={() => setConfirmDemo(true)}
@@ -1421,7 +1416,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             fontWeight: 700, fontSize: 14, cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif", marginBottom: 10,
           }}>
-          🎬 Załaduj dane demo
+          🎬 {t("settings.reset.loadDemo", "Załaduj dane demo")}
         </button>
         <button
           onClick={() => setConfirmClear(true)}
@@ -1431,7 +1426,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             fontWeight: 700, fontSize: 14, cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif",
           }}>
-          🗑 Wyczyść wszystkie dane
+          🗑 {t("settings.reset.wipe", "Wyczyść wszystkie dane")}
         </button>
 
       </div>
@@ -1441,9 +1436,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Wyczyścić wszystkie dane?</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>{t("settings.wipe.title", "Wyczyścić wszystkie dane?")}</div>
             <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
-              Tej operacji nie można cofnąć. Wszystkie transakcje, konta, cele i płatności zostaną usunięte.
+              {t("settings.wipe.desc", "Tej operacji nie można cofnąć. Wszystkie transakcje, konta, cele i płatności zostaną usunięte.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmClear(false)} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 12, padding: "12px 0", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -1454,7 +1449,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 setConfirmClear(false);
                 onClose();
               }} style={{ flex: 1, background: "#7f1d1d", border: "none", borderRadius: 12, padding: "12px 0", color: "#fca5a5", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Usuń wszystko
+                {t("settings.wipe.confirm", "Usuń wszystko")}
               </button>
             </div>
           </div>
@@ -1466,7 +1461,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
           style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
             textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
-          Polityka prywatności
+          {t("settings.privacy", "Polityka prywatności")}
         </a>
         <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
           style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
@@ -1486,9 +1481,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
           <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>Załadować dane demo?</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>{t("settings.demo.title", "Załadować dane demo?")}</div>
             <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
-              Twoje obecne dane zostaną zastąpione przykładowymi transakcjami i płatnościami.
+              {t("settings.demo.desc", "Twoje obecne dane zostaną zastąpione przykładowymi transakcjami i płatnościami.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmDemo(false)} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 12, padding: "12px 0", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -1499,7 +1494,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 setConfirmDemo(false);
                 onClose();
               }} style={{ flex: 1, background: "linear-gradient(135deg,#052e16,#14532d)", border: "1px solid #16a34a44", borderRadius: 12, padding: "12px 0", color: "#10b981", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Załaduj demo
+                {t("settings.demo.confirm", "Załaduj demo")}
               </button>
             </div>
           </div>

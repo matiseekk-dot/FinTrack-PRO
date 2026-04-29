@@ -1,14 +1,19 @@
 /**
- * Hobby - moduł trakowania wydatków na hobby. Czysto finansowy.
+ * Hobby - moduł trakowania wydatków i przychodów na hobby. Czysto finansowy.
  *
  * Filozofia:
  * - Każde hobby = bucket reguł matchujących transakcje.
  * - Reguły: lista kategorii ORAZ/LUB lista keywordów w description.
  * - Match jest OR-em obu (jeśli kategorie OR keyword → trafia do hobby).
  * - Tx może być w wielu hobby naraz (rzadko, ale OK).
- * - Pomijamy przychody i transfery (cat === "inne").
+ * - Pomijamy transfery (cat === "inne").
  *
- * Schemat hobby:
+ * v1.3.2: Dodane wsparcie dla income transactions (sprzedaż winyli, gier, książek,
+ * zwroty). Funkcja `txMatchesHobby` nie filtruje już po znaku amount — caller decyduje
+ * przez `getHobbyExpenses` / `getHobbyIncome`. Stary `getHobbyTransactions` zachowany
+ * dla backward compat (zwraca tylko expenses jak wcześniej).
+ *
+ * Schemat hobby (bez zmian):
  * {
  *   id:           number
  *   name:         string
@@ -37,11 +42,12 @@ function pickHobbyColor(existingHobbies) {
 
 /**
  * Sprawdza czy transakcja "pasuje" do hobby (po kategoriach LUB keywordach).
+ * v1.3.2: NIE filtruje po amount sign — caller decyduje przez wrappery
+ * `getHobbyExpenses` / `getHobbyIncome`.
  */
 function txMatchesHobby(tx, hobby) {
   if (!tx || !hobby) return false;
-  if (tx.amount >= 0) return false;        // tylko wydatki
-  if (tx.cat === "inne") return false;     // pomijamy transfery
+  if (tx.cat === "inne") return false;     // transfery zawsze pomijamy
   const cats = Array.isArray(hobby.categories) ? hobby.categories : [];
   const keywords = Array.isArray(hobby.keywords) ? hobby.keywords : [];
 
@@ -59,9 +65,10 @@ function txMatchesHobby(tx, hobby) {
 }
 
 /**
- * Wszystkie tx pasujące do hobby (filtered, posortowane po dacie malejąco).
+ * Wszystkie tx pasujące do hobby (zarówno wydatki jak przychody, posortowane).
+ * v1.3.2: nowa funkcja zwracająca obie strony.
  */
-function getHobbyTransactions(transactions, hobby) {
+function getAllHobbyTransactions(transactions, hobby) {
   if (!Array.isArray(transactions) || !hobby) return [];
   return transactions
     .filter(t => txMatchesHobby(t, hobby))
@@ -69,22 +76,54 @@ function getHobbyTransactions(transactions, hobby) {
 }
 
 /**
- * Statystyki hobby:
- * - thisCycle: w bieżącym cyklu rozliczeniowym (cycleTxs zawężone)
- * - thisYear: rok bieżący
- * - allTime: total
- * - byCategory, byMerchant
- * - yoyTrend: array {year, total} od najstarszego
+ * Tylko wydatki hobby (amount < 0), posortowane po dacie malejąco.
+ */
+function getHobbyExpenses(transactions, hobby) {
+  return getAllHobbyTransactions(transactions, hobby).filter(t => t.amount < 0);
+}
+
+/**
+ * Tylko przychody z hobby (amount > 0) - sprzedaż winyli, zwroty, itp.
+ * v1.3.2: nowa funkcja.
+ */
+function getHobbyIncome(transactions, hobby) {
+  return getAllHobbyTransactions(transactions, hobby).filter(t => t.amount > 0);
+}
+
+/**
+ * Backward compat: zwraca tylko wydatki (jak przed v1.3.2).
+ * Używane w istniejącym kodzie HobbyView.jsx, możemy migrować w czasie.
+ */
+function getHobbyTransactions(transactions, hobby) {
+  return getHobbyExpenses(transactions, hobby);
+}
+
+/**
+ * Statystyki hobby - rozszerzone o income i netto.
+ * Zwraca:
+ * - thisCycle / thisYear / allTime  - WYDATKI (jak przed v1.3.2, backward compat)
+ * - incomeThisCycle / incomeThisYear / incomeAllTime  - PRZYCHODY
+ * - nettoThisCycle / nettoThisYear / nettoAllTime  - NETTO (income - expense)
+ *   Ujemne netto = hobby kosztuje, dodatnie netto = hobby zarabia.
+ * - byCategory, byMerchant - tylko wydatki (zachowane dla "Top sklepy")
+ * - byIncomeCategory, byIncomeMerchant - tylko przychody (NEW)
+ * - yoyTrend - tylko wydatki (jak przed v1.3.2)
+ * - yoyIncomeTrend - przychody (NEW)
  */
 function getHobbyStats(transactions, hobby, opts = {}) {
   const { cycleTxs, year } = opts;
-  const txs = getHobbyTransactions(transactions, hobby);
-  if (txs.length === 0) {
+  const expenseTxs = getHobbyExpenses(transactions, hobby);
+  const incomeTxs  = getHobbyIncome(transactions, hobby);
+
+  if (expenseTxs.length === 0 && incomeTxs.length === 0) {
     return {
       total: 0, count: 0,
       thisCycle: 0, thisMonth: 0, thisQuarter: 0, thisYear: 0, allTime: 0,
+      incomeThisCycle: 0, incomeThisMonth: 0, incomeThisYear: 0, incomeAllTime: 0,
+      nettoThisCycle: 0, nettoThisYear: 0, nettoAllTime: 0,
       byCategory: {}, byMerchant: {},
-      yoyTrend: [],
+      byIncomeCategory: {}, byIncomeMerchant: {},
+      yoyTrend: [], yoyIncomeTrend: [],
     };
   }
 
@@ -96,36 +135,35 @@ function getHobbyStats(transactions, hobby, opts = {}) {
   const qStart = currentQ * 3;
   const qMonths = [qStart, qStart + 1, qStart + 2].map(m => String(m + 1).padStart(2, "0"));
 
+  // ─── WYDATKI ─────────────────────────────────────────────────────
   let thisCycle = 0;
   if (Array.isArray(cycleTxs)) {
     const cycleIdSet = new Set(cycleTxs.map(t => t.id));
-    thisCycle = txs.filter(t => cycleIdSet.has(t.id))
+    thisCycle = expenseTxs.filter(t => cycleIdSet.has(t.id))
                    .reduce((s, t) => s + Math.abs(t.amount), 0);
   }
-
-  const thisMonth = txs.filter(t => (t.date || "").startsWith(ymPrefix))
+  const thisMonth = expenseTxs.filter(t => (t.date || "").startsWith(ymPrefix))
                        .reduce((s, t) => s + Math.abs(t.amount), 0);
-  const thisQuarter = txs.filter(t => {
+  const thisQuarter = expenseTxs.filter(t => {
     const d = t.date || "";
     if (!d.startsWith(yyyy)) return false;
     return qMonths.some(m => d.startsWith(`${yyyy}-${m}`));
   }).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const thisYear = txs.filter(t => (t.date || "").startsWith(yyyy))
+  const thisYear = expenseTxs.filter(t => (t.date || "").startsWith(yyyy))
                       .reduce((s, t) => s + Math.abs(t.amount), 0);
-  const allTime  = txs.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const allTime  = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const byCategory = {};
   const byMerchant = {};
-  for (const t of txs) {
+  for (const t of expenseTxs) {
     const a = Math.abs(t.amount);
     byCategory[t.cat] = (byCategory[t.cat] || 0) + a;
     const m = (t.desc || "").trim() || "(bez opisu)";
     byMerchant[m] = (byMerchant[m] || 0) + a;
   }
 
-  // Trend YoY
   const yearMap = {};
-  for (const t of txs) {
+  for (const t of expenseTxs) {
     const yr = (t.date || "").slice(0, 4);
     if (!yr) continue;
     yearMap[yr] = (yearMap[yr] || 0) + Math.abs(t.amount);
@@ -134,8 +172,40 @@ function getHobbyStats(transactions, hobby, opts = {}) {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([y, total]) => ({ year: parseInt(y, 10), total: Math.round(total) }));
 
+  // ─── PRZYCHODY (v1.3.2) ──────────────────────────────────────────
+  let incomeThisCycle = 0;
+  if (Array.isArray(cycleTxs)) {
+    const cycleIdSet = new Set(cycleTxs.map(t => t.id));
+    incomeThisCycle = incomeTxs.filter(t => cycleIdSet.has(t.id))
+                       .reduce((s, t) => s + t.amount, 0);
+  }
+  const incomeThisMonth = incomeTxs.filter(t => (t.date || "").startsWith(ymPrefix))
+                       .reduce((s, t) => s + t.amount, 0);
+  const incomeThisYear = incomeTxs.filter(t => (t.date || "").startsWith(yyyy))
+                       .reduce((s, t) => s + t.amount, 0);
+  const incomeAllTime  = incomeTxs.reduce((s, t) => s + t.amount, 0);
+
+  const byIncomeCategory = {};
+  const byIncomeMerchant = {};
+  for (const t of incomeTxs) {
+    byIncomeCategory[t.cat] = (byIncomeCategory[t.cat] || 0) + t.amount;
+    const m = (t.desc || "").trim() || "(bez opisu)";
+    byIncomeMerchant[m] = (byIncomeMerchant[m] || 0) + t.amount;
+  }
+
+  const incomeYearMap = {};
+  for (const t of incomeTxs) {
+    const yr = (t.date || "").slice(0, 4);
+    if (!yr) continue;
+    incomeYearMap[yr] = (incomeYearMap[yr] || 0) + t.amount;
+  }
+  const yoyIncomeTrend = Object.entries(incomeYearMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([y, total]) => ({ year: parseInt(y, 10), total: Math.round(total) }));
+
   return {
-    total: allTime, count: txs.length,
+    // Wydatki (backward compat keys)
+    total: allTime, count: expenseTxs.length,
     thisCycle:   Math.round(thisCycle),
     thisMonth:   Math.round(thisMonth),
     thisQuarter: Math.round(thisQuarter),
@@ -143,12 +213,27 @@ function getHobbyStats(transactions, hobby, opts = {}) {
     allTime:     Math.round(allTime),
     byCategory, byMerchant,
     yoyTrend,
+    // Przychody (v1.3.2)
+    incomeThisCycle: Math.round(incomeThisCycle),
+    incomeThisMonth: Math.round(incomeThisMonth),
+    incomeThisYear:  Math.round(incomeThisYear),
+    incomeAllTime:   Math.round(incomeAllTime),
+    incomeCount:     incomeTxs.length,
+    byIncomeCategory, byIncomeMerchant,
+    yoyIncomeTrend,
+    // Netto (v1.3.2)
+    nettoThisCycle: Math.round(incomeThisCycle - thisCycle),
+    nettoThisYear:  Math.round(incomeThisYear  - thisYear),
+    nettoAllTime:   Math.round(incomeAllTime   - allTime),
   };
 }
 
 export {
   DEFAULT_HOBBY_COLORS,
   pickHobbyColor,
-  getHobbyTransactions,
+  getHobbyTransactions,    // backward compat (expenses only)
+  getHobbyExpenses,
+  getHobbyIncome,
+  getAllHobbyTransactions,
   getHobbyStats,
 };

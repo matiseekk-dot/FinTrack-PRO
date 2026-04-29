@@ -546,7 +546,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
                 borderRadius: 6, transition: "width 1s ease" }}/>
             </div>
             <div style={{ fontSize: 10, color: "#334155", marginTop: 6 }}>
-              {pct}% {cycleDay > 1 ? "cyklu" : "miesiąca"} minęło · do końca {daysLeft} {daysLeft === 1 ? "dzień" : "dni"}
+              {pct}% {cycleDay > 1 ? t("dash.cycleWord", "cyklu") : t("dash.monthWord", "miesiąca")} {t("dash.elapsed", "minęło")} · {t("dash.untilEnd", "do końca")} {daysLeft} {daysLeft === 1 ? t("daily.day", "dzień") : t("daily.days", "dni")}
             </div>
           </div>
         );

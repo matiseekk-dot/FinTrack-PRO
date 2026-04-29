@@ -1,202 +1,203 @@
-# FinTrack PRO v1.3.1 — Pełna wersja angielska (2026-04-28)
+# FinTrack PRO v1.3.3 — SettingsPanel EN + audit spójności wyglądu (2026-04-29)
 
-`package.json` 1.3.0 → **1.3.1** (minor bump — feature: pełne tłumaczenie EN).
+`package.json` 1.3.2 → **1.3.3** (minor bump — dokończenie EN + audit UI consistency).
 
 ## TL;DR
 
-Apka teraz **realnie** ma 2 języki, nie tylko z nazwy. Wcześniej user przełączający na EN widział ~50% interfejsu po polsku (ErrorBoundary, LoginScreen, Onboarding, formularze, Dashboard, Settings — wszystko PL). Po v1.3.1: **80% UI jest po angielsku**, reszta to detale w SettingsPanel custom cat editor i Retirement Calculator (ten ostatni świadomie ukryty w EN).
+Dwie rzeczy:
+1. **SettingsPanel pełne EN** — z ~30% pokrycia w v1.3.1 do **80% pokrycia**. Wszystkie user-facing labels, helpery, przyciski, modal'e potwierdzeń, alerty. Co zostaje po polsku to: Excel column headers w eksporcie + bank import patterns + console error messages — celowo nie ruszane.
+2. **Audyt spójności wyglądu** — przeszedłem wszystkie fontSize/letterSpacing/colors w apce. **Werdykt: nie naprawiać** — paleta kolorów jest spójna, hierarchie fontów wyglądają chaotycznie statystycznie ale w obrębie pojedynczych widoków są konsystentne.
 
-## Co zostało naprawione
+## Część 1: SettingsPanel EN
 
-### Problem 1: 42 klucze i18n brakowały w EN
-Klucze które istniały w PL ale nie w EN — gdy user EN je wywoływał, fallback w `t()` zwracał polski tekst. **Wszystkie 42 dodane** + ~210 nowych dla nowych tłumaczeń.
+### Co przetłumaczone
 
-### Problem 2: ~250 hardcoded PL stringów w 18 plikach przetłumaczonych
-Pliki które wcześniej miały 0 wywołań `t()` teraz mają pełne EN.
+**PRO badge / upgrade flow** (6 stringów):
+- "Dożywotni dostęp · dziękuję za wsparcie!" → "Lifetime access · thanks for the support!"
+- "Ważny do {date}" → "Valid until {date}" (plus locale-aware date formatting: `pl-PL` → `en-US`)
+- "Wersja próbna" → "Trial version"
+- "Upgrade do PRO" / "99 zł/rok · bez limitów · bez reklam" / "Kup"
 
-### Problem 3: RetirementCalculator (IKZE/IKE/PPK) ukryty w EN
-Polskie produkty emerytalne — bezsensowne dla EN usera. Tab "Emerytura" pokazuje się tylko gdy `getLang() === "pl"`. EN userzy widzą tylko taby "Current/Periods" w Analyticsach.
+**Cycle history sekcja** (8 stringów):
+- "Zmiana wartości tworzy nowy zapis..."
+- "Standardowy miesiąc kalendarzowy"
+- "Stare miesiące używają wartości..."
+- "Początek (zanim zacząłeś logować)"
+- Confirm dialogi delete entry
+- Edit tip
 
-## Pliki zmienione (18 plików + i18n.js)
+**Categories editor** (12 stringów):
+- "Edytuj kategorię · ID: {id}"
+- "Typ w strukturze wydatków"
+- "przychód" / "wydatek" badges
+- Delete confirm dialog
+- Type buttons "Wydatek" / "Przychód"
+- "Nazwa kategorii (np. Siłownia)" placeholder
+- Type help "Stałe = miesięczne..."
+- "Kategoria o tej nazwie już istnieje" alert
+- "+ Dodaj kategorię" button
 
-### Pełne pokrycie EN
+**Diagnostyka PRO** (8 stringów):
+- "źródło: {source}"
+- Sync OK / fail alerts
+- "Wymuś sync PRO status do Firestore" button
+- "Brak aktywnej subskrypcji PRO..." help
+- Bullet points instrukcji
 
-| Plik | Co przetłumaczone |
-|---|---|
-| **ErrorBoundary.jsx** | error.title/desc/retry/reload/details (5) |
-| **LoginScreen.jsx** | tagline, subtitle, 3 features, signInGoogle, terms (8) |
-| **Onboarding.jsx** | 8 slidów + buttons (skip/back/next/start/loadDemo). SLIDES jako funkcja (nie const) (16+) |
-| **useFirebase.js** | 4 error msgs (login/sync realtime/tooBig/network) |
-| **App.jsx** | pin.unlock, acc.defaultSavings, err.notLoggedIn (3) |
-| **LimitsView.jsx** | title, subtitle, add, empty, modalTitle, monthlyLimit, save (15) |
-| **AccountsView.jsx** | acc.ofWealth (1, reszta była już zrobiona) |
-| **TripsView.jsx** | legacyDetected, legacyPrompt, import, archive, assignHint (5) |
-| **HobbyView.jsx** | dashboardTitle, topMerchants, txList, olderTx, noMatchHint (7) |
-| **UpgradeModal.jsx** | TIER_FEATURES jako funkcja, triggers, plans, CTAs, disclaimers (16) |
-| **TransactionsView.jsx** | tier limits, type buttons, form labels, rate note (12) |
-| **PaymentsView.jsx** | formatPeriod, sections, type buttons, placeholders, shared toggle (15) |
-| **AnalyticsView.jsx** | tabs (current/periods), month compare, periods, income widget, expand (12) |
-| **AnalyticsWidgets.jsx** | FinancialScore msgs, stats, income widget, expense types, recommendations (24) |
-| **Dashboard.jsx** | empty state, feature cards, pull-to-refresh, cash/wealth labels (15) |
-| **FeedbackButton.jsx** | wszystkie 12 stringów |
-| **DailyReminder.jsx** | streak, day/days, addToday, great (4) — t aliased jako i18n |
-| **EmptyStateSetup.jsx** | bank "Inny" → technical id "other", wszystkie helpery (10) |
-| **SharedWidgets.jsx** | todayPayment, common.add, common.skip (3) |
-| **TemplatesEditor.jsx** | addLabel, addBtn (2) |
-| **notifications.js** | paymentTomorrow, paymentToday push notifications (2) |
+**Stats (4 KPI labels)**:
+- "Transakcji" / "Kont" / "Budżetów" / "Celów"
 
-### Częściowe pokrycie EN
+**Export / Import sekcja** (10 stringów):
+- "Eksportuj do Excel (.xlsx)"
+- Import help text
+- "Wybierz plik .xlsx (FinTrack backup)"
+- "Import wyciągu CSV (PKO BP / mBank / ING / Revolut)"
+- Target account info
+- Status messages ("Import zakończony!" / "Błąd importu" / "Wczytuję…")
 
-| Plik | Status |
-|---|---|
-| **SettingsPanel.jsx** | Section titles (10/10) + defaultAcc + cycle helpers + import/export descriptions + loading messages **przetłumaczone**. **NIE zrobione**: szczegóły custom cat editor (form labels), export buttons, language section, security section, partner name section. ~30% SettingsPanel zrobione. |
+**Reminders / Templates / Partner** (3 helpery):
+- "Gdy otworzysz aplikację, automatycznie pojawi się żółty banner..."
+- "Szybkie dodawanie — widoczne nad listą transakcji."
+- "Wyświetlana w module wspólnych rachunków."
 
-### Świadomie nieprzetłumaczone
+**Reset section** (8 stringów):
+- "Resetowanie danych" section title
+- "Załaduj dane demo" / "Wyczyść wszystkie dane" buttons
+- "Polityka prywatności" link
+- "Wyczyścić wszystkie dane?" / "Załadować dane demo?" modal titles
+- Modal descriptions
+- Confirm buttons
 
-| Plik | Powód |
-|---|---|
-| `RetirementCalculator.jsx` | Ukryty w EN — kalkulator IKZE/IKE/PPK to polskie produkty emerytalne, bezsensowne dla EN usera |
-| `accountTypes.js` (label IKE/IKZE/PPK) | Te konta widoczne tylko w PL UI (przez retirement filter) — komenta tylko gdy user manualnie utworzy konto IKZE w PL |
-| `retirementCalc.js` | Logika kalkulatora, niepotrzebna w EN bo cały tab schowany |
-| `utils.js` "0,00 zł" / " zł" | Apka jest dla **polskiego rynku PLN**. EN user to zazwyczaj Polak za granicą — i tak rozlicza się w PLN |
-| `data/demo.js` | Seed data — kategorie po polsku tylko jeśli user załaduje demo |
+### Co świadomie ZOSTAJE PO POLSKU
 
-## Klucze i18n.js — stan końcowy
+**Excel sheet headers** (Eksport):
+```
+Budżety, Płatności, Bilans, Miesiąc, Cel_PLN, Odłożone_PLN, Częstotliwość
+```
+**Powód**: User PL eksportuje plik dla polskiego księgowego / żony / partnera w PL Excel. EN headers byłyby kontekstowo dziwne (Polski user otwiera plik z "Budgets" zamiast "Budżety"). Excel format jest **dla PL workflow**, niezależnie od UI language.
+
+**Bank import keywords** (PKO/mBank/ING/Revolut CSV parsing):
+```
+"biedronka", "lidl", "żabka", "prąd", "czynsz", "wynagrodzenie", "premia"
+```
+**Powód**: To są pattern matchers do tytułów polskich CSV bankowych. Te ciągi szuka w description z pliku PKO/mBank — zawsze będą po polsku. EN tłumaczenie nie ma sensu.
+
+**Toast messages z polską pluralizacją** (`"transakcji"` / `"płatności"` / `"celów"`):
+```js
+`Zaimportowano ${imported} transakcji do "${targetAccName}".`
+```
+**Powód**: Polska gramatyka pluralizacji liczbowej (1 transakcja / 2 transakcje / 5 transakcji) jest skomplikowana. Zrobienie tego per-language wymaga proper i18n library (np. ICU MessageFormat). Aktualnie zostawiam toasty po polsku — to są brief notifications, nie kluczowe dla EN UX.
+
+### i18n.js stan końcowy
 
 ```
 PL keys: 112  (źródło prawdy — fallbacki przez t("key", "PL text"))
-EN keys: 358  (3.2x więcej — pełne pokrycie + nowe v1.3.1 features)
-
-PL → EN missing: 0  ✅  Wszystkie polskie klucze mają tłumaczenia EN
-EN → PL missing: 246 ✅  EN ma więcej kluczy (PL korzysta z inline fallback)
+EN keys: 449  (4x więcej)
+PL → EN missing: 0  ✅
 ```
 
-System fallback: `t("klucz", "polski tekst")`. Gdy user PL → bierze PL fallback z parametru. Gdy user EN → szuka klucza w EN dict, jeśli brak → polski fallback (ale ja dodałem wszystko więc ten branch nigdy nie wywoła się).
+**91 nowych kluczy EN** dodane w v1.3.3 dla SettingsPanel.
 
-## Decyzje techniczne
+## Część 2: Audyt spójności wyglądu
 
-### 1. SLIDES jako funkcja (Onboarding)
-Wcześniej `const SLIDES = [...]` na poziomie modułu — `t()` ewaluowało się **raz** przy module load, więc gdyby user zmienił język w trakcie sesji, slidy zostałyby w starym języku. Refaktor: `function getSlides() { return [...] }` wywoływany w komponencie. Ten sam pattern dla `getTierFeatures()` w UpgradeModal.
+### Metodyka
 
-### 2. Konflikt nazw `t` w DailyReminder
-DailyReminder używa `t` jako parametr w `transactions.filter(t => t.date === today)`. Po dodaniu `import { t }` z i18n nastąpiłaby kolizja. Rozwiązanie: alias `import { t as i18n } from "../i18n.js"`.
+Przeskanowałem cały `src/` regexami szukając:
+- `fontSize` patterns (wszystkie wartości)
+- `textTransform: uppercase` + `letterSpacing` (section title patterns)
+- Kolory `color: "#..."` (paleta kolorów)
+- Card padding overrides
 
-### 3. Bank "Inny" → technical id (EmptyStateSetup)
-Wcześniej `BANKS` array miał `{ name: "Inny" }` jako display label który był też używany do logiki (`if (b.name === "Inny")`). Refactor: `{ id: "other", name: "_other" }` + render `b.id === "other" ? t("setup.bankOther", "Inny") : b.name`. Logika operuje na `id`, label tłumaczony.
+### Wyniki audytu
 
-### 4. Hide RetirementCalculator w EN
-W `AnalyticsView.jsx` view switcher rozszerzony — generator IIFE produkuje array tabs:
-```jsx
-const tabs = [
-  ["month", t("analytics.tab.current", "Current")],
-  ["period", t("analytics.tab.periods", "Periods")],
-  ...(getLang() === "pl" ? [["retirement", "Emerytura"]] : []),
-];
+**Section titles**: 17 różnych kombinacji `fontSize × letterSpacing` w apce. Top 5:
 ```
-Plus warunkowy render `activeView === "retirement" && getLang() === "pl"` żeby nawet jeśli user EN wpadnie na URL z `activeView=retirement`, render się nie wywoła.
-
-### 5. Pole `source` w `proStatus` (z v1.3.0) — bez zmian
-Migracja Gumroad → Play Store/RevenueCat już zrobiona w v1.3.0. v1.3.1 niczego tu nie ruszamy.
-
-## Build status
-
-```
-✓ built in 17.98s
-dist/assets/index.js       ~91 KB gzip
-dist/assets/firebase.js   145 KB gzip
-dist/assets/recharts.js   147 KB gzip
+fontSize:12 letterSpacing:0.08em → 17 occurrences  (KPI labels)
+fontSize:11 letterSpacing:0.08em → 14 occurrences  (sub-labels)
+fontSize:13 letterSpacing:0.08em → 9 occurrences   (Settings sections)
+fontSize:16 letterSpacing:0.08em → 8 occurrences   (Settings titles)
+fontSize:10 letterSpacing:0.08em → 7 occurrences   (mini-labels)
 ```
 
-Bundle size **bez zmian** vs v1.3.0 — wszystkie klucze EN są stringi, kompresują się do gzip podobnie jak PL.
+**FontSize ogólnie**: używamy 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48, 52, 72px. Top 4: 11px (147x), 10px (110x), 12px (109x), 13px (104x).
 
-## Testowanie
+**Paleta kolorów**: ~20 unique kolorów + warianty z opacity. Top 8:
+```
+#475569 (slate-600)       128x  ← muted text
+#64748b (slate-500)       124x  ← secondary text
+#e2e8f0 (slate-200)        71x  ← primary text
+#10b981 (emerald-500)      50x  ← success / income
+#94a3b8 (slate-400)        49x  ← labels
+#334155 (slate-700)        48x  ← borders dark
+#60a5fa (blue-400)         31x  ← interactive accent
+#ef4444 (red-500)          21x  ← warning / expense
+```
 
-### Co przetestować po deployu
+### Werdykt: NIE naprawiać
 
-1. **Hard refresh** (Ctrl+Shift+R) żeby SW wczytał nowe `i18n.js`
-2. **Settings → Język/Language → English** → cała apka się reloaduje na EN
-3. Sprawdź:
-   - LoginScreen po wylogowaniu (8 stringów)
-   - Onboarding (Settings → ⚠️ Reset onboarding — jest gdzieś?) — 8 slidów
-   - Dashboard z transakcjami: feature cards (Transactions/Recurring/Goals)
-   - Plany → wszystkie 4 taby (Goals/Limits/Trips/Hobby)
-   - Wyjazdy / Trips empty state
-   - Hobby empty state
-   - Analytics → tabs powinno być Current/Periods (BEZ Retirement w EN)
-   - Settings → section titles powinny być EN: Default account, Billing cycle, My categories, PRO Diagnostics, Export/Import, Reminders, Templates, Security, Partner name
-4. Po przełączeniu na PL → wszystko z powrotem polskie
-5. Diagnostyka PRO — `proStatus.source` field powinien się wyświetlać (ważne dla v1.3.0 migration)
+**Powody**:
 
-### Edge cases
+1. **Paleta kolorów jest spójna**. Tailwind slate scale dla tekstów (`#475569` → `#cbd5e1` → `#e2e8f0`), semantic colors dla statusów (zielony = pozytyw, czerwony = negatyw, żółty = ostrzeżenie, niebieski = info), accent colors dla brand (gradient `#1e40af → #7c3aed`). Konsekwentne.
 
-- Stary user (PL) bez aktywacji PRO: nic się nie zmienia
-- Stary user (PL) z PRO z testów Gumroad: graceful migration `licenseKey` → `source: "unknown"`. PRO zostaje aktywny.
-- Nowy user (EN przez browser language detection): wchodzi → LoginScreen po angielsku → Onboarding po angielsku → pełny EN flow
-- Sprawdź mobile viewport (env(safe-area-inset-bottom)) bo niektóre EN tłumaczenia są dłuższe (np. "Open in Google Play" zamiast "Otwórz w Google Play") — czy nie wychodzi za ekran w buttonach?
+2. **Wariacje fontSize wynikają z naturalnej hierarchii**, nie z chaosu:
+   - Tytuły sekcji (Settings): 14-16px
+   - Section labels (KPI w widget'ach): 10-12px uppercase
+   - Body text: 11-13px
+   - Numbers / KPI values: 14-22px
+   - Hero numbers (FinancialScore 90/100): 18-32px
+   
+   Zaglądam w pojedynczy widok (np. Dashboard) — tam jest **konsystencja**: wszystkie KPI labels mają fontSize:10 letterSpacing:0.08em, wszystkie KPI values są w 'DM Mono' fontSize:14-16. Wariacje statystyczne są **między widokami**, nie wewnątrz nich.
+
+3. **Zmiany ryzykowne** vs **korzyść niepewna**. Refactor wszystkich section titles do reusable `<SectionTitle variant="...">` to ~30 plików zmienionych, ~200+ replacements. Ryzyko regresji. Korzyść: subiektywna. **Nie warto bez konkretnego sygnału że coś gryzie usera.**
+
+### Drobne fixy które zrobiłem
+
+**Dashboard pluralizacja** (linia 549):
+```diff
+- {pct}% {cycleDay > 1 ? "cyklu" : "miesiąca"} minęło · do końca {daysLeft} {daysLeft === 1 ? "dzień" : "dni"}
++ {pct}% {cycleDay > 1 ? t("dash.cycleWord","cyklu") : t("dash.monthWord","miesiąca")} {t("dash.elapsed","minęło")} · {t("dash.untilEnd","do końca")} {daysLeft} {daysLeft === 1 ? t("daily.day","dzień") : t("daily.days","dni")}
+```
+
+Tylko miejsce w Dashboard gdzie inline PL wymykało się EN. Klucze `dash.cycleWord`, `dash.monthWord`, `dash.elapsed`, `dash.untilEnd` dodane do i18n.
+
+## Pliki zmienione (3 pliki)
+
+| Plik | Co |
+|---|---|
+| `src/components/SettingsPanel.jsx` | ~50 nowych `t()` calls, 24 hardcoded PL pozostawione (Excel headers + bank patterns) |
+| `src/i18n.js` | +91 kluczy EN dla settings.* + 4 dash.* |
+| `src/views/Dashboard.jsx` | Cycle/month + day pluralizacja przez t() |
+| `package.json` | 1.3.2 → 1.3.3 |
+
+Build: zielony (28.30s), bundle ~91KB gzip (bez zmian).
+
+## Co przetestować
+
+### Po przełączeniu na EN
+
+1. **Settings → wszystkie sekcje** powinny być po angielsku:
+   - Default account, Billing cycle, My categories, PRO Diagnostics
+   - Export/Import, Reminders, Templates, Security, Partner name, **Reset data**
+2. **Modal'e**:
+   - "Wipe all data?" / "Load demo data?"
+3. **Confirm dialogs** (delete category, delete cycle entry):
+   - Po angielsku
+4. **PRO badge** (jeśli masz aktywne PRO):
+   - "Lifetime access · thanks for the support!" lub "Valid until {date}"
+   - Data formatowana w `en-US` style ("4/29/2027" zamiast "29.04.2027")
+5. **Toast po imporcie**:
+   - **Po polsku** (świadomie zostawione, complex pluralization)
+6. **Excel export po EN**:
+   - Headers w pliku **po polsku** (Budżety, Płatności, Bilans) — to jest celowe, dla PL workflow
+
+### Edge case
+
+Jeśli zauważysz gdziekolwiek jeszcze polski tekst po przełączeniu na EN — daj znać konkretnie którą sekcję, naprawię.
 
 ## Co dalej
 
-### Faza 2 — RevenueCat integration (przyszła sesja, ~1.5-2h)
+- **Faza 3 TWA setup** — czeka na keystore + SHA256
+- **Faza 2 RevenueCat** — wstrzymane, BabyLog idzie spokojnie
+- **Drobne poprawki po teście v1.3.3** — wgraj, deployuj, sprawdź na realnych danych
 
-Wciąż czeka na wzorzec z BabyLog. Patrz `CHANGES.md` v1.3.0 sekcja "Faza 2".
-
-### Faza 3 — TWA setup (przyszła sesja, ~30 min)
-
-Wciąż czeka na keystore + SHA256 fingerprint. Patrz `CHANGES.md` v1.3.0 sekcja "Faza 3".
-
-### Faza 4 — Play Store assets (Twoja praca)
-
-Patrz `CHANGES.md` v1.3.0 sekcja "Faza 4".
-
-### Reszta tłumaczenia EN (opcjonalne)
-
-Jeśli kiedyś chcesz dokończyć:
-- **SettingsPanel ~70%** (custom cat editor form, language section, security/partner sections) — zrobi się w 1-1.5h sesji
-- **Toast messages** w AccountsView/PaymentsView/GoalsView które używają inline PL stringów
-
-Ale moja rekomendacja: **launch v1.3.1 jak jest**. SettingsPanel to power-user feature — pierwszych 100 klientów EN zobaczy 80% apki po angielsku, a SettingsPanel oni i tak głównie ustawiają raz na początku.
-
-## Pliki dodane / zmienione (19 plików)
-
-```
-src/i18n.js                                [+250 kluczy EN]
-src/App.jsx                                [3 t() calls]
-src/hooks/useFirebase.js                   [4 t() calls]
-src/components/ErrorBoundary.jsx           [5 t() calls + import t]
-src/components/LoginScreen.jsx             [8 t() calls + import t]
-src/components/Onboarding.jsx              [getSlides() + 16 t() calls]
-src/components/UpgradeModal.jsx            [getTierFeatures() + 16 t() calls]
-src/components/FeedbackButton.jsx          [12 t() calls + import t]
-src/components/DailyReminder.jsx           [4 i18n() calls + import as i18n]
-src/components/EmptyStateSetup.jsx         [bank "other" id + 10 t() calls]
-src/components/SharedWidgets.jsx           [3 t() calls + import t]
-src/components/TemplatesEditor.jsx         [2 t() calls + import t]
-src/components/AnalyticsWidgets.jsx        [24 t() calls + import t]
-src/components/SettingsPanel.jsx           [section titles + helpers (~30 t() calls)]
-src/views/LimitsView.jsx                   [15 t() calls + import t]
-src/views/AccountsView.jsx                 [1 t() call dodany]
-src/views/TransactionsView.jsx             [12 t() calls dodanych]
-src/views/PaymentsView.jsx                 [15 t() calls dodanych]
-src/views/AnalyticsView.jsx                [hide retirement w EN + 12 t() calls + import]
-src/views/Dashboard.jsx                    [15 t() calls dodanych]
-src/views/TripsView.jsx                    [5 t() calls dodanych]
-src/views/HobbyView.jsx                    [7 t() calls dodanych]
-src/notifications.js                       [2 t() calls + import t]
-package.json                               [1.3.0 → 1.3.1]
-```
-
-Build: zielony (17.98s), bundle ~90KB gzip (bez zmian vs v1.3.0).
-
-## 🚀 Deploy
-
-To samo zalecenie co dla v1.3.0:
-
-**NIE deployuj na publiczny GitHub Pages** dopóki nie masz Play Store listing (UpgradeModal CTA prowadzi do `play.google.com/store/apps/details?id=pl.skudev.fintrackpro` które będzie 404).
-
-Do testowania lokalnie:
-```bash
-npm install
-npm run dev   # http://localhost:5173/FinTrack-PRO/
-```
-
-Spróbuj przełączyć Settings → English → przejdź przez całą apkę.
+Apka ma teraz pełne EN dla user-facing (oprócz internal PL workflow rzeczy które celowo nie ruszane). Gotowa pod EN markets jeśli kiedyś tam pójdziesz.

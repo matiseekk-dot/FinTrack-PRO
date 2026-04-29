@@ -3,7 +3,7 @@ import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, ArrowUpRight, ArrowDownLeft,
   CreditCard, ShoppingBag, Utensils, Zap, Coffee, Building,
   Gift, DollarSign, Flame, AlertCircle, Scissors, Target, LineChart as LineChartIcon,
-  Lightbulb, Minus, ChevronLeft, ChevronRight
+  Lightbulb, Minus
 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, cycleTxs, getCycleRange } from "../utils.js";
@@ -325,7 +325,7 @@ function ExpenseTypesBreakdown({ monthTx, income, allCats = null }) {
   ];
 
   return (
-    <div style={{ padding: "14px 16px" }}>
+    <Card style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.08em", marginBottom: 12 }}>Struktura wydatkow</div>
 
@@ -444,7 +444,7 @@ function ExpenseTypesBreakdown({ monthTx, income, allCats = null }) {
         {t("exptype.norms", "Normy: Stałe <50% · Zmienne <30% · Lifestyle <20%")}
         {total > 0 && <span style={{ color: "#475569" }}> · {t("exptype.clickToExpand", "kliknij sekcję żeby rozwinąć")}</span>}
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -465,15 +465,13 @@ const getIncomeType = (cat) => {
 };
 
 function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycleDay = 1 }) {
-  // Lokalny month state - pozwala user'owi nawigować wstecz w widget niezależnie
-  // od reszty AnalyticsView. Default: bieżący month z parent (gdy widget się mountuje).
-  // Brak resync z parent: jeśli user przełączy parent month, ale chce zostać w innym
-  // - kliknie "Dziś" żeby wrócić.
-  const [localMonth, setLocalMonth] = useState(parentMonth);
-
+  // v1.3.2: usunięta lokalna nawigacja po miesiącach (strzałki + button "Dziś").
+  // Powód: duplikacja z głównym tab switcher Analizy (Bieżący/Okresy) wyżej.
+  // User i tak nie wraca do starych cykli z tego widget'u, a UI był zaśmiecony.
+  // Widget zawsze pokazuje cykl bieżący przekazany z parent (month).
   const monthTx = useMemo(
-    () => cycleTxs(transactions, localMonth, cycleDay),
-    [transactions, localMonth, cycleDay]
+    () => cycleTxs(transactions, parentMonth, cycleDay),
+    [transactions, parentMonth, cycleDay]
   );
   const incomeTx = monthTx.filter(t => t.amount > 0 && t.cat !== "inne");
 
@@ -496,39 +494,13 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
   const sortedMerchants = Object.entries(mainMerchants).sort((a,b) => b[1] - a[1]);
   const topMain = sortedMerchants[0];
 
-  const isCurrentMonth = localMonth === parentMonth;
-  const monthLabel = MONTH_NAMES[localMonth] || "—";
+  const monthLabel = MONTH_NAMES[parentMonth] || "—";
 
   return (
-    <div style={{ padding: "14px 16px" }}>
+    <Card style={{ padding: "14px 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.08em" }}>{t("income.structure", "Struktura przychodów")} · {monthLabel}</div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <button onClick={() => setLocalMonth(m => m === 0 ? 11 : m - 1)} style={{
-            background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
-            padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
-            display: "flex", alignItems: "center",
-          }} title={t("income.prevMonth", "Poprzedni miesiąc")}>
-            <ChevronLeft size={12}/>
-          </button>
-          {!isCurrentMonth && (
-            <button onClick={() => setLocalMonth(parentMonth)} style={{
-              background: "#1e3a5f", border: "1px solid #2563eb44", borderRadius: 6,
-              padding: "3px 8px", cursor: "pointer", color: "#60a5fa",
-              fontSize: 9, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
-            }} title={t("income.backToCurrent", "Powrót do bieżącego cyklu")}>
-              {t("income.today", "Dziś")}
-            </button>
-          )}
-          <button onClick={() => setLocalMonth(m => m === 11 ? 0 : m + 1)} style={{
-            background: "#0f1825", border: "1px solid #1a2744", borderRadius: 6,
-            padding: "3px 6px", cursor: "pointer", color: "#94a3b8",
-            display: "flex", alignItems: "center",
-          }} title={t("income.nextMonth", "Następny miesiąc")}>
-            <ChevronRight size={12}/>
-          </button>
-        </div>
       </div>
 
       {total <= 0 ? (
@@ -613,7 +585,7 @@ function IncomeTypesBreakdown({ transactions = [], month: parentMonth = 0, cycle
           </div>
         </>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -666,7 +638,7 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
   }, [income, expense, catData, monthTx, safeToSpend, daysLeft]);
 
   return (
-    <div style={{ padding: "14px 16px" }}>
+    <Card style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.08em", marginBottom: 12 }}>Rekomendacje</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -677,7 +649,7 @@ function Recommendations({ income, expense, catData, monthTx, safeToSpend, daysL
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 };
 

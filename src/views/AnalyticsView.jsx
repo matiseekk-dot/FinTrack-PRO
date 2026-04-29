@@ -328,8 +328,21 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
 
       {/* View switcher
           v1.3.1: Tab "Emerytura" pokazujemy tylko w PL bo IKZE/IKE/PPK to polskie
-          produkty emerytalne. EN userzy widzą tylko Bieżący/Okresy. */}
-      <div style={{ display: "flex", gap: 8, paddingTop: 8, paddingBottom: 14 }}>
+          produkty emerytalne. EN userzy widzą tylko Bieżący/Okresy.
+          v1.3.2: Sticky pod top barem - user nigdy nie traci kontekstu w jakim
+          widoku jest. Top: 56px = wysokość top bara z safe-area.
+          background z gradientem kontynuuje top bar tła żeby nie było szwu wizualnego. */}
+      <div style={{
+        position: "sticky",
+        top: "calc(env(safe-area-inset-top, 0px) + 52px)",
+        zIndex: 40,
+        background: "linear-gradient(180deg, #060b14 85%, transparent)",
+        display: "flex", gap: 8,
+        paddingTop: 8,
+        paddingBottom: 14,
+        marginLeft: -16, marginRight: -16,
+        paddingLeft: 16, paddingRight: 16,
+      }}>
         {(() => {
           const isPl = getLang() === "pl";
           const tabs = [

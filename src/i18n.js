@@ -495,6 +495,10 @@ const TRANSLATIONS = {
     "dash.longterm": "Long-term",
     "dash.statusToday": "As of today",
     "dash.daysToEnd": "days to cycle end",
+    "dash.cycleWord": "of cycle",
+    "dash.monthWord": "of month",
+    "dash.elapsed": "elapsed",
+    "dash.untilEnd": "until end",
 
     // Analytics (v1.3.1)
     "analytics.monthCompare": "Month comparison",
@@ -568,6 +572,112 @@ const TRANSLATIONS = {
     "settings.security.title": "Security",
     "settings.partner.title": "Partner name",
     "settings.default": "Default",
+
+    // Settings v1.3.3 — pełne tłumaczenia EN
+    // PRO badge / upgrade
+    "settings.pro.lifetime": "Lifetime access · thanks for the support!",
+    "settings.pro.validUntil": "Valid until",
+    "settings.pro.trial": "Trial version",
+    "settings.upgrade.cta": "Upgrade to PRO",
+    "settings.upgrade.subtitle": "99 PLN/year · no limits · no ads",
+    "settings.upgrade.buy": "Buy",
+
+    // Cycle
+    "settings.cycle.changeNote": "Changing the value creates a new entry from the 1st day of the current month. Earlier months keep their previous value — your reports stay consistent.",
+    "settings.cycle.standard": "Standard calendar month",
+    "settings.cycle.historyHelp": "Old months use values from when they applied — yearly reports stay consistent.",
+    "settings.cycle.beforeLogging": "Beginning (before you started logging)",
+    "settings.cycle.deleteEntryConfirm1": "Delete this entry?",
+    "settings.cycle.deleteEntryConfirm2": "Months from",
+    "settings.cycle.deleteEntryConfirm3": "will use the value from the previous entry.",
+    "settings.cycle.deleteEntry": "Delete this entry",
+    "settings.cycle.editTip": "You can edit the day of any entry or delete it. Useful if historical values are wrong after migration.",
+
+    // Categories editor
+    "settings.cats.editing": "Edit category",
+    "settings.cats.expenseType": "Type in expense structure",
+    "settings.cats.income": "income",
+    "settings.cats.expense": "expense",
+    "settings.cats.income2": "Income",
+    "settings.cats.expense2": "Expense",
+    "settings.cats.fixed": "Fixed",
+    "settings.cats.deleteConfirm1": "Delete category",
+    "settings.cats.deleteConfirm2": "Note: transactions in this category will stay, but lose their color and name.",
+    "settings.cats.namePlaceholder": "Category name (e.g. Gym)",
+    "settings.cats.typeHelp": "Fixed = monthly (loan, rent). Variable = needed (food, health). Lifestyle = pleasures.",
+    "settings.cats.alreadyExists": "A category with this name already exists",
+    "settings.cats.addBtn": "Add category",
+
+    // Diagnostyka PRO
+    "settings.diag.source": "source",
+    "settings.diag.syncOk": "✅ PRO status sent to Firestore.\n\nOn the other device:\n1. Hard refresh\n2. After 1-2s you'll see PRO",
+    "settings.diag.syncFail": "❌ Sync failed: ",
+    "settings.diag.unknownError": "unknown error",
+    "settings.diag.forceSync": "Force sync PRO status to Firestore",
+    "settings.diag.noProHint1": "No active PRO subscription. If you bought it on another device and it's not syncing:",
+    "settings.diag.noProHint2": "On the other device: Settings → PRO Diagnostics → \"Force sync\"",
+    "settings.diag.noProHint4": "After 1-2s the subscription should appear",
+
+    // Stats labels
+    "settings.stats.tx": "Transactions",
+    "settings.stats.accounts": "Accounts",
+    "settings.stats.payments": "Payments",
+    "settings.stats.goals": "Goals",
+    "settings.stats.budgets": "Budgets",
+
+    // Export / Import
+    "settings.export.btn": "Export to Excel (.xlsx)",
+    "settings.import.help1": "Load a .xlsx file previously exported from FinTrack. Data will be",
+    "settings.import.replaced": "replaced",
+    "settings.import.help2": " — make a backup before importing if you want to keep a copy.",
+    "settings.import.btnXlsx": "Choose .xlsx file (FinTrack backup)",
+    "settings.import.btnCsv": "Import bank CSV (PKO BP / mBank / ING / Revolut)",
+    "settings.import.targetAcc": "Transactions will go to",
+    "settings.import.changeAcc": "change default account above",
+    "settings.import.statusOk": "Import complete!",
+    "settings.import.statusErr": "Import error",
+    "settings.import.statusLoading": "Loading…",
+
+    // Reminders / Templates / Partner
+    "settings.reminders.help": "When you open the app, a yellow banner will appear automatically with a list of payments due today, tomorrow or in 3 days. Works without any permissions — just close the banner with ×.",
+    "settings.templates.help": "Quick add — visible above transactions list.",
+    "settings.partner.help": "Displayed in the shared accounts module.",
+
+    // Reset section
+    "settings.reset.title": "Reset data",
+    "settings.reset.help": "Load demo data to see how the app looks fully populated, or reset everything to a clean state.",
+    "settings.reset.loadDemo": "Load demo data",
+    "settings.reset.wipe": "Wipe all data",
+    "settings.privacy": "Privacy policy",
+    "settings.wipe.title": "Wipe all data?",
+    "settings.wipe.desc": "This action cannot be undone. All transactions, accounts, goals and payments will be deleted.",
+    "settings.wipe.confirm": "Delete everything",
+    "settings.demo.title": "Load demo data?",
+    "settings.demo.desc": "Your current data will be replaced with sample transactions and payments.",
+    "settings.demo.confirm": "Load demo",
+
+    // Hobby income (v1.3.2)
+    "hobby.expensesLabel": "Expenses",
+    "hobby.incomeLabel": "Sales / income",
+    "hobby.netto": "Net balance (lifetime)",
+    "hobby.nettoLifetime": "Net (lifetime)",
+    "hobby.nettoPositive": "Hobby pays for itself — sales cover expenses.",
+    "hobby.nettoNegative": "Real cost of the hobby after subtracting sales.",
+    "hobby.couldSave": "This is money you could move to savings. Decide consciously — the app just shows facts.",
+    "hobby.topBuyers": "Top buyers / sales sources",
+    "hobby.yearlyLimit": "Yearly limit",
+    "hobby.used": "used",
+    "hobby.exceededBy": "Exceeded limit by",
+    "hobby.back": "Back",
+    "hobby.tx": "transaction",
+    "hobby.txs": "transactions",
+    "hobby.catsShort": "cats",
+    "hobby.cycle": "Cycle",
+    "hobby.month": "Month",
+    "hobby.quarter": "Qtr.",
+    "hobby.year": "Year",
+    "hobby.yoy": "Year-over-year (expenses)",
+    "common.edit": "Edit",
   },
 };
 

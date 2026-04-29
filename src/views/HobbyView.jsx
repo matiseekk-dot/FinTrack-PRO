@@ -9,7 +9,8 @@ import { Input } from "../components/ui/Input.jsx";
 import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import {
   pickHobbyColor, DEFAULT_HOBBY_COLORS,
-  getHobbyTransactions, getHobbyStats,
+  getHobbyTransactions, getHobbyExpenses, getHobbyIncome, getAllHobbyTransactions,
+  getHobbyStats,
 } from "../lib/hobby.js";
 import { getCat } from "../constants.js";
 import { t } from "../i18n.js";
@@ -21,21 +22,35 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
   const cyclePool = useMemo(() => cycleTxs(transactions || [], month, cycleDay),
     [transactions, month, cycleDay]);
 
-  // Łączny przegląd wszystkich hobby - KPI suma w cyklu i w roku
+  // Łączny przegląd wszystkich hobby - KPI suma w cyklu, roku i lifetime
+  // v1.3.2: dodano summary income i netto
   const summary = useMemo(() => {
-    if (!Array.isArray(hobbies)) return { cycleTotal: 0, yearTotal: 0, allTimeTotal: 0 };
+    if (!Array.isArray(hobbies)) return {
+      cycleTotal: 0, yearTotal: 0, allTimeTotal: 0,
+      incomeCycle: 0, incomeYear: 0, incomeAllTime: 0,
+      nettoAllTime: 0, hasAnyIncome: false,
+    };
     const active = hobbies.filter(h => !h.archived);
     let cycleTotal = 0, yearTotal = 0, allTimeTotal = 0;
+    let incomeCycle = 0, incomeYear = 0, incomeAllTime = 0;
     for (const h of active) {
       const stats = getHobbyStats(transactions, h, { cycleTxs: cyclePool });
-      cycleTotal   += stats.thisCycle;
-      yearTotal    += stats.thisYear;
-      allTimeTotal += stats.allTime;
+      cycleTotal    += stats.thisCycle;
+      yearTotal     += stats.thisYear;
+      allTimeTotal  += stats.allTime;
+      incomeCycle   += stats.incomeThisCycle || 0;
+      incomeYear    += stats.incomeThisYear || 0;
+      incomeAllTime += stats.incomeAllTime || 0;
     }
     return {
-      cycleTotal: Math.round(cycleTotal),
-      yearTotal: Math.round(yearTotal),
-      allTimeTotal: Math.round(allTimeTotal),
+      cycleTotal:    Math.round(cycleTotal),
+      yearTotal:     Math.round(yearTotal),
+      allTimeTotal:  Math.round(allTimeTotal),
+      incomeCycle:   Math.round(incomeCycle),
+      incomeYear:    Math.round(incomeYear),
+      incomeAllTime: Math.round(incomeAllTime),
+      nettoAllTime:  Math.round(incomeAllTime - allTimeTotal),
+      hasAnyIncome:  incomeAllTime > 0,
     };
   }, [hobbies, transactions, cyclePool]);
 
@@ -129,12 +144,49 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
         <Card style={{ padding: "14px 16px", marginBottom: 14,
           background: "linear-gradient(135deg,#1a0f2e,#0d1628)",
           border: "1px solid #7c3aed33" }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase",
+            letterSpacing: "0.08em", marginBottom: 6 }}>
+            {t("hobby.expensesLabel", "Wydatki")}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Stat label={t("hobby.thisCycle")} value={fmt(summary.cycleTotal)} color="#ec4899"/>
             <Stat label={t("hobby.thisYear")}  value={fmt(summary.yearTotal)}  color="#a855f7"/>
             <Stat label={t("hobby.allTime")}   value={fmt(summary.allTimeTotal)} color="#8b5cf6"/>
           </div>
-          {summary.cycleTotal > 0 && (
+
+          {/* v1.3.2: Income strip - pokazujemy gdy któreś hobby coś sprzedaje */}
+          {summary.hasAnyIncome && (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#10b981", textTransform: "uppercase",
+                letterSpacing: "0.08em", marginTop: 12, marginBottom: 6 }}>
+                💰 {t("hobby.incomeLabel", "Sprzedaż / przychody")}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <Stat label={t("hobby.thisCycle")} value={fmt(summary.incomeCycle)}   color="#10b981"/>
+                <Stat label={t("hobby.thisYear")}  value={fmt(summary.incomeYear)}    color="#10b981"/>
+                <Stat label={t("hobby.allTime")}   value={fmt(summary.incomeAllTime)} color="#10b981"/>
+              </div>
+
+              {/* Netto lifetime - czerwony minus, zielony plus */}
+              <div style={{ marginTop: 10, padding: "8px 12px",
+                background: summary.nettoAllTime >= 0 ? "#0a2818" : "#1a0808",
+                border: summary.nettoAllTime >= 0 ? "1px solid #10b98144" : "1px solid #7f1d1d44",
+                borderRadius: 8,
+                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  color: summary.nettoAllTime >= 0 ? "#10b981" : "#ef4444" }}>
+                  {t("hobby.nettoLifetime", "Netto (lifetime)")}
+                </span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 800,
+                  color: summary.nettoAllTime >= 0 ? "#10b981" : "#ef4444" }}>
+                  {summary.nettoAllTime >= 0 ? "+" : ""}{fmt(summary.nettoAllTime)}
+                </span>
+              </div>
+            </>
+          )}
+
+          {summary.cycleTotal > 0 && !summary.hasAnyIncome && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
               fontSize: 11, color: "#94a3b8", textAlign: "center" }}>
               💡 {t("hobby.couldSave", "To są pieniądze które MÓGŁBYŚ przesunąć do oszczędności. Decyduj świadomie — apka tylko pokazuje fakty.")}
@@ -243,6 +295,10 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
   const overTarget = target > 0 && stats.thisYear > target;
   const nearTarget = target > 0 && targetPct >= 80 && !overTarget;
 
+  // v1.3.2: total tx count = expense count + income count
+  const totalCount = stats.count + (stats.incomeCount || 0);
+  const hasIncome = (stats.incomeAllTime || 0) > 0;
+
   return (
     <button onClick={onClick} style={{
       width: "100%", textAlign: "left", cursor: "pointer",
@@ -263,13 +319,27 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
             <Sparkles size={16} color={hobby.color}/>
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {hobby.name}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {hobby.name}
+              </div>
+              {hasIncome && (
+                <span style={{
+                  fontSize: 9, fontWeight: 800,
+                  padding: "2px 6px", borderRadius: 4,
+                  background: stats.nettoAllTime >= 0 ? "#10b98122" : "#1e3a5f",
+                  border: stats.nettoAllTime >= 0 ? "1px solid #10b98166" : "1px solid #2563eb44",
+                  color: stats.nettoAllTime >= 0 ? "#10b981" : "#60a5fa",
+                  fontFamily: "'DM Mono', monospace",
+                }}>
+                  {stats.nettoAllTime >= 0 ? "+" : ""}{fmtShort(stats.nettoAllTime)}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-              {stats.count} {stats.count === 1 ? "transakcja" : "transakcji"}
-              {hobby.categories.length > 0 && ` · ${hobby.categories.length} kat.`}
+              {totalCount} {totalCount === 1 ? t("hobby.tx", "transakcja") : t("hobby.txs", "transakcji")}
+              {hobby.categories.length > 0 && ` · ${hobby.categories.length} ${t("hobby.catsShort", "kat.")}`}
             </div>
           </div>
         </div>
@@ -277,17 +347,17 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
-        <MiniStat label="Cykl"  value={fmtShort(stats.thisCycle)}   color="#ec4899"/>
-        <MiniStat label="Mies." value={fmtShort(stats.thisMonth)}   color="#f43f5e"/>
-        <MiniStat label="Kwart."value={fmtShort(stats.thisQuarter)} color="#a855f7"/>
-        <MiniStat label="Rok"   value={fmtShort(stats.thisYear)}    color="#8b5cf6"/>
+        <MiniStat label={t("hobby.cycle", "Cykl")}     value={fmtShort(stats.thisCycle)}   color="#ec4899"/>
+        <MiniStat label={t("hobby.month", "Mies.")}    value={fmtShort(stats.thisMonth)}   color="#f43f5e"/>
+        <MiniStat label={t("hobby.quarter", "Kwart.")} value={fmtShort(stats.thisQuarter)} color="#a855f7"/>
+        <MiniStat label={t("hobby.year", "Rok")}       value={fmtShort(stats.thisYear)}    color="#8b5cf6"/>
       </div>
 
       {target > 0 && (
         <div style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Roczny limit: {fmt(target)}
+              {t("hobby.yearlyLimit", "Roczny limit")}: {fmt(target)}
             </span>
             <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", fontWeight: 700,
               color: overTarget ? "#ef4444" : nearTarget ? "#fbbf24" : "#10b981" }}>
@@ -303,7 +373,7 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
           {overTarget && (
             <div style={{ marginTop: 6, fontSize: 10, color: "#ef4444",
               display: "flex", alignItems: "center", gap: 4 }}>
-              <AlertCircle size={11}/> Przekroczono limit o {fmt(stats.thisYear - target)}
+              <AlertCircle size={11}/> {t("hobby.exceededBy", "Przekroczono limit o")} {fmt(stats.thisYear - target)}
             </div>
           )}
         </div>
@@ -328,7 +398,12 @@ function MiniStat({ label, value, color }) {
 function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit, onDelete }) {
   const stats = useMemo(() => getHobbyStats(transactions, hobby, { cycleTxs: cyclePool }),
     [transactions, hobby, cyclePool]);
-  const txs = useMemo(() => getHobbyTransactions(transactions, hobby), [transactions, hobby]);
+  // v1.3.2: zamiast samych wydatków, pokazujemy mieszane (wydatki + przychody)
+  // sortowane po dacie. Lista uwzględnia sprzedaż winyli/gier/książek.
+  const txs = useMemo(() => getAllHobbyTransactions(transactions, hobby), [transactions, hobby]);
+
+  // Czy hobby ma jakąkolwiek sprzedaż - decyduje czy pokazujemy income KPI/sekcje
+  const hasIncome = stats.incomeAllTime > 0 || stats.incomeCount > 0;
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
@@ -337,7 +412,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
         cursor: "pointer", padding: "0 0 12px 0", display: "flex", alignItems: "center", gap: 4,
         fontFamily: "'Space Grotesk', sans-serif",
       }}>
-        <ChevronLeft size={14}/> Wstecz
+        <ChevronLeft size={14}/> {t("hobby.back", "Wstecz")}
       </button>
 
       {/* Header card */}
@@ -368,11 +443,16 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
             </div>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={onEdit} title="Edytuj" style={iconBtn}><Edit2 size={14}/></button>
+            <button onClick={onEdit} title={t("common.edit", "Edytuj")} style={iconBtn}><Edit2 size={14}/></button>
             <button onClick={onDelete} title={t("common.delete", "Usuń")} style={{...iconBtn, color: "#ef4444"}}><Trash2 size={14}/></button>
           </div>
         </div>
 
+        {/* Wydatki — bez zmian */}
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+          letterSpacing: "0.08em", marginBottom: 6 }}>
+          {t("hobby.expensesLabel", "Wydatki")}
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
           <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.thisCycle)} color="#ec4899"/>
           <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.thisMonth)} color="#f43f5e"/>
@@ -383,15 +463,59 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           <Stat label="Total"          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
 
+        {/* v1.3.2: Przychody — pokazujemy tylko gdy hobby coś sprzedaje */}
+        {hasIncome && (
+          <>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#10b981", textTransform: "uppercase",
+              letterSpacing: "0.08em", marginTop: 14, marginBottom: 6 }}>
+              💰 {t("hobby.incomeLabel", "Sprzedaż / przychody")}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.incomeThisCycle)} color="#10b981"/>
+              <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.incomeThisYear)} color="#10b981"/>
+              <Stat label="Total"      value={fmt(stats.incomeAllTime)} color="#10b981"/>
+            </div>
+
+            {/* Netto: czy hobby kosztuje czy zarabia */}
+            <div style={{
+              marginTop: 8, padding: "10px 12px",
+              background: stats.nettoAllTime >= 0 ? "#0a2818" : "#1a0808",
+              border: stats.nettoAllTime >= 0 ? "1px solid #10b98144" : "1px solid #7f1d1d44",
+              borderRadius: 10,
+              display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+            }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: stats.nettoAllTime >= 0 ? "#10b981" : "#ef4444" }}>
+                  {t("hobby.netto", "Bilans netto (lifetime)")}
+                </div>
+                <div style={{ fontSize: 10, color: "#64748b", marginTop: 2, lineHeight: 1.4 }}>
+                  {stats.nettoAllTime >= 0
+                    ? t("hobby.nettoPositive", "Hobby się samofinansuje — sprzedaż pokrywa wydatki.")
+                    : t("hobby.nettoNegative", "Realny koszt pasji po odliczeniu sprzedaży.")
+                  }
+                </div>
+              </div>
+              <div style={{
+                fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 800,
+                color: stats.nettoAllTime >= 0 ? "#10b981" : "#ef4444", flexShrink: 0,
+              }}>
+                {stats.nettoAllTime >= 0 ? "+" : ""}{fmt(stats.nettoAllTime)}
+              </div>
+            </div>
+          </>
+        )}
+
         {hobby.yearlyTarget > 0 && (
           <div style={{ marginTop: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span style={{ fontSize: 11, color: "#94a3b8" }}>
-                Roczny limit: {fmt(hobby.yearlyTarget)}
+                {t("hobby.yearlyLimit", "Roczny limit")}: {fmt(hobby.yearlyTarget)}
               </span>
               <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", fontWeight: 700,
                 color: stats.thisYear > hobby.yearlyTarget ? "#ef4444" : "#10b981" }}>
-                {Math.min(100, (stats.thisYear / hobby.yearlyTarget) * 100).toFixed(0)}% wykorzystane
+                {Math.min(100, (stats.thisYear / hobby.yearlyTarget) * 100).toFixed(0)}% {t("hobby.used", "wykorzystane")}
               </span>
             </div>
             <div style={{ background: "#060b14", borderRadius: 4, height: 6, overflow: "hidden" }}>
@@ -411,9 +535,34 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
             textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10,
             display: "flex", alignItems: "center", gap: 6 }}>
-            <TrendingUp size={11}/> Rok-do-roku
+            <TrendingUp size={11}/> {t("hobby.yoy", "Rok-do-roku (wydatki)")}
           </div>
           <YoYBars data={stats.yoyTrend} color={hobby.color}/>
+        </Card>
+      )}
+
+      {/* v1.3.2: Top kupujący / źródła sprzedaży */}
+      {hasIncome && Object.keys(stats.byIncomeMerchant).length > 0 && (
+        <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#10b981",
+            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+            💰 {t("hobby.topBuyers", "Top kupujący / źródła sprzedaży")}
+          </div>
+          {Object.entries(stats.byIncomeMerchant)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([m, val]) => (
+              <div key={m} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0",
+                borderBottom: "1px solid #0d1628", fontSize: 12 }}>
+                <span style={{ color: "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 10 }}>
+                  {m}
+                </span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: "#10b981", flexShrink: 0 }}>
+                  +{fmt(val)}
+                </span>
+              </div>
+            ))
+          }
         </Card>
       )}
 
@@ -475,7 +624,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
         </Card>
       )}
 
-      {/* Lista transakcji */}
+      {/* Lista transakcji - v1.3.2 mieszane (wydatki + przychody, kolor wg znaku) */}
       {txs.length > 0 ? (
         <Card style={{ padding: "14px 16px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
@@ -487,10 +636,12 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {txs.slice(0, 30).map(tx => {
               const cat = (allCats || []).find(c => c.id === tx.cat) || getCat(tx.cat);
+              const isIncome = tx.amount > 0;
               return (
                 <div key={tx.id} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
                   padding: "8px 10px", background: "#060b14", borderRadius: 8,
+                  borderLeft: isIncome ? "2px solid #10b98166" : "2px solid transparent",
                 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600,
@@ -502,8 +653,8 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
                     </div>
                   </div>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700,
-                    color: "#ef4444", flexShrink: 0 }}>
-                    −{fmt(Math.abs(tx.amount))}
+                    color: isIncome ? "#10b981" : "#ef4444", flexShrink: 0 }}>
+                    {isIncome ? "+" : "−"}{fmt(Math.abs(tx.amount))}
                   </span>
                 </div>
               );
