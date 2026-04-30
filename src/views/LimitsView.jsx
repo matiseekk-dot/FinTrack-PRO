@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { PlusCircle, Trash2 } from "lucide-react";
-import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt, cycleTxs } from "../utils.js";

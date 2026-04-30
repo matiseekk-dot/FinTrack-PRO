@@ -1,7 +1,7 @@
 // Firebase Cloud Messaging — push notifications
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase.js";
+import { db } from "./firebase.js";
 import { t } from "./i18n.js";
 
 // VAPID public key z Firebase Console:
@@ -60,12 +60,6 @@ export async function requestNotificationPermission(uid) {
     console.warn("[FCM] token error:", e);
     return { ok: true, hasFcm: false, reason: "fcm_error", error: String(e) };
   }
-}
-
-export function onForegroundMessage(callback) {
-  const m = getMessagingInstance();
-  if (!m) return () => {};
-  return onMessage(m, callback);
 }
 
 // Local notification fallback (działa bez FCM backend).

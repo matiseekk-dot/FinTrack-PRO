@@ -85,9 +85,4 @@ async function decryptString(ciphertext) {
   }
 }
 
-// Pure sync fallback check (dla SSR lub starych browserów)
-function isSupported() {
-  return !!(window.crypto?.subtle);
-}
-
-export { encryptString, decryptString, isSupported };
+export { encryptString, decryptString };

@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { Card } from "../components/ui/Card.jsx";
-import { fmt, fmtShort, cycleTxs, dateToLocal } from "../utils.js";
-import { MONTH_NAMES } from "../constants.js";
+import { fmt, dateToLocal } from "../utils.js";
 import { t } from "../i18n.js";
 
 function RecurringReminder({ payments, paid = {}, transactions, setTransactions, accounts }) {

@@ -4,8 +4,8 @@ import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, cycleTxs, todayLocal, dateToLocal } from "../utils.js";
-import { CATEGORIES, getCat } from "../constants.js";
+import { fmt } from "../utils.js";
+import { getCat } from "../constants.js";
 import { getEffectiveBalance } from "../lib/accountTypes.js";
 import { useToast } from "../hooks/useToast.js";
 

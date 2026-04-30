@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
 import {
-  Plane, Plus, X, Calendar, Wallet, ChevronRight, ChevronLeft,
-  Trash2, Edit2, Archive as ArchiveIcon, RotateCcw, Tag,
+  Plane, Plus, X, Calendar, ChevronRight, ChevronLeft, Trash2, Edit2, Archive as ArchiveIcon, RotateCcw, Tag
 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
-import { fmt, fmtShort, todayLocal } from "../utils.js";
+import { fmt, todayLocal } from "../utils.js";
 import {
   groupTrips, getTripSpending, getYearlyTripsSummary, getTripsTrendYoY,
   pickTripColor, DEFAULT_TRIP_COLORS, migrateLegacyVacations,

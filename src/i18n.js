@@ -271,6 +271,8 @@ const TRANSLATIONS = {
     "hobby.name": "Hobby name",
     "hobby.categories": "Categories",
     "hobby.categoriesHelp": "Which categories count towards this hobby",
+    "hobby.cats.expense": "Expense",
+    "hobby.cats.income": "Income (sales / refunds)",
     "hobby.keywords": "Keywords (optional)",
     "hobby.keywordsHelp": "Extra words to find in tx description (e.g. 'vinyl', 'ghost')",
     "hobby.target": "Yearly limit (optional)",

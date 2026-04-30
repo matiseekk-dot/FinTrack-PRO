@@ -1,13 +1,7 @@
 import { useMemo, useState } from "react";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, ArrowUpRight, ArrowDownLeft,
-  CreditCard, ShoppingBag, Utensils, Zap, Coffee, Building,
-  Gift, DollarSign, Flame, AlertCircle, Scissors, Target, LineChart as LineChartIcon,
-  Lightbulb, Minus
-} from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
-import { fmt, fmtShort, cycleTxs, getCycleRange } from "../utils.js";
-import { getCat, MONTHS, MONTH_NAMES, BASE_CATEGORIES } from "../constants.js";
+import { fmt, fmtShort, cycleTxs } from "../utils.js";
+import { getCat, MONTH_NAMES, BASE_CATEGORIES } from "../constants.js";
 import { t } from "../i18n.js";
 
 
@@ -166,31 +160,58 @@ function FinancialScore({ income, expense, transactions, month, cycleDay, elapse
 
 function Insights({ transactions, month, cycleDay, income, expense, catData, allCats = null }) {
   const insights = useMemo(() => {
-    const list = [];
+    // v1.3.6: Rozbudowa reguł (5 → 14) + variety mechanism.
+    // Problem: te same insighty pokazywały się codziennie bo z 5 reguł 3-4 zawsze trafiały
+    // dla stabilnej sytuacji finansowej.
+    //
+    // Strategia:
+    // - Reguły dzielone na "critical" (deficyt, alerty) i "informational" (tipy, trendy)
+    // - Critical zawsze pokazane na górze (max 2)
+    // - Informational losowane z dziennym seedem - inny dzień = inny zestaw
+    // - Limit total 4 insighty na ekranie
+    const critical = [];        // deficyt, alarmy - zawsze priorytet
+    const informational = [];   // pozytywy, tipy - losowane
+
     const curTx = cycleTxs(transactions, month, cycleDay).filter(t => t.cat !== "inne");
+    const expensesOnly = curTx.filter(t => t.amount < 0);
+
+    // Średnia 3M
     const prev3 = [-3,-2,-1].map(o => {
       const m = ((month + 12 + o) % 12);
       return cycleTxs(transactions, m, cycleDay)
         .filter(t => t.amount < 0 && t.cat !== "inne")
         .reduce((s,t) => s + Math.abs(t.amount), 0);
-    }).filter(v => v > 200); // only real months with data
+    }).filter(v => v > 200);
     const avg3 = prev3.length >= 2 ? prev3.reduce((s,v)=>s+v,0)/prev3.length : 0;
 
-    // Reguła A — jednorazowy duzy wydatek
-    if (catData.length > 0) {
-      const top = catData[0];
-      const topPct = expense > 0 ? top.val / expense * 100 : 0;
-      const topCount = curTx.filter(t => t.cat === top.cat && t.amount < 0).length;
-      if (topPct > 35 && topCount <= 3) {
-        list.push({ type: "info", icon: "💡",
-          title: top.label + " = " + topPct.toFixed(0) + "% wydatkow",
-          sub: "Jednorazowy koszt — nie odzwierciedla normalnego miesiaca." });
+    // ═══ CRITICAL RULES — zawsze pokazane gdy trafią ═══
+
+    // C1: Stopa oszczednosci ujemna lub bardzo niska
+    const savingsRate = income > 0 ? (income - expense) / income * 100 : 0;
+    if (savingsRate < 0 && income > 0) {
+      const uncontrolExp = (catData || [])
+        .filter(c => UNCONTROLLABLE_CATS.includes(c.cat))
+        .reduce((s,c) => s + c.val, 0);
+      const isStructural = uncontrolExp > Math.abs(income - expense) * 0.5;
+      if (isStructural) {
+        critical.push({ type: "info", icon: "💡",
+          title: "Deficyt z kosztu jednorazowego",
+          sub: "Bez niego bilans bylby dodatni. Nie wymaga zmian w nawykach." });
+      } else {
+        critical.push({ type: "alert", icon: "⚠",
+          title: "Wydajesz wiecej niz zarabiasz",
+          sub: "Deficyt: " + fmt(Math.abs(income - expense)) + " zl. Ogranicz wydatki kontrolowalne." });
       }
+    } else if (savingsRate < 10 && income > 0 && savingsRate >= 0) {
+      const gap = income * 0.15 - (income - expense);
+      critical.push({ type: "alert", icon: "⚠",
+        title: "Niska stopa oszczednosci: " + savingsRate.toFixed(0) + "%",
+        sub: "Cel min. 15% → brakuje " + fmt(Math.max(0,gap)) + " zl/mies." });
     }
 
-    // Reguła B — anomalia dzienna
+    // C2: Anomalia dzienna (>3x sredniej)
     const dayMap = {};
-    curTx.filter(t => t.amount < 0).forEach(t => {
+    expensesOnly.forEach(t => {
       dayMap[t.date] = (dayMap[t.date]||0) + Math.abs(t.amount);
     });
     const dayEntries = Object.entries(dayMap).sort((a,b)=>b[1]-a[1]);
@@ -198,73 +219,202 @@ function Insights({ transactions, month, cycleDay, income, expense, catData, all
       const avgDay = Object.values(dayMap).reduce((s,v)=>s+v,0) / Object.values(dayMap).length;
       const [maxDate, maxVal] = dayEntries[0];
       if (maxVal > avgDay * 3) {
-        list.push({ type: "warning", icon: "!",
+        critical.push({ type: "warning", icon: "!",
           title: maxDate.slice(5).replace("-",".") + " — " + fmt(maxVal),
           sub: (maxVal/avgDay).toFixed(1) + "x powyzej zwyklego dnia wydatkow." });
       }
     }
 
-    // Reguła C — trend vs 3M
+    // ═══ INFORMATIONAL RULES — losowane z dziennym seedem ═══
+
+    // I1: Top kategoria dominuje
+    if (catData.length > 0) {
+      const top = catData[0];
+      const topPct = expense > 0 ? top.val / expense * 100 : 0;
+      const topCount = curTx.filter(t => t.cat === top.cat && t.amount < 0).length;
+      if (topPct > 35 && topCount <= 3) {
+        informational.push({ type: "info", icon: "💡",
+          title: top.label + " = " + topPct.toFixed(0) + "% wydatkow",
+          sub: "Jednorazowy koszt — nie odzwierciedla normalnego miesiaca." });
+      } else if (topPct > 30 && topCount > 5) {
+        informational.push({ type: "info", icon: "📊",
+          title: top.label + " dominuje (" + topPct.toFixed(0) + "%)",
+          sub: topCount + " transakcji w tej kategorii — przewidywalny pattern." });
+      }
+    }
+
+    // I2: Trend vs 3M (pozytywny / negatywny)
     if (avg3 > 0) {
       const diff = (expense - avg3) / avg3 * 100;
       if (diff > 20) {
         const topCatName = catData[0] ? catData[0].label : "";
-        list.push({ type: "warning", icon: "↑",
+        informational.push({ type: "warning", icon: "↑",
           title: "Wydatki +" + diff.toFixed(0) + "% vs srednia 3M",
           sub: "Glownie przez: " + topCatName + "." });
       } else if (diff < -15) {
-        list.push({ type: "positive", icon: "↓",
+        informational.push({ type: "positive", icon: "↓",
           title: "Wydatki -" + Math.abs(diff).toFixed(0) + "% vs srednia 3M",
           sub: "Dobry miesiac — ponizej sredniej." });
+      } else if (Math.abs(diff) <= 5) {
+        informational.push({ type: "info", icon: "≈",
+          title: "Wydatki na poziomie sredniej 3M",
+          sub: "Stabilny pattern — przewidywalny budzet." });
       }
     }
 
-    // Reguła D — lifestyle rosnie
+    // I3: Lifestyle rosnie
     const lifestyleCur  = curTx.filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "lifestyle").reduce((s,t)=>s+Math.abs(t.amount),0);
     const lifestylePrev = cycleTxs(transactions, (month+11)%12, cycleDay)
       .filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "lifestyle")
       .reduce((s,t)=>s+Math.abs(t.amount),0);
     if (lifestylePrev > 0 && lifestyleCur > lifestylePrev * 1.2) {
-      list.push({ type: "warning", icon: "↑",
+      informational.push({ type: "warning", icon: "↑",
         title: "Lifestyle +" + (((lifestyleCur/lifestylePrev)-1)*100).toFixed(0) + "% vs poprzedni mies.",
         sub: "Przejrzyj subskrypcje i restauracje." });
+    } else if (lifestylePrev > 0 && lifestyleCur < lifestylePrev * 0.7) {
+      informational.push({ type: "positive", icon: "↓",
+        title: "Lifestyle -" + (((1-lifestyleCur/lifestylePrev))*100).toFixed(0) + "% vs poprzedni mies.",
+        sub: "Świadome ograniczenie — gratulacje." });
     }
 
-    // Reguła E — stopa oszczednosci
-    const savingsRate = income > 0 ? (income - expense) / income * 100 : 0;
-    if (savingsRate < 0 && income > 0) {
-      // Detect if deficit is from uncontrollable costs
-      const uncontrolExp = (catData || [])
-        .filter(c => UNCONTROLLABLE_CATS.includes(c.cat))
-        .reduce((s,c) => s + c.val, 0);
-      const isStructural = uncontrolExp > Math.abs(income - expense) * 0.5;
-      if (isStructural) {
-        list.push({ type: "info", icon: "💡",
-          title: "Deficyt z kosztu jednorazowego",
-          sub: "Bez niego bilans bylby dodatni. Nie wymaga zmian w nawykach." });
-      } else {
-        list.push({ type: "alert", icon: "⚠",
-          title: "Wydajesz wiecej niz zarabiasz",
-          sub: "Deficyt: " + fmt(Math.abs(income - expense)) + " zl. Ogranicz wydatki kontrolowalne." });
+    // I4: Liczba transakcji - duzo / malo
+    const txCount = expensesOnly.length;
+    if (txCount > 80) {
+      informational.push({ type: "info", icon: "🔢",
+        title: txCount + " transakcji w tym cyklu",
+        sub: "Duza aktywnosc — moze warto wiecej zakupow zbiorczych?" });
+    } else if (txCount < 15 && expense > 1000) {
+      informational.push({ type: "info", icon: "📦",
+        title: "Tylko " + txCount + " transakcji ale " + fmt(expense),
+        sub: "Sredni koszt " + fmt(expense/txCount) + " — duze pojedyncze wydatki." });
+    }
+
+    // I5: Wydatki w weekend vs tydzien
+    const weekendExp = expensesOnly
+      .filter(t => { const d = new Date(t.date).getDay(); return d === 0 || d === 6; })
+      .reduce((s,t) => s + Math.abs(t.amount), 0);
+    const weekdayExp = expense - weekendExp;
+    if (weekendExp > 0 && weekdayExp > 0) {
+      // Weekend = 2/7 tygodnia. Jesli weekend >40% calkowitych wydatkow → znaczacy.
+      const weekendPct = weekendExp / expense * 100;
+      if (weekendPct > 45) {
+        informational.push({ type: "info", icon: "📅",
+          title: "Weekendy: " + weekendPct.toFixed(0) + "% wydatkow",
+          sub: fmt(weekendExp) + " w soboty/niedziele — czesto restauracje i rozrywka." });
+      } else if (weekendPct < 15 && expense > 500) {
+        informational.push({ type: "positive", icon: "📅",
+          title: "Wydatki glownie w tygodniu",
+          sub: "Tylko " + weekendPct.toFixed(0) + "% w weekend — niski koszt rozrywki." });
       }
-    } else if (savingsRate < 10 && income > 0) {
-      const gap = income * 0.15 - (income - expense);
-      list.push({ type: "alert", icon: "⚠",
-        title: "Niska stopa oszczednosci: " + savingsRate.toFixed(0) + "%",
-        sub: "Cel min. 15% → brakuje " + fmt(Math.max(0,gap)) + " zl/mies." });
     }
 
-    // Deficyt wyjaśnienie
-    if (income < expense && catData.length > 0) {
-      const deficit = expense - income;
-      const top = catData[0];
-      const pct = (top.val / deficit * 100).toFixed(0);
-      list.push({ type: "alert", icon: "−",
-        title: "Deficyt " + fmt(deficit) + " — glownie: " + top.label,
-        sub: top.label + " odpowiada za " + pct + "% deficytu." });
+    // I6: Top sklep / merchant
+    const merchants = {};
+    expensesOnly.forEach(t => {
+      const m = (t.desc || "").trim().toLowerCase();
+      if (m && m.length > 2) {
+        merchants[m] = (merchants[m] || 0) + Math.abs(t.amount);
+      }
+    });
+    const topMerchant = Object.entries(merchants).sort((a,b) => b[1]-a[1])[0];
+    if (topMerchant && topMerchant[1] > 200 && topMerchant[1] / expense > 0.1) {
+      const name = topMerchant[0].charAt(0).toUpperCase() + topMerchant[0].slice(1);
+      informational.push({ type: "info", icon: "🏪",
+        title: name + " = " + fmt(topMerchant[1]),
+        sub: (topMerchant[1] / expense * 100).toFixed(0) + "% wydatkow w tym cyklu." });
     }
 
-    return list.slice(0, 4);
+    // I7: Stopa oszczednosci wysoka (gratulacja)
+    if (savingsRate >= 25 && income > 0) {
+      informational.push({ type: "positive", icon: "💰",
+        title: "Oszczedzasz " + savingsRate.toFixed(0) + "% dochodu",
+        sub: "Powyzej rekomendowanych 15-20% — bardzo dobry wynik." });
+    } else if (savingsRate >= 15 && savingsRate < 25 && income > 0) {
+      informational.push({ type: "positive", icon: "✓",
+        title: "Stopa oszczedzania: " + savingsRate.toFixed(0) + "%",
+        sub: "Powyzej celu 15% — utrzymaj tempo." });
+    }
+
+    // I8: Inwestycje brak
+    const invExp = curTx.filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "investment")
+      .reduce((s,t) => s + Math.abs(t.amount), 0);
+    if (invExp === 0 && income > 2000) {
+      informational.push({ type: "info", icon: "📈",
+        title: "Brak inwestycji w tym cyklu",
+        sub: "Rozwaz automat. przelew na ETF/IKZE w dniu wyplaty." });
+    } else if (invExp > 0 && income > 0) {
+      const invPct = invExp / income * 100;
+      if (invPct >= 10) {
+        informational.push({ type: "positive", icon: "📈",
+          title: "Inwestycje: " + invPct.toFixed(0) + "% dochodu",
+          sub: fmt(invExp) + " — kapital pracuje." });
+      }
+    }
+
+    // I9: Stale wydatki proporcja
+    const fixedExp = curTx.filter(t => t.amount < 0 && getExpenseType(t.cat, allCats) === "fixed")
+      .reduce((s,t) => s + Math.abs(t.amount), 0);
+    if (income > 0 && fixedExp > 0) {
+      const fixedPct = fixedExp / income * 100;
+      if (fixedPct > 50) {
+        informational.push({ type: "warning", icon: "🏠",
+          title: "Stale wydatki: " + fixedPct.toFixed(0) + "% dochodu",
+          sub: "Powyzej 50% to wysoki cost-of-living. Cel <40%." });
+      } else if (fixedPct < 30) {
+        informational.push({ type: "positive", icon: "🏠",
+          title: "Niskie stale wydatki: " + fixedPct.toFixed(0) + "% dochodu",
+          sub: "Duzy bufor na cele i lifestyle." });
+      }
+    }
+
+    // I10: Bezpieczenstwo - jeden dzien tygodnia bez wydatkow
+    const dowMap = [0,0,0,0,0,0,0]; // ndz, pn, wt, sr, czw, pt, sb
+    expensesOnly.forEach(t => {
+      const d = new Date(t.date).getDay();
+      dowMap[d]++;
+    });
+    const minDow = dowMap.indexOf(Math.min(...dowMap));
+    if (Math.min(...dowMap) === 0 && expensesOnly.length > 10) {
+      const dowNames = ["niedziele", "poniedzialki", "wtorki", "srody", "czwartki", "piatki", "soboty"];
+      informational.push({ type: "info", icon: "🎯",
+        title: "Same " + dowNames[minDow] + " bez wydatkow",
+        sub: "Wykorzystaj ten dzien jako 'no-spend' challenge." });
+    }
+
+    // I11: Bukmacher / hazard alert
+    const bookExp = curTx.filter(t => t.amount < 0 && (t.cat === "bukmacher" || t.cat === "bukmacherka"))
+      .reduce((s,t) => s + Math.abs(t.amount), 0);
+    if (bookExp > 0 && income > 0) {
+      const bookPct = bookExp / income * 100;
+      if (bookPct > 5) {
+        informational.push({ type: "warning", icon: "🎲",
+          title: "Bukmacher: " + bookPct.toFixed(0) + "% dochodu",
+          sub: fmt(bookExp) + " — uwaga, granica zdrowego rozsadku to 1-2%." });
+      }
+    }
+
+    // ═══ MERGE + VARIETY ═══
+    // Critical zawsze pierwsze (max 2). Informational losowane z dziennym seedem.
+
+    // Daily seed - liczba dni od epochy + month modifier
+    const today = new Date();
+    const epochDays = Math.floor(today.getTime() / 86400000);
+    const seed = epochDays + month * 13;
+
+    // Deterministyczne shuffle informational
+    const shuffled = [...informational];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = (seed * (i + 1) * 1103515245 + 12345) % (i + 1);
+      const idx = ((j % (i + 1)) + (i + 1)) % (i + 1);  // bezpieczny modulo
+      [shuffled[idx], shuffled[i]] = [shuffled[i], shuffled[idx]];
+    }
+
+    const final = [
+      ...critical.slice(0, 2),
+      ...shuffled.slice(0, 4 - Math.min(2, critical.length)),
+    ];
+
+    return final.slice(0, 4);
   }, [transactions, month, cycleDay, income, expense, catData]);
 
   if (insights.length === 0) return null;

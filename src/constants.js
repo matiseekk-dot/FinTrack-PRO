@@ -1,10 +1,5 @@
 import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
+  Wallet, TrendingUp, TrendingDown, ArrowUpRight, CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield, DollarSign, Bell, AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock
 } from "lucide-react";
 
 const MONTHS = ["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];

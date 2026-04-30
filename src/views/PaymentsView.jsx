@@ -1,10 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
-  PlusCircle, X, ChevronLeft, ChevronRight, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock,
-  RefreshCw, AlarmClock, Copy, Repeat,
+  ChevronLeft, ChevronRight, Trash2, Check, Circle
 } from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";

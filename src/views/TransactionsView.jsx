@@ -1,18 +1,13 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo } from "react";
 import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy, Search, Plane, Tag
+  Wallet, PlusCircle, Edit2, Trash2, Copy, Search, Plane
 } from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
+import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
-import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { fmt, todayLocal } from "../utils.js";
+import { CATEGORIES, getCat, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 import { t } from "../i18n.js";

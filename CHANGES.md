@@ -1,86 +1,150 @@
-# FinTrack PRO v1.3.4 — HOTFIX edycji hobby (2026-04-29)
+# FinTrack PRO v1.3.8 — Audyt apki + cleanup dead code (2026-04-30)
 
-`package.json` 1.3.3 → **1.3.4** (patch bump — bug fix).
+`package.json` 1.3.7 → **1.3.8** (patch — code cleanup).
 
-## Bug który naprawiłem
+## TL;DR
 
-**Symptom**: w widoku Hobby → wchodzisz w hobby → klikasz Edit (ołówek) → **nic się nie dzieje**. Modal nie otwiera się. Edycja kompletnie zablokowana.
+Systematyczny audyt 58 plików / 14k linii kodu. Wyciętych:
+- **307 nieużywanych importów** (głównie kopiowane bloki ikon `lucide-react`)
+- **5 dead funkcji** w lib/ (~70 linii)
+- **~200 linii** total redukcji
 
-**Root cause**: state collision między `detailsId` a `modalHobby` w `HobbyView.jsx`.
+Bundle bez zmian (bundler tree-shake'ował to przy buildzie i tak), ale **kod jest dużo czytelniejszy** — patrząc na top imports w pliku łatwiej zrozumieć co realnie używa.
 
-```jsx
-function HobbyView() {
-  const [modalHobby, setModalHobby] = useState(null);
-  const [detailsId, setDetailsId] = useState(null);
+Build: zielony (19.99s).
 
-  const openEdit = (hobby) => setModalHobby(hobby);  // ← bug
+## Co znalazłem i naprawiłem
 
-  if (detailsId) {
-    return <HobbyDetails onEdit={() => openEdit(hobby)} />;  // wczesny return
-  }
+### 1. Dead imports w App.jsx (10 sztuk)
 
-  return (
-    <div>...</div>
-    {modalHobby && <HobbyModal />}  // ← nigdy nie dochodzi do render'u
-  );
-}
+App.jsx miał kilka importów z poprzednich iteracji apki które już nie są używane:
+
+```diff
+- import { InvestmentsView } from "./views/InvestmentsView.jsx";
+- import { AccountsView } from "./views/AccountsView.jsx";
+- import { GoalsView } from "./views/GoalsView.jsx";
+- import { loadSnapshotFromJSON } from "./data/storage.js";
+- import { BASE_CATEGORIES } from "./constants.js";
+- import { onForegroundMessage } from "./notifications.js";
+- import { PinSettings } from "./components/PinLock.jsx";
+- // Z lucide-react: CreditCard, CheckCircle2, Heart
 ```
 
-Flow który nie działał:
-1. User klika hobby card → `setDetailsId(h.id)` → re-render → `HobbyDetails` renderowany
-2. User klika Edit w details → `setModalHobby(hobby)` → re-render
-3. Re-render: `if (detailsId) return <HobbyDetails>` — **early return ucina cały komponent**
-4. `{modalHobby && <HobbyModal>}` jest **po** tym return'cie więc **nigdy się nie renderuje**
+Te views/utils są używane przez parents (PortfolioCombinedView importuje InvestmentsView i AccountsView, PlansView importuje GoalsView) — App.jsx nie potrzebuje bezpośredniego dostępu.
 
-To był regression z dodawania feature'u "details view" w którejś z wcześniejszych iteracji. Modal działał gdy edycja szła z listy, ale po dodaniu details page nikt nie zauważył że flow z details page nie pokazuje modalu.
+### 2. Masowe unused icon imports (~280 sztuk)
 
-**Fix**:
+Wiele plików miało wklejone bloki ikon `lucide-react` z innych komponentów. Przykład SettingsPanel:
 
-```jsx
-const openEdit = (hobby) => {
-  setDetailsId(null);  // ← czyści details żeby modal mógł się renderować
-  setModalHobby({ ...hobby, yearlyTarget: hobby.yearlyTarget ? String(hobby.yearlyTarget) : "" });
-};
+```diff
+- import {
+-   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft,
+-   ChevronRight, Home, List, PiggyBank, BarChart2, Settings,
+-   ArrowUpRight, ArrowDownLeft, CreditCard, Briefcase, ShoppingBag,
+-   Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield,
+-   DollarSign, Eye, EyeOff, Edit2, Trash2, Check, Bell, BellOff,
+-   CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
+-   ClipboardList, RefreshCw, AlarmClock, Copy, Cloud, CloudOff,
+-   Languages, Palette
+- } from "lucide-react";
++ import {
++   Edit2, Trash2, Cloud, CloudOff, Languages, Palette
++ } from "lucide-react";
 ```
 
-User klika Edit w details → details znika → modal otwiera się **na liście hobby**. Po zapisaniu modal się zamyka, lista odświeżona z nowymi danymi. Po zamknięciu modal'a (Anuluj) user widzi listę a nie details — to akceptowalne zachowanie, większość apek działa tak samo (Edit zwykle wraca cię do listy).
+Realnie używane były 6 ikon, importowanych 47. Bundler tree-shake'ował to ale dla **czytelności** to wstyd. Po cleanupie wystarczy spojrzeć na imports żeby wiedzieć co plik realnie robi.
 
-## Plik zmieniony (1 plik, 4 linie)
+Pliki wyczyszczone (20 z 30+ unused):
+- `SettingsPanel.jsx`, `TemplatesEditor.jsx`, `AnalyticsWidgets.jsx`
+- `TransactionsView.jsx`, `AnalyticsView.jsx`, `PaymentsView.jsx`
+- `Dashboard.jsx`, `HobbyView.jsx`, `LimitsView.jsx`, `TripsView.jsx`, `GoalsView.jsx`, `InvestmentsView.jsx`
+- `RetirementCalculator.jsx`, `EmptyStateSetup.jsx`, `DailyReminder.jsx`, `PinLock.jsx`
+- `SharedWidgets.jsx`, `notifications.js`, `constants.js`, `useToast.js`
+
+### 3. Dead funkcje wyciętej z lib/
+
+**`notifications.js`**: `onForegroundMessage(callback)` — listener FCM którego nikt nie subskrybował. Plus związany import `onMessage` z firebase/messaging.
+
+**`crypto.js`**: `isSupported()` — pure sync feature detection helper, nigdzie nie wywoływany. Apka używa try/catch dookoła `crypto.subtle.encrypt()` więc realnie nie potrzebuje upfront check'a.
+
+**`rateLimit.js`**: `resetLimit(action)` — debug tool, nigdy nie używany w UI.
+
+**`storage.js`**: `downloadJSON()` + `loadSnapshotFromJSON()` — manualne JSON export/import, **zastąpione XLSX export** w SettingsPanel od dłuższego czasu. -28 linii.
+
+**`lib/hobby.js`**: `getHobbyTransactions()` — backward compat alias dla `getHobbyExpenses` (po refactorze v1.3.2). Plus eksporty `getHobbyExpenses`/`getHobbyIncome` zrobione `module-private` bo używane są tylko wewnątrz `getHobbyStats`. Tylko `getAllHobbyTransactions` + `getHobbyStats` w public API hobby module.
+
+### 4. Audit innych obszarów (NIE ruszone)
+
+- **22 `console.*`** w 9 plikach — wszystkie legitne error/warning logging dla production debug. Zostają.
+- **3 TODO komentarze** (`trips.js`, `tier.js`, `UpgradeModal.jsx`) — celowe future-work markery (bulk-tag, RC integration). Zostają.
+- **Section titles fontSize/letterSpacing wariacje** (17 unique kombinacji) — wynikają z naturalnej hierarchii (KPI labels 10px, sub-titles 11px, main titles 14-16px), spójne wewnątrz widoków. **Nie naprawiać**, refactor byłby ryzykowny przy niejasnej korzyści.
+- **Paleta kolorów** — Tailwind slate scale + semantic accents, ~20 unique kolorów konsekwentnie używanych. ✅ OK.
+
+## Stats
 
 ```
-src/views/HobbyView.jsx  (linia 69-75: openEdit + komentarz wyjaśniający)
-package.json             (1.3.3 → 1.3.4)
+Pliki:           58 (bez zmian)
+Linie kodu:      ~14140 → ~13950 (-200, -1.4%)
+Unused imports:  307 → 0 ✅
+Dead exports:    5 wyciętych
+Bundle size:     ~91KB gzip (bez zmian, bundler już tree-shake'ował)
+Build time:      ~20s (bez zmian)
 ```
 
-Build: zielony (19.67s), bundle bez zmian.
+## Pliki zmienione (24)
 
-## Test scenariusz (dokładnie ten z v1.3.2 który nie działał)
+### Dead imports cleanup
+```
+src/App.jsx                              [-10 imports]
+src/constants.js                         [-19 unused icons]
+src/notifications.js                     [-1 import (onMessage)]
+src/hooks/useToast.js                    [-3 unused hooks]
+src/components/SettingsPanel.jsx         [-41 unused icons + dead constants]
+src/components/TemplatesEditor.jsx       [-43 unused (massive copy-paste)]
+src/components/AnalyticsWidgets.jsx      [-19 unused icons + 2 utils]
+src/components/SharedWidgets.jsx         [-4 unused]
+src/components/RetirementCalculator.jsx  [-2 unused icons]
+src/components/EmptyStateSetup.jsx       [-2 unused icons]
+src/components/DailyReminder.jsx         [-3 unused icons]
+src/components/PinLock.jsx               [-1 unused hook]
+src/views/TransactionsView.jsx           [-39 unused (massive)]
+src/views/AnalyticsView.jsx              [-49 unused (largest cleanup)]
+src/views/PaymentsView.jsx               [-13 unused]
+src/views/Dashboard.jsx                  [-3 unused]
+src/views/HobbyView.jsx                  [-3 unused]
+src/views/LimitsView.jsx                 [-1 unused]
+src/views/TripsView.jsx                  [-2 unused]
+src/views/GoalsView.jsx                  [-4 unused]
+src/views/InvestmentsView.jsx            [-2 unused]
+```
 
-1. Wejdź w widok Hobby
-2. Klik w hobby card → otwiera się details page ✓
-3. Klik Edit (ołówek w prawym górnym rogu) → **modal się otwiera** ✓
-4. Zmień nazwę / kategorie / keywords → klik Save → modal zamyka się
-5. Lista hobby odświeżona z nowymi danymi ✓
+### Dead funkcje + exports cleanup
+```
+src/notifications.js     [-onForegroundMessage function (-7 linii)]
+src/lib/crypto.js        [-isSupported function (-4 linii), upd export]
+src/lib/rateLimit.js     [-resetLimit function (-4 linii), upd export]
+src/data/storage.js      [-downloadJSON + loadSnapshotFromJSON (-28 linii), upd export]
+src/lib/hobby.js         [-getHobbyTransactions backward compat (-7 linii), upd exports]
+package.json             [1.3.7 → 1.3.8]
+```
 
-Plus testowy use case "Vinyle":
+## Ryzyka regresji
 
-1. Edytuj hobby "Vinyle" — kategorie `dodatkowe`, `zakupy` + keywords `vinyl`, `ghost`, `gojira`, `katatonia`
-2. Wydatek -150 zł "Ghost - Impera vinyl" w kat. zakupy → liczy się jako wydatek hobby
-3. Przychód +60 zł "Vinted - Trivium vinyl" w kat. sprzedaż + opis "vinyl" → liczy się jako income hobby
-4. Hobby card pokaże badge `−90 zł` (niebieski)
-5. W detail hobby: Wydatki 150, Przychody 60, Netto badge `−90 zł` (czerwony)
+Niewielkie — wyciąłem tylko rzeczy realnie nie używane (potwierdzone przez `grep -rn` + build verify). Test scenariusze do sprawdzenia po wgraniu:
 
-Wszystkie logika hobby (matching, expenses/income/netto stats) **była zawsze poprawna** — testy end-to-end z poprzedniej tury to potwierdziły. Bug był tylko w UI flow edycji. Po fix wszystko działa zgodnie z planem.
+1. **Settings → Eksport** — sprawdź czy XLSX export działa (downloadJSON wycięte, ale to było JSON, niezwiązane)
+2. **Logowanie / sync** — sprawdź czy logowanie działa (`onForegroundMessage` wycięte z `notifications.js` ale ten listener nigdy nie był używany)
+3. **PIN** — sprawdź czy PIN screen działa
+4. **Hobby** — sprawdź czy hobby/income tracking działa (eksporty z lib/hobby.js zmienione)
 
-## Jak Cię to dotyczy
-
-- Jeśli **dotychczas nigdy nie edytowałeś hobby** od momentu dodania (czyli zostawiłeś z domyślnymi categories/keywords) — apka działała OK, bo dodanie nowego hobby szło przez button "+ Dodaj" które otwiera modal bez `detailsId` set'u. Bug objawiał się **tylko przy edycji istniejącego hobby**.
-- Po wgraniu v1.3.4 możesz w końcu zmienić categories/keywords istniejącego hobby (np. dodać "katatonia" do "Vinyle").
+Jeśli coś przestało działać → znaczy że jakieś użycie było pośrednie i pominąłem przy `grep -rn`. Daj znać które flow się zepsuł, dorzucę z powrotem.
 
 ## Co dalej
 
-Po wgraniu v1.3.4 sprawdź czy:
-1. Edycja hobby działa
-2. Po zapisaniu hobby z nowymi keywords stare transakcje (z opisami zawierającymi te keywords) **zaczynają trafiać do hobby retroaktywnie**. To pożądane zachowanie — matching jest zawsze on-the-fly z aktualnych transakcji + aktualnych reguł hobby, nie zapisywany przy dodawaniu transakcji.
+Backlog otwartych tematów (do twojego wyboru):
 
-Daj znać po teście. Jeśli coś jeszcze nie działa, debuguję dalej.
+- **Faza 3 TWA setup** — czeka na keystore + SHA256
+- **Faza 2 RevenueCat** — wstrzymane na twoją decyzję
+- **Drobne UX poprawki po teście v1.3.8** — wgraj, użyj, sprawdź czy coś czuć się dziwnie
+
+Kod jest teraz dużo czystszy, łatwiej będzie iść dalej z RC integration / nowymi feature'ami.

@@ -1,12 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Bar, BarChart, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   ChevronLeft, ChevronRight, Eye, EyeOff,
   Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
-import { Card } from "../components/ui/Card.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
-import { MONTHS, MONTH_NAMES, getCat } from "../constants.js";
+import { MONTH_NAMES, getCat } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";

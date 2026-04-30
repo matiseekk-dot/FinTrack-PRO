@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Wallet, ArrowRight, Check, Plus } from "lucide-react";
+import { Wallet, ArrowRight } from "lucide-react";
 import { FontLoader } from "./FontLoader.jsx";
 import { t } from "../i18n.js";
 

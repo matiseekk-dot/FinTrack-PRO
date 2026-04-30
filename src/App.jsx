@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Wallet, PlusCircle, X, Home, List, PiggyBank, BarChart2, Settings,
-  CreditCard, Briefcase, Bell, CheckCircle2, RefreshCw, Cloud, CloudOff, Heart
+  Briefcase, Bell, RefreshCw, Cloud, CloudOff
 } from "lucide-react";
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
@@ -9,21 +9,18 @@ import { Onboarding } from "./components/Onboarding.jsx";
 import { EmptyStateSetup } from "./components/EmptyStateSetup.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
-import { AccountsView } from "./views/AccountsView.jsx";
 import { TransactionsView } from "./views/TransactionsView.jsx";
-import { InvestmentsView } from "./views/InvestmentsView.jsx";
 import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
-import { GoalsView } from "./views/GoalsView.jsx";
 import { PlansView } from "./views/PlansView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
-import { saveToStorage, loadFromStorage, loadSnapshotFromJSON } from "./data/storage.js";
+import { saveToStorage, loadFromStorage } from "./data/storage.js";
 import { todayLocal, getCurrentCycleMonth } from "./utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
-import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, BASE_CATEGORIES, getAllCats } from "./constants.js";
+import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, getAllCats } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
-import { requestNotificationPermission, schedulePaymentReminders, onForegroundMessage } from "./notifications.js";
-import { PinScreen, PinSettings, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
+import { requestNotificationPermission, schedulePaymentReminders } from "./notifications.js";
+import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
@@ -617,20 +614,6 @@ export default function App() {
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
         proStatus={proStatus}
-        onForceSyncProStatus={async () => {
-          // v1.2.9: manualny force-push proStatus do Firestore.
-          // Bypassuje debounce żeby user widział natychmiast efekt + zwraca status.
-          if (!user?.uid) return { ok: false, error: t("err.notLoggedIn", "Nie zalogowany") };
-          try {
-            await saveToFirestore(user.uid, stateRef.current);
-            // Czekamy ~3s żeby debounce się odpalił
-            await new Promise(r => setTimeout(r, 2500));
-            return { ok: true };
-          } catch (e) {
-            console.error("[FT] force sync error", e);
-            return { ok: false, error: String(e) };
-          }
-        }}
       />
       </ErrorBoundary>
 

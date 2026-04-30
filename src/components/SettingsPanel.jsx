@@ -1,20 +1,12 @@
 import { useState } from "react";
 import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
+  Wallet, X, Settings, Edit2, Trash2
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
-import { Input, Select } from "./ui/Input.jsx";
 import { TemplatesEditor } from "./TemplatesEditor.jsx";
-import { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_ACCOUNTS, INITIAL_TEMPLATES } from "../constants.js";
-import { downloadJSON, loadSnapshotFromJSON } from "../data/storage.js";
+import { CATEGORIES } from "../constants.js";
 import { todayLocal } from "../utils.js";
-import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "../data/demo.js";
-import { PinSettings, PIN_ENABLED_KEY } from "./PinLock.jsx";
+import { PinSettings } from "./PinLock.jsx";
 import { getLang, setLang, t } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
@@ -25,7 +17,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
                          vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData,
-                         proStatus = null, user = null, onForceSyncProStatus = null }) {
+                         proStatus = null, user = null }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -1132,70 +1124,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             + {t("settings.cats.addBtn", "Dodaj kategorię")}
           </button>
         </div>
-
-        <Divider/>
-
-        {/* Diagnostyka sync (v1.2.9) - dla user-driven debugging gdy PRO nie syncuje */}
-        <SectionTitle>🔧 {t("settings.diag.title", "Diagnostyka PRO")}</SectionTitle>
-        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12,
-          padding: 14, marginBottom: 14, fontSize: 12, lineHeight: 1.6 }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", color: "#94a3b8" }}>
-            <div>Lokalnie (ten browser):</div>
-            <div style={{ paddingLeft: 12, color: proStatus?.isPro ? "#10b981" : "#ef4444" }}>
-              isPro: <strong>{proStatus?.isPro ? "TAK" : "NIE"}</strong>
-              {proStatus?.type && ` (${proStatus.type})`}
-            </div>
-            {proStatus?.source && (
-              <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
-                {t("settings.diag.source", "źródło")}: {proStatus.source}
-              </div>
-            )}
-            {proStatus?.since && (
-              <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
-                aktywowane: {new Date(proStatus.since).toLocaleString("pl-PL")}
-              </div>
-            )}
-            {proStatus?.expiresAt && (
-              <div style={{ paddingLeft: 12, fontSize: 10, color: "#64748b" }}>
-                wygasa: {new Date(proStatus.expiresAt).toLocaleString("pl-PL")}
-              </div>
-            )}
-            <div style={{ marginTop: 8 }}>Zalogowany jako:</div>
-            <div style={{ paddingLeft: 12, color: user?.uid ? "#10b981" : "#ef4444",
-              wordBreak: "break-all", fontSize: 10 }}>
-              {user?.email || "(brak)"} {user?.uid ? `(${user.uid.slice(0, 12)}...)` : ""}
-            </div>
-          </div>
-        </div>
-
-        {proStatus?.isPro && user?.uid && onForceSyncProStatus && (
-          <button onClick={async () => {
-            const result = await onForceSyncProStatus();
-            if (result?.ok) {
-              alert(t("settings.diag.syncOk", "✅ PRO status wysłany do Firestore.\n\nNa drugim urządzeniu:\n1. Hard refresh\n2. Po 1-2s zobaczysz PRO"));
-            } else {
-              alert(t("settings.diag.syncFail", "❌ Sync failed: ") + (result?.error || t("settings.diag.unknownError", "nieznany błąd")));
-            }
-          }} style={{
-            width: "100%", background: "linear-gradient(135deg,#1e3a5f,#1e40af)",
-            border: "1px solid #2563eb66", borderRadius: 12, padding: "12px 0",
-            color: "#93c5fd", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            fontFamily: "'Space Grotesk', sans-serif", marginBottom: 14,
-          }}>
-            🔄 {t("settings.diag.forceSync", "Wymuś sync PRO status do Firestore")}
-          </button>
-        )}
-
-        {!proStatus?.isPro && (
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
-            {t("settings.diag.noProHint1", "Brak aktywnej subskrypcji PRO. Jeśli kupiłeś na drugim urządzeniu i nie syncuje:")}
-            <ol style={{ marginTop: 6, paddingLeft: 20, fontSize: 11, color: "#475569" }}>
-              <li>{t("settings.diag.noProHint2", "Na drugim urządzeniu: Settings → Diagnostyka PRO → \"Wymuś sync\"")}</li>
-              <li>Tutaj: hard refresh</li>
-              <li>{t("settings.diag.noProHint4", "Po 1-2s subskrypcja powinna się pojawić")}</li>
-            </ol>
-          </div>
-        )}
 
         <Divider/>
 

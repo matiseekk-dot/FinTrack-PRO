@@ -8,9 +8,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
 import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import {
-  pickHobbyColor, DEFAULT_HOBBY_COLORS,
-  getHobbyTransactions, getHobbyExpenses, getHobbyIncome, getAllHobbyTransactions,
-  getHobbyStats,
+  pickHobbyColor, DEFAULT_HOBBY_COLORS, getAllHobbyTransactions, getHobbyStats
 } from "../lib/hobby.js";
 import { getCat } from "../constants.js";
 import { t } from "../i18n.js";
@@ -719,9 +717,15 @@ const iconBtn = {
 };
 
 function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
-  const expenseCats = (allCats || []).filter(c =>
-    !["przychód", "wynagrodzenie", "dodatkowe", "sprzedaż", "bukmacherka", "inne"].includes(c.id)
-  );
+  // v1.3.4 fix: rozdziel kategorie na expense/income żeby user mógł wybierać OBIE.
+  // Wcześniej tylko expense cats były pokazywane — co blokowało scenariusz hobby ze
+  // sprzedażą (np. dodanie kat. "sprzedaż" do hobby Vinyle żeby liczyło jako income).
+  //
+  // Income kategoria = base cat z group: "income" LUB custom cat z type: "income".
+  // Kategoria "inne" zawsze pomijana (transfery, technical).
+  const isIncomeCat = (c) => c.group === "income" || c.type === "income";
+  const expenseCats = (allCats || []).filter(c => c.id !== "inne" && !isIncomeCat(c));
+  const incomeCats  = (allCats || []).filter(c => c.id !== "inne" &&  isIncomeCat(c));
 
   const toggleCategory = (catId) => {
     const cur = hobby.categories || [];
@@ -760,7 +764,7 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
         </div>
       </div>
 
-      {/* Categories multi-select */}
+      {/* Categories multi-select - rozdzielone na expense + income (v1.3.4) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
           textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
@@ -769,23 +773,60 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
         <div style={{ fontSize: 10, color: "#475569", marginBottom: 8 }}>
           {t("hobby.categoriesHelp")}
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {expenseCats.map(c => {
-            const selected = (hobby.categories || []).includes(c.id);
-            return (
-              <button key={c.id} onClick={() => toggleCategory(c.id)} style={{
-                padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-                fontSize: 11, fontWeight: 600,
-                background: selected ? c.color + "33" : "#060b14",
-                border: `1px solid ${selected ? c.color + "88" : "#1a2744"}`,
-                color: selected ? c.color : "#64748b",
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}>
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
+
+        {/* Expense categories */}
+        {expenseCats.length > 0 && (
+          <>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b",
+              textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, marginTop: 4 }}>
+              {t("hobby.cats.expense", "Wydatkowe")}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {expenseCats.map(c => {
+                const selected = (hobby.categories || []).includes(c.id);
+                return (
+                  <button key={c.id} onClick={() => toggleCategory(c.id)} style={{
+                    padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                    fontSize: 11, fontWeight: 600,
+                    background: selected ? c.color + "33" : "#060b14",
+                    border: `1px solid ${selected ? c.color + "88" : "#1a2744"}`,
+                    color: selected ? c.color : "#64748b",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Income categories - dla hobby ze sprzedażą / przychodem (Vinted, Allegro, sprzedaż gier itp.) */}
+        {incomeCats.length > 0 && (
+          <>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b",
+              textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              {t("hobby.cats.income", "Przychodowe (sprzedaż / zwroty)")}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {incomeCats.map(c => {
+                const selected = (hobby.categories || []).includes(c.id);
+                return (
+                  <button key={c.id} onClick={() => toggleCategory(c.id)} style={{
+                    padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                    fontSize: 11, fontWeight: 600,
+                    background: selected ? c.color + "33" : "#060b14",
+                    border: `1px solid ${selected ? c.color + "88" : "#1a2744"}`,
+                    color: selected ? c.color : "#64748b",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Keywords */}

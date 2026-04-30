@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { PieChart, Pie, Cell } from "recharts";
 import { X } from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
+import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
-import { Input, Select } from "../components/ui/Input.jsx";
+import { Input } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt } from "../utils.js";
 import { useToast } from "../hooks/useToast.js";

@@ -36,8 +36,4 @@ function checkLimit(action) {
   return { allowed: true, remaining: limit.count - timestamps.length };
 }
 
-function resetLimit(action) {
-  counters.delete(action);
-}
-
-export { checkLimit, resetLimit };
+export { checkLimit };

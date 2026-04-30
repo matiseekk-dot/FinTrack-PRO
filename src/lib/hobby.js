@@ -91,14 +91,6 @@ function getHobbyIncome(transactions, hobby) {
 }
 
 /**
- * Backward compat: zwraca tylko wydatki (jak przed v1.3.2).
- * Używane w istniejącym kodzie HobbyView.jsx, możemy migrować w czasie.
- */
-function getHobbyTransactions(transactions, hobby) {
-  return getHobbyExpenses(transactions, hobby);
-}
-
-/**
  * Statystyki hobby - rozszerzone o income i netto.
  * Zwraca:
  * - thisCycle / thisYear / allTime  - WYDATKI (jak przed v1.3.2, backward compat)
@@ -231,9 +223,6 @@ function getHobbyStats(transactions, hobby, opts = {}) {
 export {
   DEFAULT_HOBBY_COLORS,
   pickHobbyColor,
-  getHobbyTransactions,    // backward compat (expenses only)
-  getHobbyExpenses,
-  getHobbyIncome,
   getAllHobbyTransactions,
   getHobbyStats,
 };

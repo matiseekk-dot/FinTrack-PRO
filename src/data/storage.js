@@ -221,32 +221,4 @@ async function loadFromStorage() {
   return Promise.resolve(null);
 }
 
-// JSON export/import (backup)
-function downloadJSON(data) {
-  try {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url;
-    a.download = "fintrack_" + dateToLocal(new Date()) + ".json";
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-    return true;
-  } catch(e) { return false; }
-}
-
-function loadSnapshotFromJSON(json) {
-  try {
-    const d = JSON.parse(json);
-    // Akceptuj backup z polem "v" lub bez (stare wersje apki)
-    if (d && (d.v || d.accounts || d.transactions)) return migrateData(d);
-    return null;
-  }
-  catch(_) { return null; }
-}
-
-
-
-
-
-export { saveToStorage, loadFromStorage, downloadJSON, loadSnapshotFromJSON };
+export { saveToStorage, loadFromStorage };

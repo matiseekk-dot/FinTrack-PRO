@@ -1,23 +1,11 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line
-} from "recharts";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
+  Wallet, X
 } from "lucide-react";
-import { Card, Badge } from "../components/ui/Card.jsx";
+import { Card } from "../components/ui/Card.jsx";
 import { FinancialScore, Insights, ExpenseTypesBreakdown, IncomeTypesBreakdown, Recommendations } from "../components/AnalyticsWidgets.jsx";
-import { Modal } from "../components/ui/Modal.jsx";
-import { Input, Select } from "../components/ui/Input.jsx";
-import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData } from "../utils.js";
-import { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats, INITIAL_TEMPLATES } from "../constants.js";
+import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel } from "../utils.js";
+import { MONTHS, MONTH_NAMES, getCat } from "../constants.js";
 import { RetirementCalculator } from "../components/RetirementCalculator.jsx";
 import { t, getLang } from "../i18n.js";
 function MonthComparison({ transactions, month }) {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calculator, TrendingUp, Shield, Info } from "lucide-react";
+import { Calculator, Info } from "lucide-react";
 import { fmt } from "../utils.js";
 import { 
   LIMITS_2026, 

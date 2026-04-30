@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Flame, PlusCircle, X, CheckCircle2, AlarmClock } from "lucide-react";
+import { Flame, X } from "lucide-react";
 import { todayLocal, dateToLocal } from "../utils.js";
 import { t as i18n } from "../i18n.js";
 

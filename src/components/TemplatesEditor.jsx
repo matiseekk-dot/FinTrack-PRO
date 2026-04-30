@@ -1,15 +1,6 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft, ChevronRight,
-  Home, List, PiggyBank, BarChart2, Settings, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee,
-  Building, Repeat, Gift, Shield, DollarSign, Eye, EyeOff, Edit2, Trash2, Check,
-  Bell, BellOff, CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
-  ClipboardList, RefreshCw, AlarmClock, Copy
-} from "lucide-react";
-import { Card } from "./ui/Card.jsx";
+import { useState } from "react";
 import { Input, Select } from "./ui/Input.jsx";
-import { INITIAL_TEMPLATES, getCat, CATEGORIES, BASE_CATEGORIES } from "../constants.js";
+import { INITIAL_TEMPLATES, getCat, BASE_CATEGORIES } from "../constants.js";
 import { t } from "../i18n.js";
 
 function TemplatesEditor() {

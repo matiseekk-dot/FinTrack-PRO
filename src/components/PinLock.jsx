@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const PIN_KEY = "ft_pin_hash";
 const PIN_ENABLED_KEY = "ft_pin_enabled";
