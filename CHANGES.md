@@ -1,150 +1,97 @@
-# FinTrack PRO v1.3.8 — Audyt apki + cleanup dead code (2026-04-30)
+# FinTrack PRO v1.3.9 — Fix duplikacji "zł zł" + variety w Dashboard insightach (2026-04-30)
 
-`package.json` 1.3.7 → **1.3.8** (patch — code cleanup).
+`package.json` 1.3.8 → **1.3.9** (patch — bug fixes na podstawie screenshotu z produkcji).
 
-## TL;DR
+## Bug 1: "1044,63 zł zł" duplikacja sufiksu
 
-Systematyczny audyt 58 plików / 14k linii kodu. Wyciętych:
-- **307 nieużywanych importów** (głównie kopiowane bloki ikon `lucide-react`)
-- **5 dead funkcji** w lib/ (~70 linii)
-- **~200 linii** total redukcji
+**Symptom**: w Dashboard widget'ach "Średnia dzienna" i "Możesz dziennie" sufiks "zł" pokazuje się dwa razy (np. "1044,63 zł zł" zamiast "1044,63 zł").
 
-Bundle bez zmian (bundler tree-shake'ował to przy buildzie i tak), ale **kod jest dużo czytelniejszy** — patrząc na top imports w pliku łatwiej zrozumieć co realnie używa.
+**Root cause**: Dashboard linia 504 i 508 robiło `{fmt(dailySpend)} zł` ale `fmt()` **już zwraca string z " zł"**. Czyli template wyświetlał "X zł" + " zł" = "X zł zł".
 
-Build: zielony (19.99s).
-
-## Co znalazłem i naprawiłem
-
-### 1. Dead imports w App.jsx (10 sztuk)
-
-App.jsx miał kilka importów z poprzednich iteracji apki które już nie są używane:
-
+**Fix**: usunięty redundantny sufiks " zł" w renderze:
 ```diff
-- import { InvestmentsView } from "./views/InvestmentsView.jsx";
-- import { AccountsView } from "./views/AccountsView.jsx";
-- import { GoalsView } from "./views/GoalsView.jsx";
-- import { loadSnapshotFromJSON } from "./data/storage.js";
-- import { BASE_CATEGORIES } from "./constants.js";
-- import { onForegroundMessage } from "./notifications.js";
-- import { PinSettings } from "./components/PinLock.jsx";
-- // Z lucide-react: CreditCard, CheckCircle2, Heart
+- {fmt(dailySpend)} zł
++ {fmt(dailySpend)}
+- {safePerDay > 0 ? fmt(safePerDay) : "0,00"} zł
++ {safePerDay > 0 ? fmt(safePerDay) : "0,00 zł"}
 ```
 
-Te views/utils są używane przez parents (PortfolioCombinedView importuje InvestmentsView i AccountsView, PlansView importuje GoalsView) — App.jsx nie potrzebuje bezpośredniego dostępu.
+Plus naprawione `"0,00"` (bez zł) w fallback dla zerowego budgetu — teraz `"0,00 zł"`.
 
-### 2. Masowe unused icon imports (~280 sztuk)
+**Plik**: `src/views/Dashboard.jsx` linia 504, 508.
 
-Wiele plików miało wklejone bloki ikon `lucide-react` z innych komponentów. Przykład SettingsPanel:
+## Bug 2: Insighty w Dashboard nigdy się nie zmieniały
 
-```diff
-- import {
--   Wallet, TrendingUp, TrendingDown, PlusCircle, X, ChevronLeft,
--   ChevronRight, Home, List, PiggyBank, BarChart2, Settings,
--   ArrowUpRight, ArrowDownLeft, CreditCard, Briefcase, ShoppingBag,
--   Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield,
--   DollarSign, Eye, EyeOff, Edit2, Trash2, Check, Bell, BellOff,
--   CheckCircle2, Circle, AlertCircle, CalendarClock, Flame,
--   ClipboardList, RefreshCw, AlarmClock, Copy, Cloud, CloudOff,
--   Languages, Palette
-- } from "lucide-react";
-+ import {
-+   Edit2, Trash2, Cloud, CloudOff, Languages, Palette
-+ } from "lucide-react";
-```
+**Symptom**: insighty na Dashboard ("Auto to Twoja największa kategoria", "Wydajesz X% mniej", "W tym tempie wydasz Y rocznie") pokazywały się **codziennie te same**, mimo że w v1.3.6 dodałem variety mechanism.
 
-Realnie używane były 6 ikon, importowanych 47. Bundler tree-shake'ował to ale dla **czytelności** to wstyd. Po cleanupie wystarczy spojrzeć na imports żeby wiedzieć co plik realnie robi.
+**Root cause**: Dashboard renderuje `<InsightsCard>` z `src/components/InsightsCard.jsx` które używa `generateInsights()` z `src/lib/insights.js`. Mój fix w v1.3.6 dotyczył **innego komponentu** — `<Insights>` z `src/components/AnalyticsWidgets.jsx` (widget w widoku Analiza, nie Dashboard).
 
-Pliki wyczyszczone (20 z 30+ unused):
-- `SettingsPanel.jsx`, `TemplatesEditor.jsx`, `AnalyticsWidgets.jsx`
-- `TransactionsView.jsx`, `AnalyticsView.jsx`, `PaymentsView.jsx`
-- `Dashboard.jsx`, `HobbyView.jsx`, `LimitsView.jsx`, `TripsView.jsx`, `GoalsView.jsx`, `InvestmentsView.jsx`
-- `RetirementCalculator.jsx`, `EmptyStateSetup.jsx`, `DailyReminder.jsx`, `PinLock.jsx`
-- `SharedWidgets.jsx`, `notifications.js`, `constants.js`, `useToast.js`
+Czyli były dwa **niezależne systemy insightów**:
+- Analiza widget → `AnalyticsWidgets.jsx::Insights` → naprawione w v1.3.6 ✅
+- Dashboard card → `lib/insights.js::generateInsights` → **nieruszone** ❌
 
-### 3. Dead funkcje wyciętej z lib/
+**Fix**: pełny rewrite `lib/insights.js` z:
+- **6 reguł → 13 reguł** (top kategoria, top merchant, month vs month, weekend, yearly projection, druga kategoria, tx count high/low, top day of week, drugi merchant, weekly avg, category shift, średnia tx)
+- **Variety mechanism**: Critical (anomalia tx) zawsze pierwsze (max 2), Informational shuffle z dziennym seedem `epochDays + cycleDay * 7` (linear congruential)
+- **Cap 3 insighty** + retirement insights jako bonus (gdy zostało miejsce)
 
-**`notifications.js`**: `onForegroundMessage(callback)` — listener FCM którego nikt nie subskrybował. Plus związany import `onMessage` z firebase/messaging.
+W praktyce: dziś widzisz [Critical, Info A, Info B], jutro [Critical, Info F, Info A]. Po tygodniu prawie cała pula informational przewinie się.
 
-**`crypto.js`**: `isSupported()` — pure sync feature detection helper, nigdzie nie wywoływany. Apka używa try/catch dookoła `crypto.subtle.encrypt()` więc realnie nie potrzebuje upfront check'a.
+**Pliki**: `src/lib/insights.js` (~376 linii vs ~150 wcześniej).
 
-**`rateLimit.js`**: `resetLimit(action)` — debug tool, nigdy nie używany w UI.
+## Bug 3 (NIE bug): "Średnia dzienna 1044 zł vs Możesz dziennie 117 zł"
 
-**`storage.js`**: `downloadJSON()` + `loadSnapshotFromJSON()` — manualne JSON export/import, **zastąpione XLSX export** w SettingsPanel od dłuższego czasu. -28 linii.
+**Sprawdzone dokładnie — nie jest bugiem.**
 
-**`lib/hobby.js`**: `getHobbyTransactions()` — backward compat alias dla `getHobbyExpenses` (po refactorze v1.3.2). Plus eksporty `getHobbyExpenses`/`getHobbyIncome` zrobione `module-private` bo używane są tylko wewnątrz `getHobbyStats`. Tylko `getAllHobbyTransactions` + `getHobbyStats` w public API hobby module.
+Te dwa wskaźniki mierzą **różne rzeczy**:
 
-### 4. Audit innych obszarów (NIE ruszone)
+- **Średnia dzienna** = `recurringExp / elapsedCycDays` — **przeszłe** wydatki stałe (bez jednorazowych >500zł lub >4x mediany) podzielone przez liczbę dni które minęły w cyklu
+- **Możesz dziennie** = `safeToSpend / daysLeft` — bilans minus nadchodzące rachunki podzielony przez **pozostałe** dni cyklu
 
-- **22 `console.*`** w 9 plikach — wszystkie legitne error/warning logging dla production debug. Zostają.
-- **3 TODO komentarze** (`trips.js`, `tier.js`, `UpgradeModal.jsx`) — celowe future-work markery (bulk-tag, RC integration). Zostają.
-- **Section titles fontSize/letterSpacing wariacje** (17 unique kombinacji) — wynikają z naturalnej hierarchii (KPI labels 10px, sub-titles 11px, main titles 14-16px), spójne wewnątrz widoków. **Nie naprawiać**, refactor byłby ryzykowny przy niejasnej korzyści.
-- **Paleta kolorów** — Tailwind slate scale + semantic accents, ~20 unique kolorów konsekwentnie używanych. ✅ OK.
+W twojej sytuacji (screenshot 30 kwietnia, cykl 28 → cykl trwa od 28.04, czyli ledwo się zaczął — `elapsedCycDays ≈ 3`):
+- W 3 dniach wydałeś ~3133 zł stałych → średnia 1044/dzień (matematycznie poprawne)
+- Plus jednorazowy 2276 zł na Auto (idzie do `oneTime`, nie do średniej)
+- Zostało 26 dni cyklu, 3042 zł safe → 117/dzień planowanego
 
-## Stats
+**Liczby są poprawne, ale mylące w kontekście cyklu który ledwo się zaczął.** Średnia w pierwszych 3 dniach jest niereprezentatywna dla całych 30 dni.
+
+**Co mogę zrobić w v1.4 jeśli zauważysz że to dalej myli**:
+- Tooltip nad wartościami wyjaśniający różnicę
+- Hint "z X dni" obok średniej dziennej żeby było widać że to z krótkiego okresu
+- Nie pokazywać średniej dziennej w pierwszych 5 dniach cyklu (zbyt mała próbka)
+
+W v1.3.9 nie ruszam — chcę żebyś najpierw zobaczył nowe insighty i zdecydował czy nadal myli.
+
+## Pliki zmienione (3)
 
 ```
-Pliki:           58 (bez zmian)
-Linie kodu:      ~14140 → ~13950 (-200, -1.4%)
-Unused imports:  307 → 0 ✅
-Dead exports:    5 wyciętych
-Bundle size:     ~91KB gzip (bez zmian, bundler już tree-shake'ował)
-Build time:      ~20s (bez zmian)
+src/views/Dashboard.jsx          [bug fix duplikacji "zł zł" - 2 linie]
+src/lib/insights.js              [rewrite 6 → 13 reguł + variety mechanism, ~226 linii dodanych]
+package.json                      [1.3.8 → 1.3.9]
 ```
 
-## Pliki zmienione (24)
+Build: zielony (22.25s), bundle ~91KB gzip.
 
-### Dead imports cleanup
-```
-src/App.jsx                              [-10 imports]
-src/constants.js                         [-19 unused icons]
-src/notifications.js                     [-1 import (onMessage)]
-src/hooks/useToast.js                    [-3 unused hooks]
-src/components/SettingsPanel.jsx         [-41 unused icons + dead constants]
-src/components/TemplatesEditor.jsx       [-43 unused (massive copy-paste)]
-src/components/AnalyticsWidgets.jsx      [-19 unused icons + 2 utils]
-src/components/SharedWidgets.jsx         [-4 unused]
-src/components/RetirementCalculator.jsx  [-2 unused icons]
-src/components/EmptyStateSetup.jsx       [-2 unused icons]
-src/components/DailyReminder.jsx         [-3 unused icons]
-src/components/PinLock.jsx               [-1 unused hook]
-src/views/TransactionsView.jsx           [-39 unused (massive)]
-src/views/AnalyticsView.jsx              [-49 unused (largest cleanup)]
-src/views/PaymentsView.jsx               [-13 unused]
-src/views/Dashboard.jsx                  [-3 unused]
-src/views/HobbyView.jsx                  [-3 unused]
-src/views/LimitsView.jsx                 [-1 unused]
-src/views/TripsView.jsx                  [-2 unused]
-src/views/GoalsView.jsx                  [-4 unused]
-src/views/InvestmentsView.jsx            [-2 unused]
-```
+## Test scenariusze
 
-### Dead funkcje + exports cleanup
-```
-src/notifications.js     [-onForegroundMessage function (-7 linii)]
-src/lib/crypto.js        [-isSupported function (-4 linii), upd export]
-src/lib/rateLimit.js     [-resetLimit function (-4 linii), upd export]
-src/data/storage.js      [-downloadJSON + loadSnapshotFromJSON (-28 linii), upd export]
-src/lib/hobby.js         [-getHobbyTransactions backward compat (-7 linii), upd exports]
-package.json             [1.3.7 → 1.3.8]
-```
+### Po wgraniu v1.3.9
 
-## Ryzyka regresji
+1. **Dashboard widget'y "zł zł"**:
+   - "Średnia dzienna" → powinna być "1044,63 zł" (bez duplikacji)
+   - "Możesz dziennie" → powinna być "117,64 zł" (bez duplikacji)
 
-Niewielkie — wyciąłem tylko rzeczy realnie nie używane (potwierdzone przez `grep -rn` + build verify). Test scenariusze do sprawdzenia po wgraniu:
+2. **Dashboard insighty**:
+   - **Dziś** zobaczysz X zestaw (np. Auto, oszczędność, projekcja roczna)
+   - **Jutro** zobaczysz **inny** zestaw mimo że dane się nie zmieniły
+   - **Pojutrze** kolejny inny
 
-1. **Settings → Eksport** — sprawdź czy XLSX export działa (downloadJSON wycięte, ale to było JSON, niezwiązane)
-2. **Logowanie / sync** — sprawdź czy logowanie działa (`onForegroundMessage` wycięte z `notifications.js` ale ten listener nigdy nie był używany)
-3. **PIN** — sprawdź czy PIN screen działa
-4. **Hobby** — sprawdź czy hobby/income tracking działa (eksporty z lib/hobby.js zmienione)
+   Critical (anomalia tx >3x mediany) zawsze pierwsze. Informational losowane z dziennego seedu.
 
-Jeśli coś przestało działać → znaczy że jakieś użycie było pośrednie i pominąłem przy `grep -rn`. Daj znać które flow się zepsuł, dorzucę z powrotem.
+3. **"Średnia dzienna 1044 vs Możesz dziennie 117"**: dalej różne wartości — to NIE jest bug. Po kilku dniach cyklu wartości się zbliżą bo średnia będzie bardziej reprezentatywna.
 
 ## Co dalej
 
-Backlog otwartych tematów (do twojego wyboru):
-
+Backlog otwartych:
 - **Faza 3 TWA setup** — czeka na keystore + SHA256
-- **Faza 2 RevenueCat** — wstrzymane na twoją decyzję
-- **Drobne UX poprawki po teście v1.3.8** — wgraj, użyj, sprawdź czy coś czuć się dziwnie
-
-Kod jest teraz dużo czystszy, łatwiej będzie iść dalej z RC integration / nowymi feature'ami.
+- **Faza 2 RevenueCat** — wstrzymane
+- **Średnia dzienna labels/tooltip** — może w v1.4 jeśli dalej myli

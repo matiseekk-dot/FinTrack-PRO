@@ -501,11 +501,11 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div style={{ background: "#060b14", borderRadius: 12, padding: "10px 12px" }}>
             <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{t("dash.dailyAvg")}</div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f97316" }}>{fmt(dailySpend)} zł</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f97316" }}>{fmt(dailySpend)}</div>
           </div>
           <div style={{ background: "#060b14", borderRadius: 12, padding: "10px 12px" }}>
             <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{t("dash.dailyBudget")}</div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: safePerDay > 0 ? "#10b981" : "#ef4444" }}>{safePerDay > 0 ? fmt(safePerDay) : "0,00"} zł</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: safePerDay > 0 ? "#10b981" : "#ef4444" }}>{safePerDay > 0 ? fmt(safePerDay) : "0,00 zł"}</div>
           </div>
         </div>
       </div>
