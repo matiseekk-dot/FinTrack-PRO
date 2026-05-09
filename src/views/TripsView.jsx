@@ -5,6 +5,7 @@ import {
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
+import { Stat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
 import { fmt, todayLocal } from "../utils.js";
 import {
   groupTrips, getTripSpending, getYearlyTripsSummary, getTripsTrendYoY,
@@ -299,44 +300,8 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
 }
 
 // ═══ COMPONENTS ═══
-
-function Stat({ label, value, color }) {
-  return (
-    <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {label}
-      </div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color, marginTop: 4 }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function YoYBars({ data }) {
-  const max = Math.max(...data.map(d => d.total), 1);
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 50 }}>
-      {data.map(d => {
-        const h = (d.total / max) * 100;
-        return (
-          <div key={d.year} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
-              <div style={{
-                width: "100%", height: `${h}%`, minHeight: 2,
-                background: "linear-gradient(180deg,#3b82f6,#1e40af)",
-                borderRadius: "4px 4px 0 0",
-              }}/>
-            </div>
-            <div style={{ fontSize: 9, color: "#475569", fontFamily: "'DM Mono', monospace" }}>
-              {String(d.year).slice(2)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// Stat, YoYBars, iconBtn, ColorPicker — patrz src/components/PlansShared.jsx
+// (wspólne z HobbyView, jeden kanon).
 
 function SectionTitle({ label, children }) {
   return (
@@ -596,12 +561,6 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
   );
 }
 
-const iconBtn = {
-  background: "#0a1120", border: "1px solid #1a2744", borderRadius: 8,
-  padding: "6px 8px", cursor: "pointer", color: "#94a3b8",
-  display: "flex", alignItems: "center", justifyContent: "center",
-};
-
 function TripModal({ trip, setTrip, onClose, onSave }) {
   return (
     <Modal open={true} onClose={onClose} title={trip.id ? t("trips.editTitle", "Edytuj wyjazd") : t("trips.add")}>
@@ -638,15 +597,11 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
           textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
           {t("trips.color")}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {DEFAULT_TRIP_COLORS.map(c => (
-            <button key={c} onClick={() => setTrip({ ...trip, color: c })} style={{
-              width: 28, height: 28, borderRadius: 8, cursor: "pointer",
-              background: c,
-              border: trip.color === c ? "2px solid #e2e8f0" : "2px solid transparent",
-            }}/>
-          ))}
-        </div>
+        <ColorPicker
+          colors={DEFAULT_TRIP_COLORS}
+          value={trip.color}
+          onChange={c => setTrip({ ...trip, color: c })}
+        />
       </div>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",

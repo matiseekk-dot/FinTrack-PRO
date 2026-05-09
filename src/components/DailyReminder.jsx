@@ -1,28 +1,31 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Flame, X } from "lucide-react";
-import { todayLocal, dateToLocal } from "../utils.js";
+import { todayLocal } from "../utils.js";
 import { t as i18n } from "../i18n.js";
+import { useStreak } from "../hooks/useStreak.js";
 
 function DailyReminder({ transactions, onAddTx }) {
   const today = todayLocal();
-  const todayTxs = transactions.filter(t => t.date === today && t.cat !== "inne");
+  // useMemo żeby filtr nie robił się na każdy render parenta
+  const todayTxs = useMemo(
+    () => transactions.filter(t => t.date === today && t.cat !== "inne"),
+    [transactions, today]
+  );
   const [dismissed, setDismissed] = useState(false);
 
-  // Streak: consecutive days with at least one transaction
-  const streak = (() => {
-    let s = 0;
-    const d = new Date();
-    while (true) {
-      const ds = dateToLocal(d);
-      const has = transactions.some(t => t.date === ds && t.cat !== "inne");
-      if (!has) break;
-      s++;
-      d.setDate(d.getDate() - 1);
-    }
-    return s;
-  })();
+  // Streak — używa współdzielonej logiki z hooks/useStreak.js (toleruje weekendy
+  // i 2 dni przerwy). Wcześniej był osobny inline algorytm, niespójny z hookiem
+  // wyświetlanym na splash screenie — user widział dwie różne liczby.
+  const streak = useStreak(transactions);
 
-  const lastDate = transactions.filter(t => t.cat !== "inne").map(t => t.date).sort().reverse()[0];
+  // Ostatnia data tx (do detekcji "urgent" gdy user dawno nic nie dodał)
+  const lastDate = useMemo(() => {
+    let max = "";
+    for (const t of transactions) {
+      if (t.cat !== "inne" && t.date && t.date > max) max = t.date;
+    }
+    return max || null;
+  }, [transactions]);
   const daysSinceLast = lastDate ? Math.floor((new Date(today) - new Date(lastDate)) / 86400000) : 99;
 
   if (dismissed) return null;

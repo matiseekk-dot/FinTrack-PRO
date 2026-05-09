@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
-import {
-  Wallet, X
-} from "lucide-react";
+import { X } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { FinancialScore, Insights, ExpenseTypesBreakdown, IncomeTypesBreakdown, Recommendations } from "../components/AnalyticsWidgets.jsx";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel } from "../utils.js";
 import { MONTHS, MONTH_NAMES, getCat } from "../constants.js";
 import { RetirementCalculator } from "../components/RetirementCalculator.jsx";
+import { resolveCategory } from "../lib/categoryHelpers.js";
 import { t, getLang } from "../i18n.js";
 function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
@@ -174,11 +173,7 @@ function TrendKategorii({ transactions, month, cycleDay }) {
 };
 
 function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, partnerName = "Partner", allCats = [] }) {
-  const getLocalCat = (id) => {
-    const found = (allCats || []).find(c => c.id === id);
-    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
-    return getCat(id);
-  };
+  const getLocalCat = (id) => resolveCategory(id, allCats);
   if (transactions.length === 0) return (
     <div style={{ padding: "0 16px 100px", textAlign: "center", paddingTop: 80 }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>

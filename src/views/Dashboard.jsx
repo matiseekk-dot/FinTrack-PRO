@@ -5,11 +5,12 @@ import {
   Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
 import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
-import { MONTH_NAMES, getCat } from "../constants.js";
+import { MONTH_NAMES } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
 import { sumByGroup } from "../lib/accountTypes.js";
+import { resolveCategory } from "../lib/categoryHelpers.js";
 import { InsightsCard } from "../components/InsightsCard.jsx";
 import { StorageWarning } from "../components/StorageWarning.jsx";
 
@@ -55,11 +56,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 
 
 function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh, portfolio = [] }) {
-  const getLocalCat = (id) => {
-    const found = allCats.find(c => c.id === id);
-    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
-    return getCat(id);
-  };
+  const getLocalCat = (id) => resolveCategory(id, allCats);
   const [pulling, setPulling] = useState(false);
   const [pullY, setPullY] = useState(0);
   const pullStartY = useRef(0);

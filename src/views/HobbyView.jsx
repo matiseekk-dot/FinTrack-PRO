@@ -6,6 +6,7 @@ import {
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
+import { Stat, MiniStat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
 import { fmt, fmtShort, cycleTxs } from "../utils.js";
 import {
   pickHobbyColor, DEFAULT_HOBBY_COLORS, getAllHobbyTransactions, getHobbyStats
@@ -274,19 +275,8 @@ function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay
 }
 
 // ═══ COMPONENTS ═══
-
-function Stat({ label, value, color }) {
-  return (
-    <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {label}
-      </div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color, marginTop: 4 }}>
-        {value}
-      </div>
-    </div>
-  );
-}
+// Stat, MiniStat, YoYBars, iconBtn, ColorPicker — patrz src/components/PlansShared.jsx
+// (wspólne z TripsView, jeden kanon).
 
 function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) {
   const stats = useMemo(() => getHobbyStats(transactions, hobby, { cycleTxs: cyclePool }),
@@ -381,19 +371,6 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
         </div>
       )}
     </button>
-  );
-}
-
-function MiniStat({ label, value, color }) {
-  return (
-    <div style={{ background: "#060b14", borderRadius: 8, padding: "8px 10px" }}>
-      <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-        {label}
-      </div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color, marginTop: 3 }}>
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -539,7 +516,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
             display: "flex", alignItems: "center", gap: 6 }}>
             <TrendingUp size={11}/> {t("hobby.yoy", "Rok-do-roku (wydatki)")}
           </div>
-          <YoYBars data={stats.yoyTrend} color={hobby.color}/>
+          <YoYBars data={stats.yoyTrend} color={hobby.color} showValues/>
         </Card>
       )}
 
@@ -681,41 +658,6 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
   );
 }
 
-function YoYBars({ data, color }) {
-  const max = Math.max(...data.map(d => d.total), 1);
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 60 }}>
-      {data.map(d => {
-        const h = (d.total / max) * 100;
-        return (
-          <div key={d.year} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'DM Mono', monospace" }}>
-              {fmtShort(d.total)}
-            </div>
-            <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
-              <div style={{
-                width: "100%", height: `${h}%`, minHeight: 3,
-                background: color || "#a855f7",
-                borderRadius: "4px 4px 0 0",
-                opacity: 0.85,
-              }}/>
-            </div>
-            <div style={{ fontSize: 9, color: "#475569", fontFamily: "'DM Mono', monospace" }}>
-              {String(d.year).slice(2)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const iconBtn = {
-  background: "#0a1120", border: "1px solid #1a2744", borderRadius: 8,
-  padding: "6px 8px", cursor: "pointer", color: "#94a3b8",
-  display: "flex", alignItems: "center", justifyContent: "center",
-};
-
 function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
   // v1.3.4 fix: rozdziel kategorie na expense/income żeby user mógł wybierać OBIE.
   // Wcześniej tylko expense cats były pokazywane — co blokowało scenariusz hobby ze
@@ -753,15 +695,11 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
           textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
           Kolor
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {DEFAULT_HOBBY_COLORS.map(c => (
-            <button key={c} onClick={() => setHobby({ ...hobby, color: c })} style={{
-              width: 28, height: 28, borderRadius: 8, cursor: "pointer",
-              background: c,
-              border: hobby.color === c ? "2px solid #e2e8f0" : "2px solid transparent",
-            }}/>
-          ))}
-        </div>
+        <ColorPicker
+          colors={DEFAULT_HOBBY_COLORS}
+          value={hobby.color}
+          onChange={c => setHobby({ ...hobby, color: c })}
+        />
       </div>
 
       {/* Categories multi-select - rozdzielone na expense + income (v1.3.4) */}

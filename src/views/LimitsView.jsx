@@ -3,7 +3,8 @@ import { PlusCircle, Trash2 } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt, cycleTxs } from "../utils.js";
-import { CATEGORIES, getCat, MONTH_NAMES } from "../constants.js";
+import { CATEGORIES, MONTH_NAMES } from "../constants.js";
+import { resolveCategory } from "../lib/categoryHelpers.js";
 import { t } from "../i18n.js";
 
 /**
@@ -17,9 +18,7 @@ function LimitsView({ budgets, setBudgets, transactions, allCats = [], month, cy
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ cat: "bukmacher", limit: "" });
 
-  const getLocalCat = (id) => {
-    return (allCats || []).find(c => c.id === id) || getCat(id);
-  };
+  const getLocalCat = (id) => resolveCategory(id, allCats);
 
   // Wydatki z bieżącego cyklu, pogrupowane po kat
   const monthTx = useMemo(

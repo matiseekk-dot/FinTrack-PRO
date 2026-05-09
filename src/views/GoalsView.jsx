@@ -1,21 +1,17 @@
 import { useState } from "react";
-import { Wallet, PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt } from "../utils.js";
-import { getCat } from "../constants.js";
 import { getEffectiveBalance } from "../lib/accountTypes.js";
+import { resolveCategory } from "../lib/categoryHelpers.js";
 import { useToast } from "../hooks/useToast.js";
 
 
 function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transactions, month, cycleDay = 1, vacationArchive = [], setVacationArchive, allCats = [], portfolio = [] }) {
-  const getLocalCat = (id) => {
-    const found = (allCats || []).find(c => c.id === id);
-    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
-    return getCat(id);
-  };
+  const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const [modal,       setModal]       = useState(false);
   // v1.2.11: usunięty dead code vacation/candidateFrom/candidateTo/saveVacation/expandedVacId.
