@@ -3,15 +3,18 @@ import { Wallet, ArrowRight } from "lucide-react";
 import { FontLoader } from "./FontLoader.jsx";
 import { t } from "../i18n.js";
 
+// Bank list — spójna z parserami CSV w lib/csvImport.js (8 wspieranych banków).
+// Pekao SA: błękit (PKO BP używa granatu, kolizja). Skrót "PEK" zamiast "PKO".
 const BANKS = [
-  { id: "pko",     name: "PKO BP",      color: "#004B93", short: "PKO" },
-  { id: "mbank",   name: "mBank",       color: "#E30613", short: "mB" },
-  { id: "ing",     name: "ING",         color: "#FF6200", short: "ING" },
-  { id: "santander", name: "Santander", color: "#EC0000", short: "SAN" },
-  { id: "pekao",   name: "Pekao",       color: "#E30613", short: "PKO" },
-  { id: "revolut", name: "Revolut",     color: "#0066FF", short: "REV" },
+  { id: "pko",        name: "PKO BP",     color: "#004B93", short: "PKO" },
+  { id: "mbank",      name: "mBank",      color: "#E30613", short: "mB"  },
+  { id: "ing",        name: "ING",        color: "#FF6200", short: "ING" },
+  { id: "santander",  name: "Santander",  color: "#EC0000", short: "SAN" },
+  { id: "pekao",      name: "Pekao SA",   color: "#0058A8", short: "PEK" },
+  { id: "bnp",        name: "BNP Paribas",color: "#00965E", short: "BNP" },
   { id: "millennium", name: "Millennium", color: "#722F37", short: "MIL" },
-  { id: "other",   name: "_other",      color: "#64748b", short: "?" },
+  { id: "revolut",    name: "Revolut",    color: "#0066FF", short: "REV" },
+  { id: "other",      name: "_other",     color: "#64748b", short: "?"   },
 ];
 
 function EmptyStateSetup({ onComplete }) {
