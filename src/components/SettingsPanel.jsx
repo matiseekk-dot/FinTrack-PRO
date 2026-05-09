@@ -10,6 +10,8 @@ import { PinSettings } from "./PinLock.jsx";
 import { getLang, setLang, t } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
+import { importCSV, SUPPORTED_BANKS } from "../lib/csvImport.js";
+import { getCurrentRates, refreshRates } from "../lib/fx.js";
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -58,6 +60,10 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDemo,  setConfirmDemo]  = useState(false);
+  // CSV import: "auto" = wykryj z nagłówka, lub konkretne id banku
+  const [csvBankId, setCsvBankId]       = useState("auto");
+  // FX status: "" | "ok" | "err"
+  const [fxRefreshStatus, setFxRefreshStatus] = useState("");
 
   if (!open) return null;
 
@@ -352,271 +358,35 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     reader.onload = (ev) => {
       try {
         const text = ev.target.result;
-        // Helper: konwertuj datę do YYYY-MM-DD
-        const parseDate = (raw) => {
-          if (!raw) return '';
-          const s = String(raw).trim();
-          if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-          if (/^\d{2}[.-]\d{2}[.-]\d{4}/.test(s)) {
-            const p = s.split(/[.-]/);
-            return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-          }
-          return s.slice(0,10);
-        };
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        if (lines.length < 2) throw new Error("Pusty plik");
+        // Parsowanie + kategoryzacja w lib/csvImport.js
+        const forceBank = csvBankId === "auto" ? null : csvBankId;
+        const result = importCSV(text, { accId: importTargetAcc, forceBankId: forceBank });
+        if (!result.ok) {
+          throw new Error(result.error || "Nie rozpoznano formatu");
+        }
+        const newTx = result.transactions;
+        const imported = newTx.length;
 
-        // Auto-detect bank format from header
-        const header = lines[0].replace(/^\uFEFF/, '').toLowerCase().trim();
-        let imported = 0;
-        const newTx = [];
-
-        // PKO BP format: "Data operacji";"Opis operacji";"Rachunek";"Kategoria";"Kwota";"Saldo"
-        // Oczyść BOM i whitespace z nagłówka
-        const cleanHeader = lines[0].replace(/^\uFEFF/, '').toLowerCase().trim();
-        if (cleanHeader.includes("data operacji") || (cleanHeader.includes("data księgowania") && !cleanHeader.includes("tytuł"))) {
-          lines.slice(1).forEach((line, i) => {
-            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = parseDate(cols[0]);
-            const desc = cols[1] || cols[2] || "Import PKO";
-            const amt  = parseFloat((cols[4] || cols[3] || "0").replace(",", ".").replace(/\s/g, ""));
-            if (!date || isNaN(amt)) return;
-            const detectCat = (desc, amt) => {
-              const d = desc.toLowerCase();
-              if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
-                return "inne";
-              }
-              // Zakłady / bukmacher
-              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
-              // Jedzenie
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
-              // Restauracje
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
-              // Transport
-              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
-              // Rozrywka/subskrypcje
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
-              // Zakupy
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
-              // Zdrowie
-              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
-              // Rachunki
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
-              // Kawiarnia
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
-              // Transfery wewnętrzne - nie wchodzą w analizę
-              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
-              // Inwestycje
-              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
-              return "inne";
-            };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
-          });
-        }
-        // mBank format: "Data operacji";"Data księgowania";"Opis operacji";"Tytuł";"Nadawca/Odbiorca";"Konto";"Kwota";"Saldo po operacji"
-        else if (header.includes("tytuł") || header.includes("nadawca")) {
-          lines.slice(1).forEach((line, i) => {
-            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = parseDate(cols[0]);
-            const desc = cols[3] || cols[2] || "Import mBank";
-            const amt  = parseFloat((cols[6] || "0").replace(",", ".").replace(/\s/g, ""));
-            if (!date || isNaN(amt)) return;
-            const detectCat = (desc, amt) => {
-              const d = desc.toLowerCase();
-              if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
-                return "inne";
-              }
-              // Zakłady / bukmacher
-              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
-              // Jedzenie
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
-              // Restauracje
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
-              // Transport
-              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
-              // Rozrywka/subskrypcje
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
-              // Zakupy
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
-              // Zdrowie
-              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
-              // Rachunki
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
-              // Kawiarnia
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
-              // Transfery wewnętrzne - nie wchodzą w analizę
-              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
-              // Inwestycje
-              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
-              return "inne";
-            };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
-          });
-        }
-        // ING format: "Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji";"Saldo po transakcji"
-        else if (header.includes("dane kontrahenta") || header.includes("nr transakcji")) {
-          lines.slice(1).forEach((line, i) => {
-            const cols = line.split(";").map(c => c.replace(/"/g, "").trim());
-            const date = parseDate(cols[0]);
-            const desc = cols[2] || cols[3] || "Import ING";
-            const amt  = parseFloat((cols[8] || "0").replace(",", ".").replace(/\s/g, ""));
-            if (!date || isNaN(amt)) return;
-            const detectCat = (desc, amt) => {
-              const d = desc.toLowerCase();
-              if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
-                return "inne";
-              }
-              // Zakłady / bukmacher
-              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
-              // Jedzenie
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
-              // Restauracje
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
-              // Transport
-              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
-              // Rozrywka/subskrypcje
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
-              // Zakupy
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
-              // Zdrowie
-              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
-              // Rachunki
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
-              // Kawiarnia
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
-              // Transfery wewnętrzne - nie wchodzą w analizę
-              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
-              // Inwestycje
-              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
-              return "inne";
-            };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
-          });
-        }
-        // Revolut format: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
-        else if (header.includes("started date") || header.includes("completed date") || header.includes("data rozpoczęcia") || header.includes("data rozp") || (header.includes("revolut") && (header.includes("amount") || header.includes("kwota")))) {
-          lines.slice(1).forEach((line, i) => {
-            // Rozdziel CSV z uwzględnieniem przecinków w cudzysłowach
-            const cols = line.split(",").map(c => c.replace(/"/g, "").trim());
-            // Data: col[2] = Data rozpoczęcia, col[3] = Data zakończenia
-            const date = parseDate(cols[2] || cols[3]);
-            // Opis: col[4]
-            const desc = cols[4] || "Import Revolut";
-            // Kwota: col[5], Waluta: col[7]
-            let amt = parseFloat((cols[5] || "0").replace(",", ".").replace(/\s/g, ""));
-            const currency = (cols[7] || "PLN").trim();
-            const txType = (cols[0] || "").toUpperCase();
-            const state = (cols[8] || "").toUpperCase();
-            // Pomiń transakcje anulowane/oczekujące
-            if (state === "FAILED" || state === "REVERTED" || state === "PENDING") return;
-            // Revolut daje kwoty z odpowiednim znakiem (-/+)
-            // Jeśli brak znaku i typ to płatność - ustaw ujemne
-            if (!isNaN(amt) && amt > 0 && 
-                (txType.includes("CARD") || txType.includes("PAYMENT") || 
-                 txType.includes("PLATNOSC") || txType.includes("PŁATNOŚĆ"))) {
-              amt = -Math.abs(amt);
-            }
-            if (!date || isNaN(amt) || amt === 0) return;
-            const detectCat = (desc, amt) => {
-              const d = desc.toLowerCase();
-              if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
-                return "inne";
-              }
-              // Zakłady / bukmacher
-              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
-              // Jedzenie
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
-              // Restauracje
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
-              // Transport
-              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
-              // Rozrywka/subskrypcje
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
-              // Zakupy
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
-              // Zdrowie
-              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
-              // Rachunki
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
-              // Kawiarnia
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
-              // Transfery wewnętrzne - nie wchodzą w analizę
-              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
-              // Inwestycje
-              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
-              return "inne";
-            };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
-          });
-        }
-        else {
-          // Generic CSV — try to detect date, desc, amount columns
-          lines.slice(1).forEach((line, i) => {
-            const sep = line.includes(";") ? ";" : ",";
-            const cols = line.split(sep).map(c => c.replace(/"/g, "").trim());
-            const date = parseDate(cols.find(c => /^\d{4}-\d{2}-\d{2}/.test(c) || /^\d{2}[.-]\d{2}[.-]\d{4}/.test(c)));
-            const amtStr = cols.find(c => /^-?\d+[.,]\d{2}$/.test(c.replace(/\s/g, "")));
-            if (!date || !amtStr) return;
-            const amt = parseFloat(amtStr.replace(",", ".").replace(/\s/g, ""));
-            const desc = cols.find(c => c.length > 3 && !/^\d/.test(c) && c !== date) || "Import CSV";
-            const detectCat = (desc, amt) => {
-              const d = desc.toLowerCase();
-              if (amt > 0) {
-                if (d.includes("salary") || d.includes("wynagrodzenie") || d.includes("premia")) return "przychód";
-                return "inne";
-              }
-              // Zakłady / bukmacher
-              if (d.includes("superbet") || d.includes("sts") || d.includes("fortuna") || d.includes("betclic") || d.includes("bukmacher") || d.includes("zakłady") || d.includes("totolotek") || d.includes("lotto")) return "bukmacher";
-              // Jedzenie
-              if (d.includes("biedronka") || d.includes("lidl") || d.includes("aldi") || d.includes("kaufland") || d.includes("żabka") || d.includes("zabka") || d.includes("sklep") || d.includes("spożyw") || d.includes("grocery") || d.includes("market")) return "jedzenie";
-              // Restauracje
-              if (d.includes("restaur") || d.includes("bistro") || d.includes("kebab") || d.includes("pizza") || d.includes("mcdo") || d.includes("mcdonald") || d.includes("kfc") || d.includes("burger") || d.includes("sushi") || d.includes("delivery") || d.includes("wolt") || d.includes("glovo") || d.includes("pyszne")) return "jedzenie";
-              // Transport
-              if (d.includes("orlen") || d.includes("shell") || d.includes("paliwo") || d.includes("lotos") || d.includes("circle k") || d.includes("petrol") || d.includes("fuel")) return "transport";
-              if (d.includes("uber") || d.includes("bolt") || d.includes("pkp") || d.includes("mzk") || d.includes("ztm") || d.includes("bilet") || d.includes("taxi") || d.includes("parking")) return "transport";
-              // Rozrywka/subskrypcje
-              if (d.includes("netflix") || d.includes("spotify") || d.includes("hbo") || d.includes("disney") || d.includes("youtube") || d.includes("apple") || d.includes("steam") || d.includes("gaming") || d.includes("cinema") || d.includes("kino")) return "rozrywka";
-              // Zakupy
-              if (d.includes("allegro") || d.includes("amazon") || d.includes("zalando") || d.includes("empik") || d.includes("ikea") || d.includes("decathlon") || d.includes("media markt") || d.includes("rtv euro")) return "zakupy";
-              // Zdrowie
-              if (d.includes("apteka") || d.includes("pharmacy") || d.includes("lekarz") || d.includes("szpital") || d.includes("clinic") || d.includes("dentysta") || d.includes("medical")) return "zdrowie";
-              // Rachunki
-              if (d.includes("prąd") || d.includes("prad") || d.includes("gaz") || d.includes("czynsz") || d.includes("rent") || d.includes("woda") || d.includes("internet") || d.includes("telefon") || d.includes("orange") || d.includes("play") || d.includes("t-mobile") || d.includes("plus ")) return "rachunki";
-              // Kawiarnia
-              if (d.includes("kawa") || d.includes("coffee") || d.includes("starbucks") || d.includes("cafe") || d.includes("costa")) return "kawiarnia";
-              // Transfery wewnętrzne - nie wchodzą w analizę
-              if (d.includes("depositing savings") || d.includes("saving") || d.includes("transfer") || d.includes("przelew wewnętrzny") || d.includes("top-up")) return "inne";
-              // Inwestycje
-              if (d.includes("xtb") || d.includes("invest") || d.includes("stock") || d.includes("etf") || d.includes("dividend")) return "inwestycje";
-              return "inne";
-            };
-            newTx.push({ id: Date.now() + i, date, desc, amount: amt, cat: detectCat(desc, amt), acc: importTargetAcc });
-          });
-        }
-
-        imported = newTx.filter(t => t.date && !isNaN(t.amount)).length;
-        if (imported === 0) throw new Error("Nie rozpoznano formatu");
-
-        const validTx = newTx.filter(t => t.date && !isNaN(t.amount));
+        let added = 0;
         setTransactions(prev => {
+          // Dedupe po (date+desc+amount) — ponowny import tego samego pliku nie podwaja
           const existingIds = new Set(prev.map(t => t.date + t.desc + t.amount));
-          const unique = validTx.filter(t => !existingIds.has(t.date + t.desc + t.amount));
+          const unique = newTx.filter(t => !existingIds.has(t.date + t.desc + t.amount));
+          added = unique.length;
           return [...unique, ...prev].sort((a, b) => b.date.localeCompare(a.date));
         });
 
         setImportStatus("ok");
-        setImportMsg(`Zaimportowano ${imported} transakcji do "${targetAccName}". Sprawdź kategorie w zakładce Transakcje.`);
+        const skipped = imported - added;
+        const skipNote = skipped > 0 ? ` (pominięto ${skipped} duplikatów)` : "";
+        setImportMsg(
+          `Zaimportowano ${added} z ${result.parser.name} → "${targetAccName}"${skipNote}. ` +
+          `Sprawdź kategorie w zakładce Transakcje.`
+        );
       } catch (err) {
         setImportStatus("err");
-        setImportMsg(`Błąd: ${err.message}. Obsługiwane banki: PKO BP, mBank, ING, Revolut.`);
+        const banks = SUPPORTED_BANKS.filter(b => b.id !== "generic").map(b => b.name).join(", ");
+        setImportMsg(`Błąd: ${err.message}. Obsługiwane banki: ${banks}.`);
       }
     };
     reader.readAsText(file, "UTF-8");
@@ -1227,13 +997,34 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                  style={{ display: "none" }}/>
         </label>
 
+        {/* CSV bank picker — auto-detect lub wymuś konkretny bank */}
+        <div style={{ marginTop: 8 }}>
+          <label style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
+            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, display: "block" }}>
+            Format pliku CSV
+          </label>
+          <select
+            value={csvBankId}
+            onChange={e => setCsvBankId(e.target.value)}
+            style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
+              borderRadius: 10, padding: "10px 12px", color: "#e2e8f0",
+              fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
+              outline: "none", WebkitAppearance: "none", marginBottom: 8 }}>
+            <option value="auto">🔍 Wykryj automatycznie</option>
+            {SUPPORTED_BANKS.filter(b => b.id !== "generic").map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+            <option value="generic">Inny / generic CSV</option>
+          </select>
+        </div>
+
         <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           background: "#060b14", border: "2px dashed #14532d",
           borderRadius: 12, padding: "14px 0", cursor: "pointer",
           color: "#10b981", fontWeight: 700, fontSize: 13,
-          fontFamily: "'Space Grotesk', sans-serif", marginTop: 8,
+          fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          <span style={{ fontSize: 18 }}>🏦</span> {t("settings.import.btnCsv", "Import wyciągu CSV (PKO BP / mBank / ING / Revolut)")}
+          <span style={{ fontSize: 18 }}>🏦</span> Import wyciągu CSV (8 banków)
           <input type="file" accept=".csv,.txt" onChange={handleImportCSV}
                  style={{ display: "none" }}/>
         </label>
@@ -1271,6 +1062,70 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </div>
           </div>
         )}
+
+        <Divider/>
+
+        {/* FX rates — NBP Tabela A */}
+        <SectionTitle>💱 Kursy walut</SectionTitle>
+        {(() => {
+          const fx = getCurrentRates();
+          const sourceLabel = fx.source === "nbp" || fx.source === "cache"
+            ? `Tabela NBP A z ${fx.date}`
+            : `Offline / fallback (z ${fx.date})`;
+          const sourceColor = fx.source === "fallback" ? "#f59e0b" : "#94a3b8";
+          return (
+            <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12,
+              padding: "14px 16px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>Źródło: NBP API</div>
+                  <div style={{ fontSize: 11, color: sourceColor, marginTop: 3 }}>{sourceLabel}</div>
+                </div>
+                <button
+                  onClick={async () => {
+                    setFxRefreshStatus("loading");
+                    const result = await refreshRates();
+                    setFxRefreshStatus(result && result.source === "nbp" ? "ok" : "err");
+                    setTimeout(() => setFxRefreshStatus(""), 3000);
+                  }}
+                  disabled={fxRefreshStatus === "loading"}
+                  style={{
+                    background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa",
+                    borderRadius: 10, padding: "6px 12px", cursor: "pointer",
+                    fontSize: 12, fontWeight: 700,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    opacity: fxRefreshStatus === "loading" ? 0.6 : 1,
+                  }}>
+                  {fxRefreshStatus === "loading" ? "Odświeżam…" : "Odśwież"}
+                </button>
+              </div>
+              {fxRefreshStatus === "ok" && (
+                <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>✓ Pobrano świeże kursy z NBP</div>
+              )}
+              {fxRefreshStatus === "err" && (
+                <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>⚠ Brak połączenia — używam ostatniego cache</div>
+              )}
+              {/* Lista 5 najpopularniejszych kursów dla podglądu */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 10 }}>
+                {["EUR", "USD", "GBP", "CHF", "CZK"].map(code => {
+                  const r = fx.rates[code];
+                  return (
+                    <div key={code} style={{ background: "#0a1120", borderRadius: 8, padding: "6px 4px", textAlign: "center" }}>
+                      <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, letterSpacing: "0.05em" }}>{code}</div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#cbd5e1" }}>
+                        {r ? r.toFixed(3) : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 10, color: "#334155", marginTop: 8, lineHeight: 1.5 }}>
+                Kursy NBP średnie (Tabela A) używane w konwersji wieloalutowych transakcji.
+                Auto-odświeżanie raz na dobę. Bank ma własny kurs + spread — to jest tracker, nie księgowość.
+              </div>
+            </div>
+          );
+        })()}
 
         <Divider/>
 
@@ -1398,10 +1253,10 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         </a>
       </div>
 
-      {/* Wersja apki */}
+      {/* Wersja apki — czytana z package.json przez Vite define (vite.config.js) */}
       <div style={{ textAlign: "center", padding: "4px 0 4px",
         fontSize: 11, color: "#1e2d45", fontFamily: "'DM Mono', sans-serif" }}>
-        FinTrack PRO · v1.1.0 · 2025–{new Date().getFullYear()}
+        FinTrack PRO · v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"} · 2025–{new Date().getFullYear()}
       </div>
 
       {/* Confirm: załaduj demo */}

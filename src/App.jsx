@@ -415,11 +415,24 @@ export default function App() {
         console.error("[FT] Firestore clear error", e);
       }
     }
-    // 2. Clear localStorage
-    localStorage.removeItem("fintrack_v1");
-    localStorage.removeItem("ft_templates");
-    localStorage.removeItem("ft_vacation");
-    localStorage.removeItem("ft_vacations");
+    // 2. Clear localStorage. Lista jest świadomie szeroka — po wipe nic nie powinno
+    // zostać. Pre-v1.4 wipe pomijał PIN, PRO status, streak, FX cache itd.
+    const KEYS_TO_WIPE = [
+      "fintrack_v1",
+      "ft_templates",
+      "ft_vacation",
+      "ft_vacations",
+      "ft_pro_status",
+      "ft_pin_hash", "ft_pin_hash_v2", "ft_pin_enabled", "ft_pin_lockout",
+      "ft_streak", "ft_streak_longest",
+      "ft_errors",
+      "ft_fx_cache_v1",
+      "ft_notif_asked", "ft_notif_date",
+      "ft_setup_done",
+      // ft_device_id i ft_lang ZOSTAJĄ — to preferencje urządzenia, nie dane usera.
+      // ft_onboarded ustawiamy na "1" zaraz potem.
+    ];
+    KEYS_TO_WIPE.forEach(k => { try { localStorage.removeItem(k); } catch {} });
     localStorage.setItem("ft_onboarded", "1");
     // 3. Reset all React state to initial values
     setAccounts(INITIAL_ACCOUNTS);

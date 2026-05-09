@@ -14,12 +14,10 @@ import { t } from "../i18n.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
 import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
+import { getRate, getCurrentRates, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { resolveCategory } from "../lib/categoryHelpers.js";
 function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
-  const getLocalCat = (id) => {
-    const found = (allCats || []).find(c => c.id === id);
-    if (found) return { ...found, icon: (typeof found.icon === "function") ? found.icon : Wallet, label: found.label ? found.label.charAt(0).toUpperCase() + found.label.slice(1) : found.label };
-    return getCat(id);
-  };
+  const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
   const [swipedId, setSwipedId] = useState(null); // id of swiped transaction
@@ -71,9 +69,10 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     const finalCat = form.type === "income"
       ? (incomeCatsList.includes(form.cat) ? form.cat : "przychód")
       : form.cat;
-    const RATES = { EUR: 4.28, USD: 3.92, GBP: 5.02, CZK: 0.172, HUF: 0.011, PLN: 1 };
-    const rate   = RATES[form.currency] || 1;
-    const rawAmt = Math.abs(parsedAmount) * rate;
+    // Live FX z NBP API (lib/fx.js, 24h cache, fallback przy braku netu)
+    const rate   = getRate(form.currency);
+    const safeRate = isFinite(rate) ? rate : 1;
+    const rawAmt = Math.abs(parsedAmount) * safeRate;
 
     // Internal transfer: create two transactions
     if (form.type === "transfer" && form.toAcc && parseInt(form.toAcc) !== parseInt(form.acc)) {
@@ -539,7 +538,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6,
             textTransform: "uppercase", letterSpacing: "0.08em" }}>Kwota</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input type="number" value={form.amount}
+            <input type="number" inputMode="decimal" value={form.amount}
               onChange={e => setForm(f => ({...f, amount: e.target.value}))}
               placeholder="0.00"
               style={{ flex: 2, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10,
@@ -551,22 +550,19 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 padding: "12px 10px", color: form.currency && form.currency !== "PLN" ? "#f59e0b" : "#e2e8f0",
                 fontSize: 15, fontWeight: 700, outline: "none", fontFamily: "'DM Mono', monospace" }}>
               <option value="PLN">PLN</option>
-              <option value="EUR">EUR</option>
-              <option value="USD">USD</option>
-              <option value="GBP">GBP</option>
-              <option value="CZK">CZK</option>
-              <option value="HUF">HUF</option>
+              {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          {/* Currency conversion preview */}
+          {/* Currency conversion preview — live z NBP (24h cache) */}
           {form.currency && form.currency !== "PLN" && form.amount && (() => {
-            const rates = { EUR: 4.28, USD: 3.92, GBP: 5.02, CZK: 0.172, HUF: 0.011 };
-            const rate  = rates[form.currency] || 1;
-            const pln   = (parseFloat(form.amount) * rate).toFixed(2);
+            const r  = getRate(form.currency);
+            const safeRate = isFinite(r) ? r : 1;
+            const pln = (parseFloat(form.amount) * safeRate).toFixed(2);
+            const fx = getCurrentRates();
             return (
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#475569" }}>
-                  {form.amount} {form.currency} × {rate} =
+                  {form.amount} {form.currency} × {safeRate.toFixed(4)} =
                 </span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>
                   {pln} PLN
@@ -574,12 +570,18 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               </div>
             );
           })()}
-          {/* Rate note */}
-          {form.currency && form.currency !== "PLN" && (
-            <div style={{ fontSize: 10, color: "#334155", marginTop: 4 }}>
-              {t("tx.rateNote", "Kurs przybliżony · kwota zapisze się w PLN")}
-            </div>
-          )}
+          {/* Rate note — pokazuje źródło i datę kursu */}
+          {form.currency && form.currency !== "PLN" && (() => {
+            const fx = getCurrentRates();
+            const sourceLabel = fx.source === "nbp" || fx.source === "cache"
+              ? `Kurs NBP (Tabela A) z ${fx.date}`
+              : `Kurs offline (z ${fx.date}) — sprawdź połączenie`;
+            return (
+              <div style={{ fontSize: 10, color: fx.source === "fallback" ? "#f59e0b" : "#334155", marginTop: 4 }}>
+                {sourceLabel} · zapis w PLN
+              </div>
+            );
+          })()}
         </div>
         <Input label={t("tx.date", "Data")} type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))}/>
         {form.type === "expense" && (
