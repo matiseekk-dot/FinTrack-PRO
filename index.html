@@ -8,9 +8,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="FinTrack PRO" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="description" content="FinTrack PRO — zaawansowany tracker finansów osobistych. Sync w chmurze, zero subskrypcji." />
+    <meta name="description" content="FinTrack PRO — tracker finansów osobistych z cyklem rozliczeniowym pod dzień wypłaty. Live kursy NBP, import wyciągów z 8 banków, kalkulator IKZE/IKE/PPK." />
     <meta property="og:title" content="FinTrack PRO" />
-    <meta property="og:description" content="Zaawansowany tracker finansów osobistych. Sync w chmurze, zero subskrypcji." />
+    <meta property="og:description" content="Tracker finansów z cyklem pod wypłatę, live kursami NBP i importem CSV z 8 banków PL." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://matiseekk-dot.github.io/FinTrack-PRO/" />
     <title>FinTrack PRO</title>
@@ -32,10 +32,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Unregister any existing service workers to prevent stale cache issues
+      // Service Worker — offline support + asset cache.
+      // SW (public/sw.js) używa Network First dla HTML/JS — zawsze świeża wersja
+      // gdy online, ostatnia działająca gdy offline. Stare cache są sprzątane
+      // w activate event (CACHE_NAME zawiera wersję apki z __APP_VERSION__).
+      // Wcześniej (pre-v1.4) SW był wyrejestrowywany tutaj — przez co PWA nie
+      // miała offline mode. Teraz rejestrujemy normalnie.
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => {
-          regs.forEach(reg => reg.unregister());
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/FinTrack-PRO/sw.js').catch(err => {
+            console.warn('[FT] SW registration failed:', err);
+          });
         });
       }
     </script>

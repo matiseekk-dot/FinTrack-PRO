@@ -2,7 +2,7 @@
   "name": "FinTrack PRO",
   "short_name": "FinTrack",
   "id": "/FinTrack-PRO/",
-  "description": "Tracker finansów osobistych z cyklem rozliczeniowym pod dzień wypłaty. Sync w chmurze, custom kategorie, cele oszczędnościowe, kalkulator IKZE/IKE/PPK.",
+  "description": "Tracker finansów osobistych z cyklem rozliczeniowym pod dzień wypłaty. Live kursy NBP, import wyciągów CSV z 8 banków (PKO/mBank/ING/Santander/Pekao/BNP/Millennium/Revolut), kalkulator IKZE/IKE/PPK, sync w chmurze.",
   "start_url": "/FinTrack-PRO/",
   "scope": "/FinTrack-PRO/",
   "display": "standalone",
