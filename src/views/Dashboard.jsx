@@ -4,12 +4,12 @@ import {
   ChevronLeft, ChevronRight, Eye, EyeOff,
   Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
-import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
+import { fmt, fmtShort, fmtDisplay, getCycleRange, cycleTxs, fmtCycleLabel, buildHistData, todayLocal } from "../utils.js";
 import { MONTH_NAMES } from "../constants.js";
 import { DailyReminder } from "../components/DailyReminder.jsx";
 import { RecurringReminder } from "../components/SharedWidgets.jsx";
 import { t, getLang } from "../i18n.js";
-import { sumByGroup } from "../lib/accountTypes.js";
+import { sumByGroup, getAccountBalancePLN } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 import { InsightsCard } from "../components/InsightsCard.jsx";
 import { StorageWarning } from "../components/StorageWarning.jsx";
@@ -84,10 +84,10 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
   // bo balance konta invest jest zarządzany osobno (Inwestycje), nie przez transakcje.
   const accountSums = useMemo(() => {
     const sums = sumByGroup(accounts, portfolio);
-    // Dla kompatybilności wstecznej
+    // Dla kompatybilności wstecznej. v1.5.0: konwersja na PLN per konto (account walutowe).
     let savingsOnly = 0;
     for (const a of accounts) {
-      if (a.type === "savings") savingsOnly += a.balance;
+      if (a.type === "savings") savingsOnly += getAccountBalancePLN(a);
     }
     return {
       total: sums.total,
@@ -281,7 +281,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
                   <div style={{ marginTop: 4 }}>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 30, fontWeight: 700,
                       color: isPos ? "#10b981" : "#ef4444", letterSpacing: "-0.03em" }}>
-                      {isPos ? "+" : "−"}{fmt(Math.abs(todayBal))}
+                      {isPos ? "+" : "−"}{fmtDisplay(Math.abs(todayBal))}
                     </span>
                     <span style={{ fontSize: 11, color: "#475569", marginLeft: 8 }}>
                       {n} {n === 1 ? "transakcja" : n < 5 ? "transakcje" : "transakcji"}
@@ -301,11 +301,11 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
               <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #1e3a5f44" }}>
                 {todayInc > 0 && <div>
                   <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.income", "Wpłynęło")}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#10b981" }}>+{fmt(todayInc)}</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#10b981" }}>+{fmtDisplay(todayInc)}</div>
                 </div>}
                 {todayExp > 0 && <div>
                   <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.spent")}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#ef4444" }}>−{fmt(todayExp)}</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#ef4444" }}>−{fmtDisplay(todayExp)}</div>
                 </div>}
               </div>
             )}
@@ -367,7 +367,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{t("dash.cashAvailable", "Gotówka dostępna")}</div>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700,
               color: hideBalance ? "#1a2744" : "#e2e8f0", letterSpacing: "-0.03em" }}>
-              {hideBalance ? "●●●●●" : fmt(totalBalance)}
+              {hideBalance ? "●●●●●" : fmtDisplay(totalBalance)}
             </span>
             <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>{t("dash.cashDesc", "płynne, dostępne od ręki")}</div>
           </div>
@@ -380,15 +380,15 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           <div style={{ display: "flex", gap: 20, marginTop: 14, paddingTop: 14, borderTop: "1px solid #1e3a5f44" }}>
             <div>
               <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{t("dash.savings")}</div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#10b981" }}>{fmt(savings)}</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#10b981" }}>{fmtDisplay(savings)}</div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{t("dash.investments")}</div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#8b5cf6" }}>{fmt(invest)}</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#8b5cf6" }}>{fmtDisplay(invest)}</div>
             </div>
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
               <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{t("dash.cycleBalance")}</div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: balance >= 0 ? "#10b981" : "#ef4444" }}>{balance >= 0 ? "+" : "−"}{fmt(Math.abs(balance))}</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: balance >= 0 ? "#10b981" : "#ef4444" }}>{balance >= 0 ? "+" : "−"}{fmtDisplay(Math.abs(balance))}</div>
             </div>
           </div>
         )}
@@ -401,31 +401,31 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             <div>
               <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{t("dash.totalWealth", "Majątek łączny")}</div>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: "#cbd5e1", letterSpacing: "-0.02em" }}>
-                {fmt(netWorth)}
+                {fmtDisplay(netWorth)}
               </span>
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14, paddingTop: 10, borderTop: "1px solid #1e3a5f44" }}>
             <div>
               <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.cash", "Gotówka")}</div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>{fmt(accountSums.liquid)}</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>{fmtDisplay(accountSums.liquid)}</div>
             </div>
             {invest > 0 && (
               <div>
                 <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Inwestycje</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#8b5cf6" }}>{fmt(invest)}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#8b5cf6" }}>{fmtDisplay(invest)}</div>
               </div>
             )}
             {retirement > 0 && (
               <div>
                 <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Emerytura</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#06b6d4" }}>{fmt(retirement)}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#06b6d4" }}>{fmtDisplay(retirement)}</div>
               </div>
             )}
             {accountSums.longterm > 0 && (
               <div>
                 <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{t("dash.longterm", "Długoterminowy")}</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#eab308" }}>{fmt(accountSums.longterm)}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "#eab308" }}>{fmtDisplay(accountSums.longterm)}</div>
               </div>
             )}
           </div>
@@ -467,7 +467,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
             <XAxis dataKey="m" tick={{ fill: "#334155", fontSize: 11, fontFamily: "'DM Mono', monospace" }} axisLine={false} tickLine={false}/>
             <Tooltip contentStyle={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12 }}
               cursor={{ fill: "#ffffff06" }}
-              formatter={(v, n) => [fmt(v), n === "income" ? t("dash.income") : t("dash.expenses")]}/>
+              formatter={(v, n) => [fmtDisplay(v), n === "income" ? t("dash.income") : t("dash.expenses")]}/>
             <Bar dataKey="income" fill="#10b98133" radius={[3,3,0,0]}/>
             <Bar dataKey="expense" fill="#ef444433" radius={[3,3,0,0]}/>
           </BarChart>
@@ -489,7 +489,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           </div>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700,
             color: safeToSpend > 0 ? "#10b981" : "#ef4444", letterSpacing: "-0.02em" }}>
-            {safeToSpend <= 0 ? "0,00 zł" : fmt(safeToSpend)}
+            {safeToSpend <= 0 ? fmtDisplay(0) : fmtDisplay(safeToSpend)}
           </div>
           {safeToSpend <= 0 && (
             <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>{t("dash.budgetExhausted")}</div>
@@ -498,11 +498,11 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div style={{ background: "#060b14", borderRadius: 12, padding: "10px 12px" }}>
             <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{t("dash.dailyAvg")}</div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f97316" }}>{fmt(dailySpend)}</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f97316" }}>{fmtDisplay(dailySpend)}</div>
           </div>
           <div style={{ background: "#060b14", borderRadius: 12, padding: "10px 12px" }}>
             <div style={{ fontSize: 9, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{t("dash.dailyBudget")}</div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: safePerDay > 0 ? "#10b981" : "#ef4444" }}>{safePerDay > 0 ? fmt(safePerDay) : "0,00 zł"}</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: safePerDay > 0 ? "#10b981" : "#ef4444" }}>{safePerDay > 0 ? fmtDisplay(safePerDay) : fmtDisplay(0)}</div>
           </div>
         </div>
       </div>
@@ -528,12 +528,12 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
                 <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{t("dash.forecast")}</div>
                 <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700,
                   color: isGood ? "#10b981" : "#ef4444" }}>
-                  {isGood ? "+" : "−"}{fmt(Math.abs(fBal))}
+                  {isGood ? "+" : "−"}{fmtDisplay(Math.abs(fBal))}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{t("dash.estSpending")}</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#ef4444" }}>~{fmt(fExp)}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#ef4444" }}>~{fmtDisplay(fExp)}</div>
               </div>
             </div>
             <div style={{ background: "#060b14", borderRadius: 6, height: 4, overflow: "hidden" }}>

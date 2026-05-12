@@ -6,7 +6,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
 import { Stat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
-import { fmt, todayLocal } from "../utils.js";
+import { fmt, fmtDisplay, todayLocal } from "../utils.js";
 import {
   groupTrips, getTripSpending, getTripSpendingByCurrency,
   getYearlyTripsSummary, getTripsTrendYoY,
@@ -194,11 +194,11 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <Stat label={t("trips.spent")} value={fmt(summary.totalSpent)} color="#ef4444"/>
-            <Stat label={t("trips.budget")} value={summary.totalBudget > 0 ? fmt(summary.totalBudget) : "—"} color="#3b82f6"/>
+            <Stat label={t("trips.spent")} value={fmtDisplay(summary.totalSpent)} color="#ef4444"/>
+            <Stat label={t("trips.budget")} value={summary.totalBudget > 0 ? fmtDisplay(summary.totalBudget) : "—"} color="#3b82f6"/>
             <Stat
               label={t("trips.remaining")}
-              value={summary.totalBudget > 0 ? fmt(summary.totalBudget - summary.totalSpent) : "—"}
+              value={summary.totalBudget > 0 ? fmtDisplay(summary.totalBudget - summary.totalSpent) : "—"}
               color={summary.totalBudget - summary.totalSpent >= 0 ? "#10b981" : "#ef4444"}
             />
           </div>
@@ -268,7 +268,7 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
               )}
               {v.spent != null && (
                 <div style={{ fontSize: 11, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
-                  Wydane: {fmt(v.spent)}
+                  Wydane: {fmtDisplay(v.spent)}
                 </div>
               )}
             </div>
@@ -368,12 +368,12 @@ function TripCard({ trip, transactions, onClick, dimmed = false }) {
           <span style={{ color: "#64748b" }}>{t("trips.spent")}: </span>
           <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700,
             color: overBudget ? "#ef4444" : "#e2e8f0" }}>
-            {fmt(spending.total)}
+            {fmtDisplay(spending.total)}
           </span>
         </div>
         {budget > 0 && (
           <div style={{ color: "#64748b", fontSize: 11 }}>
-            z {fmt(budget)}
+            z {fmtDisplay(budget)}
           </div>
         )}
       </div>
@@ -460,11 +460,11 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <Stat label={t("trips.spent")}     value={fmt(spending.total)}      color="#ef4444"/>
-          <Stat label={t("trips.budget")}    value={budget > 0 ? fmt(budget) : "—"} color="#3b82f6"/>
+          <Stat label={t("trips.spent")}     value={fmtDisplay(spending.total)}      color="#ef4444"/>
+          <Stat label={t("trips.budget")}    value={budget > 0 ? fmtDisplay(budget) : "—"} color="#3b82f6"/>
           <Stat
             label={t("trips.remaining")}
-            value={budget > 0 ? fmt(remaining) : "—"}
+            value={budget > 0 ? fmtDisplay(remaining) : "—"}
             color={remaining >= 0 ? "#10b981" : "#ef4444"}
           />
         </div>
@@ -513,7 +513,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                     </div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13,
                       fontWeight: 700, color: trip.color, flexShrink: 0 }}>
-                      {fmt(pln)}
+                      {fmtDisplay(pln)}
                     </div>
                   </div>
                 ))}
@@ -526,7 +526,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
               </span>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15,
                 fontWeight: 800, color: "#e2e8f0" }}>
-                {fmt(currencyBreakdown.totalPLN)}
+                {fmtDisplay(currencyBreakdown.totalPLN)}
               </span>
             </div>
           </Card>
@@ -552,7 +552,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                       {cat.label || catId}
                     </span>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: cat.color || "#94a3b8" }}>
-                      {fmt(val)}
+                      {fmtDisplay(val)}
                     </span>
                   </div>
                   <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>

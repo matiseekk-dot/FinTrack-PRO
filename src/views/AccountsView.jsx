@@ -3,13 +3,14 @@ import {
   TrendingUp, PlusCircle, PiggyBank, CreditCard, Trash2,
   Shield as ShieldIcon, Landmark as LandmarkIcon,
 } from "lucide-react";
-import { ACCOUNT_TYPES, ACCOUNT_GROUPS, groupAccountsByCategory, sumByGroup, getAccountType } from "../lib/accountTypes.js";
+import { ACCOUNT_TYPES, ACCOUNT_GROUPS, groupAccountsByCategory, sumByGroup, getAccountType, getAccountBalancePLN } from "../lib/accountTypes.js";
 import { Card, Badge } from "../components/ui/Card.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
-import { fmt } from "../utils.js";
+import { fmt, fmtDisplay, fmtCurrency } from "../utils.js";
+import { SUPPORTED_CURRENCIES, getDisplayCurrency } from "../lib/fx.js";
 import { t } from "../i18n.js";
 function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
@@ -48,7 +49,13 @@ function AccountsView({ accounts, setAccounts }) {
   const total = sums.total;
 
   const AccCard = ({ acc }) => {
-    const pct = total > 0 ? ((acc.balance / total) * 100).toFixed(1) : "0.0";
+    // v1.5.0: pct liczony na podstawie wartości PLN (nie raw balance) — żeby konto
+    // EUR 5000 nie konkurowało z PLN 5000 jako "tyle samo majątku".
+    const balancePLN = getAccountBalancePLN(acc);
+    const pct = total > 0 ? ((balancePLN / total) * 100).toFixed(1) : "0.0";
+    const accCurrency = (acc.currency || "PLN").toUpperCase();
+    const display = getDisplayCurrency();
+    const showEquivalent = accCurrency !== display; // pokazuj equiv tylko gdy native != display
     return (
       <Card style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -72,8 +79,11 @@ function AccountsView({ accounts, setAccounts }) {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 600, color: acc.color }}>{fmt(acc.balance)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+              {/* v1.5.0: saldo w natywnej walucie konta (np. EUR), nie zawsze PLN */}
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 600, color: acc.color }}>
+                {fmtCurrency(acc.balance, accCurrency)}
+              </div>
               {acc.balance === 0 && (
                 <span style={{ fontSize: 10, color: "#f59e0b", background: "#78350f22",
                   border: "1px solid #78350f44", borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>
@@ -81,6 +91,12 @@ function AccountsView({ accounts, setAccounts }) {
                 </span>
               )}
             </div>
+            {/* Equivalent w display currency — tylko gdy konto ma inną walutę niż display */}
+            {showEquivalent && acc.balance !== 0 && (
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#64748b", marginTop: 1 }}>
+                ≈ {fmtDisplay(balancePLN)}
+              </div>
+            )}
             <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pct}% {t("acc.ofWealth", "majątku")}</div>
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
               <button onClick={() => openEdit(acc)} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#60a5fa", fontSize: 11 }}>Edytuj</button>
@@ -148,19 +164,22 @@ function AccountsView({ accounts, setAccounts }) {
         <Input label={t("acc.bank", "Bank")} value={form.bank} onChange={e => setForm(f => ({...f, bank: e.target.value}))} placeholder={t("acc.bankPlaceholder", "np. PKO BP")}/>
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("acc.currency", "Waluta")}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["PLN","EUR","USD","GBP","CHF","CZK"].map(c => (
+          {/* v1.5.0: pełna lista walut z fx.js, scrollable bo 11 opcji */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            {["PLN", ...SUPPORTED_CURRENCIES].map(c => (
               <button key={c} onClick={() => setForm(f => ({...f, currency: c}))} style={{
                 padding: "6px 12px", borderRadius: 8, cursor: "pointer",
                 border: `1px solid ${form.currency === c ? "#2563eb" : "#1a2744"}`,
                 background: form.currency === c ? "#1e3a5f" : "#060b14",
                 color: form.currency === c ? "#60a5fa" : "#475569",
                 fontWeight: 600, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+                flexShrink: 0,
               }}>{c}</button>
             ))}
           </div>
         </div>
-        <Input label={t("acc.balance", "Saldo") + " (" + t("common.currencyPLN", "zł") + ")"} type="number" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
+        {/* v1.5.0: label saldo dynamiczny — "Saldo (EUR)" dla konta walutowego */}
+        <Input label={t("acc.balance", "Saldo") + " (" + (form.currency || "PLN") + ")"} type="number" inputMode="decimal" value={form.balance} onChange={e => setForm(f => ({...f, balance: e.target.value}))} placeholder="0.00"/>
         <Select label={t("acc.type", "Typ konta")} value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}>
           <optgroup label={t("acc.group.cash", "Gotówka dostępna")}>
             <option value="checking">{t("acc.type.checking", "Rachunek bieżący")}</option>

@@ -83,6 +83,11 @@ function migrateData(d) {
       type: a.type || "checking",
       color: a.color || "#3b82f6",
       iban: a.iban || "",
+      // v1.5.0: currency default. Stare konta bez tego pola → PLN.
+      // Walida tylko 3-literowe kody upper case.
+      currency: typeof a.currency === "string" && /^[A-Z]{3}$/.test(a.currency.toUpperCase())
+        ? a.currency.toUpperCase()
+        : "PLN",
     }));
   }
   // ensure paid is object

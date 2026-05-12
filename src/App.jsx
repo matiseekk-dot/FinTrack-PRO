@@ -426,7 +426,8 @@ export default function App() {
       "ft_pin_hash", "ft_pin_hash_v2", "ft_pin_enabled", "ft_pin_lockout",
       "ft_streak", "ft_streak_longest",
       "ft_errors",
-      "ft_fx_cache_v1",
+      "ft_fx_cache_v1", "ft_fx_hist_v1",       // v1.4.1 + v1.5.0: FX cache (current + historical)
+      "ft_display_currency",                    // v1.5.0: display currency preference
       "ft_notif_asked", "ft_notif_date",
       "ft_setup_done",
       // ft_device_id i ft_lang ZOSTAJĄ — to preferencje urządzenia, nie dane usera.

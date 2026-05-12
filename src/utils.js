@@ -1,4 +1,5 @@
 import { MONTHS, MONTH_NAMES } from "./constants.js";
+import { getDisplayCurrency, convertFromPLN } from "./lib/fx.js";
 
 function buildHistData(transactions, cycleDayOrHistory = 1) {
   const monthSet = new Set(transactions.map(t => t.date.slice(0,7)));
@@ -19,7 +20,7 @@ function buildHistData(transactions, cycleDayOrHistory = 1) {
   });
 }
 
-//    UTILS                                                                     
+//    UTILS
 function fmt(n, showSign = false) {
   const num = Number(n);
   if (!Number.isFinite(num)) return "0,00 zł";
@@ -34,6 +35,71 @@ function fmtShort(n) {
   if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1) + "k";
   return num.toFixed(0);
 };
+
+// Mapa formatowania per waluta. PLN: "1 234,56 zł". USD: "$1,234.56". EUR: "1 234,56 €".
+// Dla nieznanej waluty fallback do generycznego "1234.56 CUR".
+const CURRENCY_FORMAT = {
+  PLN: { locale: "pl-PL", style: "currency", currency: "PLN" },
+  EUR: { locale: "de-DE", style: "currency", currency: "EUR" },
+  USD: { locale: "en-US", style: "currency", currency: "USD" },
+  GBP: { locale: "en-GB", style: "currency", currency: "GBP" },
+  CHF: { locale: "de-CH", style: "currency", currency: "CHF" },
+  CZK: { locale: "cs-CZ", style: "currency", currency: "CZK" },
+  HUF: { locale: "hu-HU", style: "currency", currency: "HUF" },
+  SEK: { locale: "sv-SE", style: "currency", currency: "SEK" },
+  NOK: { locale: "nb-NO", style: "currency", currency: "NOK" },
+  DKK: { locale: "da-DK", style: "currency", currency: "DKK" },
+  JPY: { locale: "ja-JP", style: "currency", currency: "JPY" },
+};
+
+/**
+ * Sformatuj kwotę PLN konwertując ją na display currency.
+ *
+ * @param {number} amountPLN kwota w PLN (internal storage)
+ * @param {object} opts
+ * @param {boolean} opts.showSign czy dodać +/−
+ * @param {string}  opts.targetCurrency override display currency (np. dla podglądu)
+ * @returns {string} np. "21 400,00 zł" lub "5 000,00 €"
+ *
+ * UWAGA: konwersja sync używa kursu z localStorage cache (fx.js getCurrentRates).
+ * Brak fetcha tutaj — tylko formatowanie. Cache prefetch'owany przez main.jsx.
+ */
+function fmtDisplay(amountPLN, opts = {}) {
+  const target = (opts.targetCurrency || getDisplayCurrency() || "PLN").toUpperCase();
+  const num = Number(amountPLN);
+  if (!Number.isFinite(num)) return fmtCurrency(0, target, false);
+  const converted = target === "PLN" ? num : convertFromPLN(num, target);
+  return fmtCurrency(converted, target, opts.showSign);
+}
+
+function fmtCurrency(amount, currency, showSign = false) {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return formatRaw(0, currency, showSign);
+  return formatRaw(num, currency, showSign);
+}
+
+function formatRaw(num, currency, showSign) {
+  const code = (currency || "PLN").toUpperCase();
+  const cfg = CURRENCY_FORMAT[code];
+  let s;
+  if (cfg) {
+    try {
+      s = new Intl.NumberFormat(cfg.locale, {
+        style: "currency",
+        currency: cfg.currency,
+        minimumFractionDigits: code === "JPY" ? 0 : 2,
+        maximumFractionDigits: code === "JPY" ? 0 : 2,
+      }).format(Math.abs(num));
+    } catch {
+      s = Math.abs(num).toFixed(2) + " " + code;
+    }
+  } else {
+    s = Math.abs(num).toFixed(2) + " " + code;
+  }
+  if (!showSign) return s;
+  return (num >= 0 ? "+" : "−") + s;
+}
+
 
 
 //    BILLING CYCLE HELPER                                                      
@@ -172,5 +238,6 @@ function dateToLocal(d) {
 }
 
 
-export { buildHistData, fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel,
+export { buildHistData, fmt, fmtShort, fmtDisplay, fmtCurrency,
+         getCycleRange, cycleTxs, fmtCycleLabel,
          todayLocal, dateToLocal, getCurrentCycleMonth };

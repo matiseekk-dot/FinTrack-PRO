@@ -15,6 +15,7 @@ import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
 import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
 import { getRate, getCurrentRates, getRateForDate, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { txAmountInAccountCurrency } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
@@ -121,7 +122,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           if (setAccounts) {
             setAccounts(accs => accs.map(a =>
               a.type !== "invest" && a.id === oldTx.acc
-                ? { ...a, balance: parseFloat((a.balance - oldTx.amount).toFixed(2)) }
+                ? { ...a, balance: parseFloat((a.balance - txAmountInAccountCurrency(a, oldTx)).toFixed(2)) }
                 : a
             ));
           }
@@ -135,8 +136,9 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       setTransactions(tx => [txIn, txOut, ...tx]);
       if (setAccounts) {
         setAccounts(accs => accs.map(a => {
-          if (a.id === fromId) return { ...a, balance: parseFloat((a.balance - rawAmt).toFixed(2)) };
-          if (a.id === toId)   return { ...a, balance: parseFloat((a.balance + rawAmt).toFixed(2)) };
+          // v1.5.0: konwersja na walutę konta — np. transfer 100 EUR z konta EUR na PLN obciąża EUR o 100, kredytuje PLN o ~428
+          if (a.id === fromId) return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txOut)).toFixed(2)) };
+          if (a.id === toId)   return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txIn)).toFixed(2)) };
           return a;
         }));
       }
@@ -169,16 +171,19 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     }
     if (editingId) {
       // reverse old tx on old account, apply new tx on new account
+      // v1.5.0: każda strona księgowania używa konwersji na walutę konta
       const oldTx = transactions.find(t => t.id === editingId);
       if (oldTx && setAccounts) {
         setAccounts(accs => accs.map(a => {
           if (a.type === "invest") return a; // skip invest accounts
-          if (a.id === oldTx.acc && a.id === txData.acc)
-            return { ...a, balance: parseFloat((a.balance - oldTx.amount + txData.amount).toFixed(2)) };
+          if (a.id === oldTx.acc && a.id === txData.acc) {
+            const delta = -txAmountInAccountCurrency(a, oldTx) + txAmountInAccountCurrency(a, txData);
+            return { ...a, balance: parseFloat((a.balance + delta).toFixed(2)) };
+          }
           if (a.id === oldTx.acc)
-            return { ...a, balance: parseFloat((a.balance - oldTx.amount).toFixed(2)) };
+            return { ...a, balance: parseFloat((a.balance - txAmountInAccountCurrency(a, oldTx)).toFixed(2)) };
           if (a.id === txData.acc)
-            return { ...a, balance: parseFloat((a.balance + txData.amount).toFixed(2)) };
+            return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txData)).toFixed(2)) };
           return a;
         }));
       }
@@ -192,7 +197,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         setAccounts(accs => accs.map(a => {
           if (a.id !== txData.acc) return a;
           if (a.type === "invest") return a; // investment accounts managed separately
-          return { ...a, balance: parseFloat((a.balance + txData.amount).toFixed(2)) };
+          return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txData)).toFixed(2)) };
         }));
       }
       setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
@@ -430,7 +435,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                         onClick={() => {
                           setAccounts(accs => accs.map(a =>
                             a.id === tx.acc && a.type !== "invest"
-                              ? { ...a, balance: parseFloat((a.balance - tx.amount).toFixed(2)) } : a
+                              ? { ...a, balance: parseFloat((a.balance - txAmountInAccountCurrency(a, tx)).toFixed(2)) } : a
                           ));
                           setTransactions(t => t.filter(x => x.id !== tx.id));
                           setSwipedId(null);
@@ -492,7 +497,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           // Remove transaction and reverse account balance
                           setAccounts(accs => accs.map(a =>
                             a.id === tx.acc && a.type !== "invest"
-                              ? { ...a, balance: parseFloat((a.balance - tx.amount).toFixed(2)) }
+                              ? { ...a, balance: parseFloat((a.balance - txAmountInAccountCurrency(a, tx)).toFixed(2)) }
                               : a
                           ));
                           setTransactions(t => t.filter(x => x.id !== tx.id));

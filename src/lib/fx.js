@@ -20,6 +20,7 @@ import { checkLimit } from "./rateLimit.js";
 
 const FX_CACHE_KEY = "ft_fx_cache_v1";
 const FX_HIST_KEY  = "ft_fx_hist_v1";       // historyczne kursy: { "YYYY-MM-DD": { EUR: 4.28, ... } }
+const DISPLAY_CURRENCY_KEY = "ft_display_currency"; // preferowana waluta UI (v1.5.0)
 const FX_TTL_MS = 24 * 60 * 60 * 1000;      // 24h dla "current rates"
 const FX_HIST_PRUNE_DAYS = 730;             // sprzątaj wpisy starsze niż 2 lata
 
@@ -140,6 +141,41 @@ function convertToPLN(amount, currency) {
   const rate = rates[currency.toUpperCase()];
   if (typeof rate !== "number" || !isFinite(rate)) return Number(amount) || 0;
   return (Number(amount) || 0) * rate;
+}
+
+/**
+ * Konwersja sync z PLN na walutę docelową. PLN → 1.0.
+ *
+ * @param {number} amountPLN kwota w PLN
+ * @param {string} targetCurrency np. "EUR", "USD"
+ * @returns {number} kwota w walucie docelowej
+ */
+function convertFromPLN(amountPLN, targetCurrency) {
+  if (!targetCurrency || targetCurrency === "PLN") return Number(amountPLN) || 0;
+  const { rates } = getCurrentRates();
+  const rate = rates[targetCurrency.toUpperCase()];
+  if (typeof rate !== "number" || !isFinite(rate) || rate === 0) return Number(amountPLN) || 0;
+  return (Number(amountPLN) || 0) / rate;
+}
+
+/**
+ * Uniwersalna konwersja przez PLN jako pivot. EUR → USD = EUR×r_EUR / r_USD.
+ * NBP daje tylko kursy PLN ↔ X, więc cross-rate idzie przez podwójny mid.
+ * Drift ~0.1% akceptowalny dla trackera.
+ *
+ * @param {number} amount kwota w walucie `from`
+ * @param {string} from kod waluty źródłowej
+ * @param {string} to kod waluty docelowej
+ * @returns {number} kwota w walucie `to`
+ */
+function convert(amount, from, to) {
+  const a = Number(amount) || 0;
+  const f = (from || "PLN").toUpperCase();
+  const t = (to   || "PLN").toUpperCase();
+  if (f === t) return a;
+  // PLN jako pivot: a (w from) → PLN → to
+  const inPLN = f === "PLN" ? a : convertToPLN(a, f);
+  return t === "PLN" ? inPLN : convertFromPLN(inPLN, t);
 }
 
 /**
@@ -288,13 +324,44 @@ function shiftDateISO(dateISO, deltaDays) {
   return d.toISOString().slice(0, 10);
 }
 
+// ─── Display currency (v1.5.0) ──────────────────────────────────────────
+// "W jakiej walucie user chce widzieć łączny majątek / sumy / wykresy".
+// Default PLN. Internal storage zawsze PLN — display to tylko warstwa
+// prezentacji. Zmiana waluty NIE przelicza danych w bazie, tylko zmienia
+// jak są pokazywane.
+
+function getDisplayCurrency() {
+  try {
+    const stored = localStorage.getItem(DISPLAY_CURRENCY_KEY);
+    if (stored === "PLN" || (stored && SUPPORTED_CURRENCIES.includes(stored))) return stored;
+  } catch {}
+  return "PLN";
+}
+
+function setDisplayCurrency(code) {
+  const upper = String(code || "PLN").toUpperCase();
+  const valid = upper === "PLN" || SUPPORTED_CURRENCIES.includes(upper);
+  if (!valid) return false;
+  try {
+    localStorage.setItem(DISPLAY_CURRENCY_KEY, upper);
+    // Eventy żeby komponenty React mogły się przeładować bez full page reload.
+    // SettingsPanel wywołuje to + zmienia stan globalny przez `window` event.
+    window.dispatchEvent(new CustomEvent("ft:display-currency-changed", { detail: upper }));
+    return true;
+  } catch { return false; }
+}
+
 export {
   getCurrentRates,
   convertToPLN,
+  convertFromPLN,
+  convert,
   getRate,
   refreshRates,
   prefetchRates,
   getRatesForDate,
   getRateForDate,
+  getDisplayCurrency,
+  setDisplayCurrency,
   SUPPORTED_CURRENCIES,
 };

@@ -11,7 +11,7 @@ import { getLang, setLang, t } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
 import { importCSV, SUPPORTED_BANKS } from "../lib/csvImport.js";
-import { getCurrentRates, refreshRates } from "../lib/fx.js";
+import { getCurrentRates, refreshRates, getDisplayCurrency, setDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -64,6 +64,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [csvBankId, setCsvBankId]       = useState("auto");
   // FX status: "" | "ok" | "err"
   const [fxRefreshStatus, setFxRefreshStatus] = useState("");
+  // v1.5.0: display currency (główna waluta wyświetlania majątku/sum)
+  const [displayCur, setDisplayCur] = useState(getDisplayCurrency());
 
   if (!open) return null;
 
@@ -1062,6 +1064,49 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </div>
           </div>
         )}
+
+        <Divider/>
+
+        {/* v1.5.0: Główna waluta wyświetlania. Internal storage zawsze PLN —
+            zmiana tylko zmienia jak są pokazywane sumy/Dashboard/budżety. */}
+        <SectionTitle>🌍 Główna waluta wyświetlania</SectionTitle>
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.6 }}>
+          Apka zlicza majątek i sumy w wybranej walucie. Dane w bazie nadal w PLN —
+          to tylko zmiana wyświetlania (kursy NBP w tle).
+        </p>
+        <div style={{ marginBottom: 14 }}>
+          <select
+            value={displayCur}
+            onChange={(e) => {
+              const code = e.target.value;
+              if (setDisplayCurrency(code)) {
+                setDisplayCur(code);
+                // Wymuś re-render parent (App.jsx). CustomEvent emitowane przez setDisplayCurrency
+                // — komponenty subskrybujące ('ft:display-currency-changed') się przeładują.
+                // Najprościej: pełny reload bo każdy komponent kalkuluje sumy synchronously.
+                setTimeout(() => window.location.reload(), 200);
+              }
+            }}
+            style={{
+              width: "100%", padding: "12px 14px",
+              background: "#060b14", border: "1px solid #1e3a5f",
+              borderRadius: 10, color: "#e2e8f0", fontSize: 14,
+              fontFamily: "'DM Mono', monospace", outline: "none",
+              WebkitAppearance: "none", appearance: "none",
+              boxSizing: "border-box", cursor: "pointer",
+            }}>
+            <option value="PLN">🇵🇱 PLN — Polski złoty</option>
+            {SUPPORTED_CURRENCIES.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {displayCur !== "PLN" && (
+            <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 6, lineHeight: 1.5 }}>
+              ⚠️ Konwersja przez NBP mid rate. Drift dla cross-currency (np. EUR↔USD)
+              wynosi ~0.1% przez podwójny przelicznik.
+            </div>
+          )}
+        </div>
 
         <Divider/>
 
