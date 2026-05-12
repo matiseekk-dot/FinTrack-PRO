@@ -156,7 +156,34 @@ function migrateData(d) {
 
   if (Array.isArray(d.transactions)) {
     d.transactions = d.transactions
-      .map(t => ({ ...t, amount: safeNum(t.amount) }))
+      .map(t => {
+        const out = { ...t, amount: safeNum(t.amount) };
+        // v1.4.1: sanityzacja pól multi-currency. Jeśli któreś jest niepoprawne,
+        // wywal całe FX-meta (zachowamy tylko amount w PLN — działa jak PLN tx).
+        if (t.origCurrency && typeof t.origCurrency === "string" && t.origCurrency !== "PLN") {
+          const origAmt = safeNum(t.origAmount);
+          const fxRate  = safeNum(t.fxRate);
+          if (origAmt > 0 && fxRate > 0) {
+            out.origAmount   = origAmt;
+            out.origCurrency = t.origCurrency.toUpperCase();
+            out.fxRate       = fxRate;
+            out.fxDate       = typeof t.fxDate === "string" ? t.fxDate : null;
+          } else {
+            // Częściowe / zepsute FX-meta — usuń wszystkie (amount w PLN i tak prawidłowy)
+            delete out.origAmount;
+            delete out.origCurrency;
+            delete out.fxRate;
+            delete out.fxDate;
+          }
+        } else {
+          // Brak origCurrency lub PLN — usuń też potencjalne resztki pól FX
+          delete out.origAmount;
+          delete out.origCurrency;
+          delete out.fxRate;
+          delete out.fxDate;
+        }
+        return out;
+      })
       .filter(t => t.id && t.date);  // usuń transakcje bez ID lub daty
   }
   if (Array.isArray(d.accounts)) {
@@ -184,6 +211,10 @@ function migrateData(d) {
         archived: !!t.archived,
         // Nazwa wymagana - jeśli pusta, daj fallback
         name: t.name || "Wyjazd",
+        // v1.4.1: defaultCurrency. Stare wyjazdy bez tego pola → "PLN".
+        defaultCurrency: typeof t.defaultCurrency === "string" && t.defaultCurrency.length === 3
+          ? t.defaultCurrency.toUpperCase()
+          : "PLN",
       }));
   }
   if (Array.isArray(d.hobbies)) {

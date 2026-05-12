@@ -14,7 +14,7 @@ import { t } from "../i18n.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
 import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
-import { getRate, getCurrentRates, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { getRate, getCurrentRates, getRateForDate, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
@@ -29,12 +29,18 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const [showSearch, setShowSearch] = useState(false);
   const getEmptyForm = () => {
     const active = getActiveTrips(trips);
-    const presetTripId = active.length > 0 ? active[0].id : null;
-    return { date: todayLocal(), desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: "PLN", tripId: presetTripId };
+    const presetTrip = active.length > 0 ? active[0] : null;
+    const presetTripId = presetTrip ? presetTrip.id : null;
+    // v1.4.1: preselect waluty z aktywnego wyjazdu. Jedziesz do Serbii, defaultCurrency=EUR,
+    // dodajesz tx — waluta od razu ustawiona na EUR, nie musisz klikać dropdownu.
+    const presetCurrency = (presetTrip && presetTrip.defaultCurrency) || "PLN";
+    return { date: todayLocal(), desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId };
   };
   const [form, setForm] = useState(getEmptyForm);
+  const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
 
-  const addTx = () => {
+  const addTx = async () => {
+    if (saving) return;
     if (!form.desc || !form.amount) return;
     // Rate limit - zapobiega przypadkowym pętlom / atakom
     if (!editingId) {
@@ -69,9 +75,36 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     const finalCat = form.type === "income"
       ? (incomeCatsList.includes(form.cat) ? form.cat : "przychód")
       : form.cat;
-    // Live FX z NBP API (lib/fx.js, 24h cache, fallback przy braku netu)
-    const rate   = getRate(form.currency);
-    const safeRate = isFinite(rate) ? rate : 1;
+    // Multi-currency (v1.4.1): dla nie-PLN pobierz HISTORYCZNY kurs z dnia tx,
+    // nie dzisiejszy. NBP /tables/A/{date} z fallbackiem do najbliższego dnia
+    // roboczego wstecz; offline → dzisiejszy kurs jako last resort.
+    let safeRate = 1;
+    let fxMeta = null; // { origAmount, origCurrency, fxRate, fxDate } albo null dla PLN
+    if (form.currency && form.currency !== "PLN") {
+      setSaving(true);
+      try {
+        const r = await getRateForDate(form.currency, form.date);
+        safeRate = isFinite(r) ? r : (isFinite(getRate(form.currency)) ? getRate(form.currency) : 1);
+        fxMeta = {
+          origAmount:   parseFloat(Math.abs(parsedAmount).toFixed(2)),
+          origCurrency: form.currency.toUpperCase(),
+          fxRate:       parseFloat(safeRate.toFixed(6)),
+          fxDate:       form.date,
+        };
+      } catch (e) {
+        console.warn("[tx] FX fetch failed, using today's rate", e);
+        const r = getRate(form.currency);
+        safeRate = isFinite(r) ? r : 1;
+        fxMeta = {
+          origAmount:   parseFloat(Math.abs(parsedAmount).toFixed(2)),
+          origCurrency: form.currency.toUpperCase(),
+          fxRate:       parseFloat(safeRate.toFixed(6)),
+          fxDate:       form.date,
+        };
+      } finally {
+        setSaving(false);
+      }
+    }
     const rawAmt = Math.abs(parsedAmount) * safeRate;
 
     // Internal transfer: create two transactions
@@ -118,6 +151,21 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     // tripId tylko dla wydatków - przychody/transfery nie należą do wyjazdu
     if (form.type === "expense" && form.tripId != null) {
       txData.tripId = form.tripId;
+    }
+    // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
+    // (oszczędność miejsca + backward compat — stare tx czytane jako PLN).
+    // Edge case: edit walutowej → PLN MUSI explicit-null'ować stare pola,
+    // inaczej spread { ...t, ...txData } zachowa stare origCurrency.
+    if (fxMeta) {
+      txData.origAmount   = fxMeta.origAmount;
+      txData.origCurrency = fxMeta.origCurrency;
+      txData.fxRate       = fxMeta.fxRate;
+      txData.fxDate       = fxMeta.fxDate;
+    } else if (editingId) {
+      txData.origAmount   = null;
+      txData.origCurrency = null;
+      txData.fxRate       = null;
+      txData.fxDate       = null;
     }
     if (editingId) {
       // reverse old tx on old account, apply new tx on new account
@@ -363,10 +411,17 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       </div>
                     </div>
 
-                    {/* Amount */}
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600,
-                      color: tx.amount > 0 ? "#10b981" : "#ef4444", flexShrink: 0 }}>
-                      {tx.amount > 0 ? "+" : "−"}{fmt(Math.abs(tx.amount))}
+                    {/* Amount + opcjonalnie oryginalna waluta */}
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600,
+                        color: tx.amount > 0 ? "#10b981" : "#ef4444" }}>
+                        {tx.amount > 0 ? "+" : "−"}{fmt(Math.abs(tx.amount))}
+                      </div>
+                      {tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null && (
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#64748b", marginTop: 1 }}>
+                          {fmt(Math.abs(tx.origAmount)).replace(" zł", "")} {tx.origCurrency}
+                        </div>
+                      )}
                     </div>
 
                     {/* Swipe delete reveal */}
@@ -414,10 +469,17 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       <button
                         onClick={() => {
                           setEditingId(tx.id);
-                          setForm({ date: tx.date, desc: tx.desc,
-                            amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense", currency: "PLN",
-                            tripId: tx.tripId || null });
+                          // v1.4.1: jeśli tx walutowa, wczytaj orig kwotę + walutę
+                          // żeby user edytował w oryginalnej walucie, nie w PLN
+                          const hasFx = tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null;
+                          setForm({
+                            date: tx.date, desc: tx.desc,
+                            amount: String(Math.abs(hasFx ? tx.origAmount : tx.amount)),
+                            cat: tx.cat, acc: tx.acc,
+                            type: tx.amount > 0 ? "income" : "expense",
+                            currency: hasFx ? tx.origCurrency : "PLN",
+                            tripId: tx.tripId || null,
+                          });
                           setModal(true);
                         }}
                         title={t("common.edit", "Edytuj")}
@@ -655,7 +717,15 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                   const selected = form.tripId === trip.id;
                   const isActive = activeIds.has(trip.id);
                   return (
-                    <button key={trip.id} onClick={() => setForm(f => ({ ...f, tripId: trip.id }))} style={{
+                    <button key={trip.id} onClick={() => setForm(f => ({
+                      ...f,
+                      tripId: trip.id,
+                      // v1.4.1: wybór wyjazdu z defaultCurrency → preset waluty
+                      // (tylko gdy user dotąd miał PLN — nie nadpisuj świadomego wyboru)
+                      currency: (f.currency === "PLN" && trip.defaultCurrency)
+                        ? trip.defaultCurrency
+                        : f.currency,
+                    }))} style={{
                       padding: "6px 12px", borderRadius: 8, cursor: "pointer",
                       fontSize: 12, fontWeight: 600,
                       background: selected ? trip.color + "33" : "#060b14",
@@ -674,8 +744,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           );
         })()}
 
-        <button onClick={addTx} style={{ width: "100%", background: "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {editingId ? t("tx.saveChanges", "Zapisz zmiany") : t("tx.save", "Zapisz transakcję")}
+        <button onClick={addTx} disabled={saving} style={{ width: "100%", background: saving ? "#1e3a5f" : "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "'Space Grotesk', sans-serif", opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Pobieram kurs NBP…" : (editingId ? t("tx.saveChanges", "Zapisz zmiany") : t("tx.save", "Zapisz transakcję"))}
         </button>
       </Modal>
     </div>

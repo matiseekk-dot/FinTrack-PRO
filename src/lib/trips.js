@@ -9,16 +9,28 @@
  *
  * Schemat trip:
  * {
- *   id:         number (Date.now())
- *   name:       string
- *   dateFrom:   "YYYY-MM-DD"
- *   dateTo:     "YYYY-MM-DD"
- *   budget:     number (PLN)
- *   color:      hex
- *   notes:      string (opcjonalne)
- *   archived:   boolean
- *   createdAt:  ISO string
+ *   id:               number (Date.now())
+ *   name:             string
+ *   dateFrom:         "YYYY-MM-DD"
+ *   dateTo:           "YYYY-MM-DD"
+ *   budget:           number (PLN)
+ *   color:            hex
+ *   notes:            string (opcjonalne)
+ *   archived:         boolean
+ *   createdAt:        ISO string
+ *   defaultCurrency:  "PLN" | "EUR" | "USD" | ... (v1.4.1, opcjonalne, default "PLN")
+ *     — Gdy user dodaje tx z preselectowanym tripId == active trip, modal
+ *       presetuje walutę na trip.defaultCurrency (Serbia → EUR, Praga → CZK).
  * }
+ *
+ * Schemat transakcji (z multi-currency v1.4.1, wszystkie pola opcjonalne):
+ *   amount:        number (zawsze w PLN, do obliczeń/sumowania)
+ *   origAmount:    number (kwota w oryginalnej walucie, NA EUR/USD/...)
+ *   origCurrency:  string ("EUR", "USD", ...; brak = PLN)
+ *   fxRate:        number (kurs PLN/orig użyty przy zapisie)
+ *   fxDate:        "YYYY-MM-DD" (data publication NBP użytego kursu)
+ *
+ * Backward compat: tx bez origCurrency == PLN tx.
  */
 
 import { dateToLocal, todayLocal } from "../utils.js";
@@ -108,6 +120,40 @@ function getTripSpending(transactions, tripId) {
     byMerchant[m] = (byMerchant[m] || 0) + a;
   }
   return { total, byCategory, byMerchant, count: txs.length };
+}
+
+/**
+ * Breakdown wydatków per oryginalna waluta (v1.4.1).
+ *
+ * Zwraca: {
+ *   byCurrency: { EUR: { orig: 850, pln: 3638 }, PLN: { orig: 320, pln: 320 }, ... },
+ *   totalPLN:   4822 (suma wszystkich pln)
+ * }
+ *
+ * Tx z `origCurrency` agregowane per waluta. Tx bez `origCurrency` (stare lub PLN)
+ * idą do kategorii "PLN". Pomijamy transfery (cat === "inne") i przychody (amount > 0).
+ */
+function getTripSpendingByCurrency(transactions, tripId) {
+  if (!Array.isArray(transactions) || tripId == null) {
+    return { byCurrency: {}, totalPLN: 0 };
+  }
+  const txs = transactions.filter(t =>
+    t.tripId === tripId && t.amount < 0 && t.cat !== "inne"
+  );
+  const byCurrency = {};
+  let totalPLN = 0;
+  for (const t of txs) {
+    const pln = Math.abs(t.amount);
+    totalPLN += pln;
+    const cur = t.origCurrency || "PLN";
+    const orig = t.origCurrency && typeof t.origAmount === "number"
+      ? Math.abs(t.origAmount)
+      : pln; // dla PLN tx orig === pln
+    if (!byCurrency[cur]) byCurrency[cur] = { orig: 0, pln: 0 };
+    byCurrency[cur].orig += orig;
+    byCurrency[cur].pln  += pln;
+  }
+  return { byCurrency, totalPLN };
 }
 
 /**
@@ -238,6 +284,7 @@ export {
   getActiveTrips,
   getSelectableTrips,
   getTripSpending,
+  getTripSpendingByCurrency,
   getYearlyTripsSummary,
   getTripsTrendYoY,
   groupTrips,

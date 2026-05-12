@@ -19,7 +19,9 @@
 import { checkLimit } from "./rateLimit.js";
 
 const FX_CACHE_KEY = "ft_fx_cache_v1";
-const FX_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const FX_HIST_KEY  = "ft_fx_hist_v1";       // historyczne kursy: { "YYYY-MM-DD": { EUR: 4.28, ... } }
+const FX_TTL_MS = 24 * 60 * 60 * 1000;      // 24h dla "current rates"
+const FX_HIST_PRUNE_DAYS = 730;             // sprzątaj wpisy starsze niż 2 lata
 
 // Fallback gdy: pierwszy uruchom + brak netu, lub NBP down + brak cache.
 // Kursy z ~maja 2026, świadomie zaniżone żeby user widział że to fallback
@@ -172,11 +174,127 @@ function prefetchRates() {
   if (isStale) fetchFromNBP();
 }
 
+// ─── Historical rates (per data transakcji) ──────────────────────────────
+// Tx z 5 dni temu powinna używać kursu z TAMTEGO dnia, nie z dzisiejszego.
+// NBP /tables/A/{date} zwraca kursy z konkretnego dnia. Dla dni nie-roboczych
+// (sobota/niedziela/święta) zwraca 404 — w fallbacku cofamy się o 1 dzień
+// aż znajdziemy publication (max 7 dni wstecz, potem fallback do current).
+//
+// Cache: localStorage["ft_fx_hist_v1"] = { "YYYY-MM-DD": { EUR: 4.28, USD: 3.92, ... } }
+// Historyczne kursy się nie zmieniają, więc cache jest permanent (sprzątanie
+// po 2 latach żeby localStorage się nie rozdmuchał).
+
+function getHistCache() {
+  try {
+    const raw = localStorage.getItem(FX_HIST_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveHistCache(obj) {
+  try { localStorage.setItem(FX_HIST_KEY, JSON.stringify(obj)); } catch {}
+}
+
+function pruneHistCache(cache) {
+  const cutoffMs = Date.now() - FX_HIST_PRUNE_DAYS * 86400000;
+  const cutoffStr = new Date(cutoffMs).toISOString().slice(0, 10);
+  const out = {};
+  for (const [date, rates] of Object.entries(cache)) {
+    if (date >= cutoffStr) out[date] = rates;
+  }
+  return out;
+}
+
+const histInFlight = new Map(); // dedupe równoległych fetch dla tej samej daty
+
+/**
+ * Pobiera tabelę NBP A dla konkretnej daty. Dla dni nie-roboczych cofa się
+ * iteracyjnie aż znajdzie publication (max 7 dni). Zwraca { rates, date, source }.
+ *
+ * Cache pod ORYGINALNĄ datą (np. dla niedzieli 11.05 zapisze rate z pt 09.05,
+ * ale kluczem cache jest 11.05 — bo to data tx). Drugi lookup tej samej daty
+ * trafi w cache od razu.
+ */
+async function getRatesForDate(dateISO) {
+  if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+    return getCurrentRates();
+  }
+
+  // Cache hit?
+  const cache = getHistCache();
+  if (cache[dateISO]) {
+    return { rates: cache[dateISO], date: dateISO, source: "cache" };
+  }
+
+  // In-flight dedupe — drugi caller czeka na pierwszego
+  if (histInFlight.has(dateISO)) return histInFlight.get(dateISO);
+
+  const fetchPromise = (async () => {
+    // Iteracyjny fallback do najbliższego dnia roboczego wstecz
+    for (let i = 0; i <= 7; i++) {
+      const tryDate = shiftDateISO(dateISO, -i);
+      try {
+        const res = await fetch(
+          `https://api.nbp.pl/api/exchangerates/tables/A/${tryDate}/?format=json`,
+          { headers: { Accept: "application/json" } }
+        );
+        if (!res.ok) continue; // 404 dla weekendów/świąt
+        const data = await res.json();
+        if (!Array.isArray(data) || !data[0]?.rates) continue;
+
+        const rates = {};
+        for (const r of data[0].rates) {
+          if (SUPPORTED_CURRENCIES.includes(r.code) && typeof r.mid === "number") {
+            rates[r.code] = r.mid;
+          }
+        }
+
+        // Cache pod oryginalną datą tx (nie tryDate) — to ułatwia future lookups
+        const fresh = pruneHistCache({ ...cache, [dateISO]: rates });
+        saveHistCache(fresh);
+        return { rates, date: data[0].effectiveDate || tryDate, source: "nbp" };
+      } catch (_) { /* try previous day */ }
+    }
+
+    // Wszystkie próby fail (offline?) — fallback do current rates
+    console.warn(`[fx] No historical rate for ${dateISO}, using current`);
+    return getCurrentRates();
+  })();
+
+  histInFlight.set(dateISO, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    histInFlight.delete(dateISO);
+  }
+}
+
+/**
+ * Kurs konkretnej waluty na konkretną datę. Async.
+ * PLN → 1.0 (sync return). Niewspierana waluta → NaN.
+ */
+async function getRateForDate(currency, dateISO) {
+  if (!currency || currency === "PLN") return 1;
+  const upper = currency.toUpperCase();
+  const { rates } = await getRatesForDate(dateISO);
+  const r = rates[upper];
+  return typeof r === "number" ? r : NaN;
+}
+
+// Helper: przesunięcie daty ISO (YYYY-MM-DD) o N dni
+function shiftDateISO(dateISO, deltaDays) {
+  const d = new Date(dateISO + "T00:00:00");
+  d.setDate(d.getDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
 export {
   getCurrentRates,
   convertToPLN,
   getRate,
   refreshRates,
   prefetchRates,
+  getRatesForDate,
+  getRateForDate,
   SUPPORTED_CURRENCIES,
 };

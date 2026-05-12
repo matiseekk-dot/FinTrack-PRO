@@ -8,10 +8,12 @@ import { Input } from "../components/ui/Input.jsx";
 import { Stat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
 import { fmt, todayLocal } from "../utils.js";
 import {
-  groupTrips, getTripSpending, getYearlyTripsSummary, getTripsTrendYoY,
+  groupTrips, getTripSpending, getTripSpendingByCurrency,
+  getYearlyTripsSummary, getTripsTrendYoY,
   pickTripColor, DEFAULT_TRIP_COLORS, migrateLegacyVacations,
 } from "../lib/trips.js";
 import { getCat } from "../constants.js";
+import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { t } from "../i18n.js";
 
 function TripsView({ trips, setTrips, transactions, setTransactions, allCats, vacationArchive }) {
@@ -35,11 +37,16 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
       name: "", dateFrom: todayLocal(), dateTo: todayLocal(),
       budget: "", color: pickTripColor(trips || []),
       notes: "", archived: false,
+      defaultCurrency: "PLN",
     });
   };
 
   const openEdit = (trip) => {
-    setModalTrip({ ...trip, budget: String(trip.budget || "") });
+    setModalTrip({
+      ...trip,
+      budget: String(trip.budget || ""),
+      defaultCurrency: trip.defaultCurrency || "PLN",
+    });
   };
 
   const saveTrip = () => {
@@ -54,6 +61,7 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
       color: modalTrip.color,
       notes: modalTrip.notes || "",
       archived: !!modalTrip.archived,
+      defaultCurrency: modalTrip.defaultCurrency || "PLN",
       createdAt: modalTrip.createdAt || new Date().toISOString(),
     };
     if (modalTrip.id) {
@@ -385,6 +393,10 @@ function TripCard({ trip, transactions, onClick, dimmed = false }) {
 
 function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onEdit, onDelete, onArchiveToggle }) {
   const spending = useMemo(() => getTripSpending(transactions, trip.id), [transactions, trip.id]);
+  const currencyBreakdown = useMemo(
+    () => getTripSpendingByCurrency(transactions, trip.id),
+    [transactions, trip.id]
+  );
   const tripTxs = useMemo(() => (transactions || [])
     .filter(t => t.tripId === trip.id)
     .sort((a, b) => (b.date || "").localeCompare(a.date || "")),
@@ -468,6 +480,59 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
         )}
       </Card>
 
+      {/* v1.4.1: Wydatki według waluty — pokazuje gdy są transakcje w nie-PLN
+          albo w wielu walutach. Dla wyjazdu PLN-only nie pokazuje (zbędne). */}
+      {(() => {
+        const entries = Object.entries(currencyBreakdown.byCurrency);
+        const nonPlnCount = entries.filter(([cur]) => cur !== "PLN").length;
+        if (nonPlnCount === 0) return null; // wyjazd 100% w PLN — brak sekcji
+        return (
+          <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
+              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+              💱 Wydatki według waluty
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {entries
+                .sort((a, b) => b[1].pln - a[1].pln)
+                .map(([cur, { orig, pln }]) => (
+                  <div key={cur} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 10px", background: "#060b14", borderRadius: 8,
+                  }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>
+                        {cur}
+                      </div>
+                      {cur !== "PLN" && (
+                        <div style={{ fontSize: 10, color: "#64748b", marginTop: 1,
+                          fontFamily: "'DM Mono', monospace" }}>
+                          {fmt(orig).replace(" zł", "")} {cur}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13,
+                      fontWeight: 700, color: trip.color, flexShrink: 0 }}>
+                      {fmt(pln)}
+                    </div>
+                  </div>
+                ))}
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8",
+                textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Łącznie (po przeliczeniu)
+              </span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15,
+                fontWeight: 800, color: "#e2e8f0" }}>
+                {fmt(currencyBreakdown.totalPLN)}
+              </span>
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Breakdown wg kategorii */}
       {Object.keys(spending.byCategory).length > 0 && (
         <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
@@ -529,10 +594,19 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700,
-                      color: isExpense ? "#ef4444" : "#10b981" }}>
-                      {isExpense ? "−" : "+"}{fmt(Math.abs(tx.amount))}
-                    </span>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700,
+                        color: isExpense ? "#ef4444" : "#10b981" }}>
+                        {isExpense ? "−" : "+"}{fmt(Math.abs(tx.amount))}
+                      </div>
+                      {/* v1.4.1: pod kwotą PLN pokazujemy oryginał gdy tx walutowa */}
+                      {tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null && (
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9,
+                          color: "#64748b", marginTop: 1 }}>
+                          {fmt(Math.abs(tx.origAmount)).replace(" zł", "")} {tx.origCurrency}
+                        </div>
+                      )}
+                    </div>
                     <button onClick={() => removeTagFromTx(tx.id)} title={t("trips.removeTag", "Usuń tag")} style={{
                       background: "none", border: "none", cursor: "pointer", color: "#475569",
                       padding: 4, borderRadius: 4,
@@ -592,6 +666,36 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
         onChange={e => setTrip({ ...trip, budget: e.target.value })}
         placeholder="0"
       />
+
+      {/* Domyślna waluta wyjazdu (v1.4.1). Gdy aktywny → presetuje walutę
+          przy dodawaniu tx. Np. Serbia = EUR, Praga = CZK. */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
+          textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+          Domyślna waluta wyjazdu
+        </div>
+        <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
+          Gdy dodajesz tx w trakcie wyjazdu, ta waluta zostanie auto-wybrana w modalu.
+        </div>
+        <select
+          value={trip.defaultCurrency || "PLN"}
+          onChange={e => setTrip({ ...trip, defaultCurrency: e.target.value })}
+          style={{
+            width: "100%", padding: "10px 12px",
+            background: "#060b14", border: "1px solid #1e3a5f",
+            borderRadius: 10, color: "#e2e8f0", fontSize: 14,
+            fontFamily: "'DM Mono', monospace", outline: "none",
+            WebkitAppearance: "none", appearance: "none",
+            boxSizing: "border-box",
+          }}
+        >
+          <option value="PLN">🇵🇱 PLN (Polski złoty)</option>
+          {SUPPORTED_CURRENCIES.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
           textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
