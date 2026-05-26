@@ -25,6 +25,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
 import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
+import { getDisplayCurrency, setDisplayCurrency } from "./lib/fx.js";
 import { t } from "./i18n.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
@@ -82,6 +83,17 @@ function applyData(d, s) {
   if (d.proStatus && typeof d.proStatus === "object" && d.proStatus.type) {
     setProStatusFromRemote(d.proStatus);
     if (s.refreshProStatus) s.refreshProStatus();
+  }
+  // v1.5.1: display currency syncuje się między urządzeniami. Source of truth = localStorage,
+  // sync przez SYNC_KEYS jako pole stateRef.current.displayCurrency.
+  // Tylko valid kody (3-letter upper-case) — ochrona przed wstrzykniętą wartością z remote.
+  if (typeof d.displayCurrency === "string" && /^[A-Z]{3}$/.test(d.displayCurrency)) {
+    const current = getDisplayCurrency();
+    if (current !== d.displayCurrency) {
+      setDisplayCurrency(d.displayCurrency);
+      // Brak forced reload — komponenty będą rerenderować się naturalnie po sync
+      // (display currency jest re-czytane sync przy każdym fmtDisplay)
+    }
   }
   if (d.templates) try { localStorage.setItem("ft_templates", JSON.stringify(d.templates)); } catch(_) {}
   if (d.vacation)  try { localStorage.setItem("ft_vacation",  JSON.stringify(d.vacation));  } catch(_) {}
@@ -153,7 +165,8 @@ export default function App() {
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
     trips, hobbies,
     tombstones,
-    proStatus: getProStatusRaw(),  // v1.2.7: sync PRO status między urządzeniami
+    proStatus: getProStatusRaw(),       // v1.2.7: sync PRO status między urządzeniami
+    displayCurrency: getDisplayCurrency(), // v1.5.1: sync waluty wyświetlania
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
@@ -599,7 +612,7 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactionsTracked} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactionsTracked} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} trips={trips} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccountsTracked} portfolio={portfolio} setPortfolio={setPortfolioTracked}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPaymentsTracked} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
@@ -627,6 +640,7 @@ export default function App() {
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
         setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
+        trips={trips} hobbies={hobbies} portfolio={portfolio}
         proStatus={proStatus}
       />
       </ErrorBoundary>

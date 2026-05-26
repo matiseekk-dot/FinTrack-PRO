@@ -7,6 +7,7 @@
 
 import { fmt } from "../utils.js";
 import { generateRetirementInsights } from "./retirementCalc.js";
+import { getTripSpending, groupTrips } from "./trips.js";
 
 const INSIGHT_IGNORED_CATS = ["rachunki", "rząd", "inwestycje", "inne"];
 
@@ -103,7 +104,7 @@ function estimateEquivalent(amount) {
   return `pełnego baku diesla 50 razy`;
 }
 
-function generateInsights(transactions, budgets = [], accounts = [], cycleDay = 1) {
+function generateInsights(transactions, budgets = [], accounts = [], cycleDay = 1, trips = []) {
   if (!Array.isArray(transactions) || transactions.length === 0) return [];
 
   const { current: curTx, previous: prevTx } = splitByMonth(transactions, cycleDay);
@@ -340,6 +341,145 @@ function generateInsights(transactions, budgets = [], accounts = [], cycleDay = 
         desc: `${txCount} transakcji w tym cyklu, suma ${fmt(total)}`,
         color: "#3b82f6",
       });
+    }
+  }
+
+  // ═══ TRIP / WAKACJE (v1.5.1) ═══
+  // Wakacje to nowy game-changer kategoria insightów. Reguły pokazują się tylko
+  // gdy user ma >=1 wyjazd. Aktywny wyjazd ma osobny critical alert dla budgetu.
+
+  if (Array.isArray(trips) && trips.length > 0 && transactions.length > 0) {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const yearStr = String(new Date().getFullYear());
+
+    // Grupy wyjazdów dla bieżącej daty
+    const tripGroups = groupTrips(trips, todayISO);
+
+    // R-trip-1 (CRITICAL): aktywny wyjazd przekroczył budżet
+    for (const trip of tripGroups.active) {
+      if (!trip.budget || trip.budget <= 0) continue;
+      const sp = getTripSpending(transactions, trip.id);
+      const pct = (sp.total / trip.budget) * 100;
+      if (pct >= 100) {
+        critical.push({
+          type: "trip_over_budget",
+          icon: "🚨",
+          title: `${trip.name}: ${Math.round(pct)}% budżetu`,
+          desc: `${fmt(sp.total)} z ${fmt(trip.budget)} — przekroczone o ${fmt(sp.total - trip.budget)}`,
+          color: "#ef4444",
+        });
+        break; // jeden trip critical wystarczy
+      } else if (pct >= 85) {
+        critical.push({
+          type: "trip_near_budget",
+          icon: "⚠️",
+          title: `${trip.name}: blisko budżetu (${Math.round(pct)}%)`,
+          desc: `Zostało ${fmt(trip.budget - sp.total)} z ${fmt(trip.budget)}`,
+          color: "#f59e0b",
+        });
+        break;
+      }
+    }
+
+    // R-trip-2 (INFO): aktywny wyjazd "stan na dziś"
+    if (tripGroups.active.length > 0) {
+      const trip = tripGroups.active[0];
+      const sp = getTripSpending(transactions, trip.id);
+      // Liczymy ile dni minęło wyjazdu (z bufforem)
+      const tripStart = new Date(trip.dateFrom + "T00:00:00");
+      const today = new Date(todayISO + "T00:00:00");
+      const daysElapsed = Math.max(1, Math.round((today - tripStart) / 86400000) + 1);
+      const avgDaily = sp.total / daysElapsed;
+
+      if (sp.total > 0) {
+        const desc = trip.budget > 0
+          ? `${fmt(sp.total)} z ${fmt(trip.budget)} (${Math.round((sp.total / trip.budget) * 100)}%) · ~${fmt(avgDaily)}/dzień`
+          : `${fmt(sp.total)} · ~${fmt(avgDaily)}/dzień`;
+        informational.push({
+          type: "trip_active",
+          icon: "🏖️",
+          title: `Aktywny wyjazd: ${trip.name}`,
+          desc,
+          color: trip.color || "#06b6d4",
+        });
+      }
+    }
+
+    // R-trip-3 (INFO): suma wszystkich wyjazdów w roku + % od total wydatków rocznych
+    const yearTrips = trips.filter(t =>
+      (t.dateFrom || "").startsWith(yearStr) || (t.dateTo || "").startsWith(yearStr)
+    );
+    if (yearTrips.length >= 1) {
+      const yearTripIds = new Set(yearTrips.map(t => t.id));
+      const yearTripSpent = transactions
+        .filter(t => t.tripId != null && yearTripIds.has(t.tripId) &&
+                     t.amount < 0 && t.cat !== "inne" && (t.date || "").startsWith(yearStr))
+        .reduce((s, t) => s + Math.abs(t.amount), 0);
+
+      if (yearTripSpent > 0) {
+        const yearAllExp = transactions
+          .filter(t => t.amount < 0 && t.cat !== "inne" && (t.date || "").startsWith(yearStr))
+          .reduce((s, t) => s + Math.abs(t.amount), 0);
+        const pctOfYear = yearAllExp > 0 ? (yearTripSpent / yearAllExp) * 100 : 0;
+        const tripsWord = yearTrips.length === 1 ? "wyjazd"
+                       : yearTrips.length < 5 ? "wyjazdy" : "wyjazdów";
+        informational.push({
+          type: "trips_year_total",
+          icon: "✈️",
+          title: `${yearTrips.length} ${tripsWord} w ${yearStr}: ${fmt(yearTripSpent)}`,
+          desc: pctOfYear >= 1
+            ? `${Math.round(pctOfYear)}% twoich rocznych wydatków`
+            : `Mała część rocznych wydatków`,
+          color: "#0ea5e9",
+        });
+      }
+    }
+
+    // R-trip-4 (INFO): najdroższy wyjazd roku (gdy >= 2 trips w roku, żeby było co porównać)
+    if (yearTrips.length >= 2) {
+      const tripCosts = yearTrips.map(t => ({
+        trip: t,
+        spent: getTripSpending(transactions, t.id).total,
+      })).filter(x => x.spent > 0);
+
+      if (tripCosts.length >= 2) {
+        tripCosts.sort((a, b) => b.spent - a.spent);
+        const top = tripCosts[0];
+        const avgRest = tripCosts.slice(1).reduce((s, x) => s + x.spent, 0) / (tripCosts.length - 1);
+        if (top.spent >= avgRest * 1.2) {
+          const overPct = avgRest > 0 ? Math.round(((top.spent - avgRest) / avgRest) * 100) : 0;
+          informational.push({
+            type: "trip_most_expensive",
+            icon: "💎",
+            title: `${top.trip.name} — najdroższy wyjazd roku`,
+            desc: `${fmt(top.spent)} · ${overPct}% więcej niż średni pozostały`,
+            color: top.trip.color || "#8b5cf6",
+          });
+        }
+      }
+    }
+
+    // R-trip-5 (INFO): nadchodzący wyjazd (do 14 dni)
+    if (tripGroups.upcoming.length > 0) {
+      const next = tripGroups.upcoming[0];
+      const tripStart = new Date(next.dateFrom + "T00:00:00");
+      const today = new Date(todayISO + "T00:00:00");
+      const daysToGo = Math.round((tripStart - today) / 86400000);
+      if (daysToGo >= 0 && daysToGo <= 14) {
+        const sp = getTripSpending(transactions, next.id); // pre-trip expenses (lot, hotel)
+        const preExpDesc = sp.total > 0
+          ? `Pre-wyjazd: ${fmt(sp.total)} ${next.budget > 0 ? `z ${fmt(next.budget)} budżetu` : ""}`
+          : (next.budget > 0 ? `Budżet ${fmt(next.budget)} czeka` : "Czeka cię nowy wyjazd");
+        informational.push({
+          type: "trip_upcoming",
+          icon: "🛫",
+          title: daysToGo === 0
+            ? `${next.name} startuje dziś!`
+            : `${next.name} za ${daysToGo} ${daysToGo === 1 ? "dzień" : daysToGo < 5 ? "dni" : "dni"}`,
+          desc: preExpDesc,
+          color: next.color || "#10b981",
+        });
+      }
     }
   }
 

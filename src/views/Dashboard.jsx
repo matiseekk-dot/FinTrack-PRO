@@ -55,7 +55,7 @@ const getRecurringExpense = (transactions, month, cycleDay) => {
 
 
 
-function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh, portfolio = [] }) {
+function Dashboard({ accounts, transactions, setTransactions, payments, paid = {}, month, setMonth, onAddTx, cycleDay = 1, budgets = [], allCats = [], onRefresh, portfolio = [], trips = [] }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const [pulling, setPulling] = useState(false);
   const [pullY, setPullY] = useState(0);
@@ -552,7 +552,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
       <StorageWarning transactions={transactions} setTransactions={setTransactions}/>
 
       {/* ═══ INSIGHTS ═══ */}
-      <InsightsCard transactions={transactions} budgets={budgets} accounts={accounts} cycleDay={cycleDay}/>
+      <InsightsCard transactions={transactions} budgets={budgets} accounts={accounts} cycleDay={cycleDay} trips={trips}/>
 
       {/* ═══ OSTATNIE TRANSAKCJE ═══ */}
       <div style={{ background: "linear-gradient(135deg,#0d1628,#111827)", border: "1px solid #1e3a5f66", borderRadius: 20, padding: "18px 20px" }}>

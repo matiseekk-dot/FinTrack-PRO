@@ -19,7 +19,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
                          vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData,
-                         proStatus = null, user = null }) {
+                         proStatus = null, user = null,
+                         // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
+                         trips = [], hobbies = [], portfolio = [] }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -101,37 +103,53 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   };
 
   //    EXPORT (lazy-load XLSX - 137KB gzipped, 415KB raw)
+  //    v1.5.1: kolumny rozszerzone o multi-currency + osobne arkusze Wyjazdy/Hobby
+  //    + pełny Backup_JSON v:2 zawierający WSZYSTKO co potrzebne do restore.
   const handleExport = async () => {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Transakcje
+    // Sheet 1: Transakcje (z multi-currency, tripId, linkedPayment)
     const txRows = transactions.map(t => ({
-      ID:          t.id,
-      Data:        t.date,
-      Opis:        t.desc,
-      Kwota:       t.amount,
-      Kategoria:   t.cat,
-      Konto_ID:    t.acc,
-      Konto_Nazwa: (accounts.find(a => a.id === t.acc) || {}).name || "",
+      ID:               t.id,
+      Data:             t.date,
+      Opis:             t.desc,
+      Kwota_PLN:        t.amount,
+      Kategoria:        t.cat,
+      Konto_ID:         t.acc,
+      Konto_Nazwa:      (accounts.find(a => a.id === t.acc) || {}).name || "",
+      Kwota_oryg:       t.origAmount != null ? t.origAmount : "",
+      Waluta_oryg:      t.origCurrency || "",
+      Kurs_NBP:         t.fxRate != null ? t.fxRate : "",
+      Data_kursu:       t.fxDate || "",
+      Wyjazd_ID:        t.tripId != null ? t.tripId : "",
+      Wyjazd_Nazwa:     t.tripId != null
+        ? ((trips || []).find(tr => tr.id === t.tripId) || {}).name || ""
+        : "",
+      Linked_Payment:   t.linkedPaymentId != null ? t.linkedPaymentId : "",
     }));
     const wsTx = XLSX.utils.json_to_sheet(txRows);
     wsTx["!cols"] = [
-      {wch:8},{wch:12},{wch:34},{wch:12},{wch:14},{wch:10},{wch:20}
+      {wch:8},{wch:12},{wch:34},{wch:12},{wch:14},{wch:10},{wch:20},
+      {wch:12},{wch:10},{wch:10},{wch:12},{wch:10},{wch:20},{wch:14},
     ];
     XLSX.utils.book_append_sheet(wb, wsTx, "Transakcje");
 
-    // Sheet 2: Konta
+    // Sheet 2: Konta (z currency, color, kontrybucja)
     const accRows = accounts.map(a => ({
-      ID:    a.id,
-      Nazwa: a.name,
-      Typ:   a.type,
-      Bank:  a.bank,
-      Saldo: a.balance,
-      IBAN:  a.iban,
+      ID:                    a.id,
+      Nazwa:                 a.name,
+      Typ:                   a.type,
+      Bank:                  a.bank,
+      Saldo:                 a.balance,
+      Waluta:                a.currency || "PLN",
+      IBAN:                  a.iban,
+      Kolor:                 a.color || "",
+      Wpłata_roczna:         a.annualContribution || "",
+      Dopłata_pracodawcy:    a.employerContribution || "",
     }));
     const wsAcc = XLSX.utils.json_to_sheet(accRows);
-    wsAcc["!cols"] = [{wch:6},{wch:22},{wch:12},{wch:14},{wch:14},{wch:32}];
+    wsAcc["!cols"] = [{wch:6},{wch:22},{wch:12},{wch:14},{wch:14},{wch:8},{wch:32},{wch:10},{wch:14},{wch:18}];
     XLSX.utils.book_append_sheet(wb, wsAcc, "Konta");
 
     // Sheet 3: Bud ety
@@ -197,14 +215,84 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       XLSX.utils.book_append_sheet(wb, wsPaid, "Status platnosci");
     }
 
-    // Sheet 9: Full JSON backup (all data incl. templates, vacation)
+    // Sheet 9: Wyjazdy (v1.5.1) — z defaultCurrency, dateFrom/To, budget, archived
+    if (trips && trips.length) {
+      const tripRows = trips.map(tr => ({
+        ID:                tr.id,
+        Nazwa:             tr.name,
+        Od:                tr.dateFrom || "",
+        Do:                tr.dateTo || "",
+        Budget_PLN:        tr.budget || 0,
+        Waluta_domyślna:   tr.defaultCurrency || "PLN",
+        Kolor:             tr.color || "",
+        Notatki:           tr.notes || "",
+        Zarchiwizowany:    tr.archived ? "tak" : "nie",
+        Utworzony:         tr.createdAt || "",
+      }));
+      const wsTrips = XLSX.utils.json_to_sheet(tripRows);
+      wsTrips["!cols"] = [{wch:14},{wch:24},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:34},{wch:8},{wch:24}];
+      XLSX.utils.book_append_sheet(wb, wsTrips, "Wyjazdy");
+    }
+
+    // Sheet 10: Hobby (v1.5.1)
+    if (hobbies && hobbies.length) {
+      const hobbyRows = hobbies.map(h => ({
+        ID:           h.id,
+        Nazwa:        h.name,
+        Kolor:        h.color || "",
+        Kategorie:    (h.categories || []).join(", "),
+        Słowa_klucz:  (h.keywords || []).join(", "),
+        Roczny_limit: h.yearlyTarget || "",
+        Zarchiwizowane: h.archived ? "tak" : "nie",
+        Utworzone:    h.createdAt || "",
+      }));
+      const wsHobby = XLSX.utils.json_to_sheet(hobbyRows);
+      wsHobby["!cols"] = [{wch:14},{wch:24},{wch:10},{wch:30},{wch:30},{wch:14},{wch:10},{wch:24}];
+      XLSX.utils.book_append_sheet(wb, wsHobby, "Hobby");
+    }
+
+    // Sheet 11: Portfolio (v1.5.1) — pozycje inwestycyjne (już istniały w state ale nie były exportowane)
+    if (portfolio && portfolio.length) {
+      const portRows = portfolio.map(p => ({
+        ID:           p.id,
+        Ticker:       p.ticker || "",
+        Nazwa:        p.name || "",
+        Ilość:        p.qty || 0,
+        Cena_średnia: p.avgPrice || 0,
+        Cena_aktualna:p.currentPrice || 0,
+        Wartość_PLN:  p.valuePLN || 0,
+        PnL_PLN:      p.pnlPLN || 0,
+        PnL_proc:     p.pnlPct != null ? p.pnlPct.toFixed(2) + "%" : "",
+        Konto:        p.account || "",
+        Waluta:       p.currency || "PLN",
+        Linked_Acc:   p.linkedAccId != null ? p.linkedAccId : "",
+      }));
+      const wsPort = XLSX.utils.json_to_sheet(portRows);
+      XLSX.utils.book_append_sheet(wb, wsPort, "Inwestycje");
+    }
+
+    // Sheet 12: Full JSON backup v:2 — KOMPLET danych do restore
+    // (v:1 nie miał trips/hobbies/portfolio/cycleDayHistory/tombstones/partnerName)
     const templates = (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })();
     const vacation  = (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })();
+    const displayCurrency = (() => { try { return localStorage.getItem("ft_display_currency") || "PLN"; } catch(_) { return "PLN"; } })();
     const backupData = {
-      v: 1,
+      v: 2,
+      // Wszystkie dane finansowe
       accounts, transactions, budgets, payments, paid, goals,
-      customCats, cycleDay, defaultAcc,
+      customCats, cycleDay, cycleDayHistory, defaultAcc, partnerName,
+      portfolio, trips, hobbies,
+      // Legacy/templates
       templates, vacation, vacationArchiveData: vacationArchive,
+      // Preferencje per device (mogą być przydatne przy restore na tym samym urządzeniu)
+      displayCurrency,
+      // Tombstones (delete tracking) — bez tego restore mógłby wskrzesić usunięte
+      tombstones: (() => { try {
+        const raw = JSON.parse(localStorage.getItem("fintrack_v1") || "{}");
+        return raw.tombstones || {};
+      } catch { return {}; } })(),
+      exportedAt: new Date().toISOString(),
+      appVersion: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev",
     };
     const wsBackup = XLSX.utils.json_to_sheet([{ JSON_backup: JSON.stringify(backupData) }]);
     wsBackup["!cols"] = [{wch:200}];

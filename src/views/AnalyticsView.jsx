@@ -6,6 +6,7 @@ import { fmt, fmtShort, getCycleRange, cycleTxs, fmtCycleLabel } from "../utils.
 import { MONTHS, MONTH_NAMES, getCat } from "../constants.js";
 import { RetirementCalculator } from "../components/RetirementCalculator.jsx";
 import { resolveCategory } from "../lib/categoryHelpers.js";
+import { CategoryTxModal } from "../components/CategoryTxModal.jsx";
 import { t, getLang } from "../i18n.js";
 function MonthComparison({ transactions, month }) {
   const [cmpMonth, setCmpMonth] = useState(month > 0 ? month - 1 : 0);
@@ -191,6 +192,8 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
   // Expandable widgets — domyślnie zwinięte (top X), klik rozwija pełną listę
   const [dailyExpanded,    setDailyExpanded]    = useState(false);
   const [rankingExpanded,  setRankingExpanded]  = useState(false);
+  // v1.5.1: drill-down kategorii — klik na wiersz w "Ranking wydatków" → modal z listą tx
+  const [drilldownCat,     setDrilldownCat]     = useState(null);
   const [shopsExpanded,    setShopsExpanded]    = useState(false);
 
   //    Period filter                                                          
@@ -684,12 +687,23 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
                 const pct = totalExp > 0 ? (val / totalExp * 100) : 0;
                 const isLast = i === visible.length - 1;
                 return (
-                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: !isLast || restCount > 0 ? "1px solid #0f1a2e" : "none" }}>
+                  // v1.5.1: cały wiersz klikalny → drill-down do listy tx z tej kategorii
+                  <button
+                    key={cat}
+                    onClick={() => setDrilldownCat(cat)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12, padding: "8px 0",
+                      borderBottom: !isLast || restCount > 0 ? "1px solid #0f1a2e" : "none",
+                      background: "none", border: "none", cursor: "pointer",
+                      width: "100%", textAlign: "left",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                    }}
+                  >
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#334155", width: 20, textAlign: "center" }}>#{i+1}</div>
                     <div style={{ background: color + "1a", borderRadius: 8, padding: 7 }}><Icon size={13} color={color}/></div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0" }}>{label}</span>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color }}>{pct.toFixed(1)}%</span>
                       </div>
                       <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
@@ -697,7 +711,7 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
                       </div>
                     </div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#94a3b8", width: 90, textAlign: "right" }}>{fmt(val)}</div>
-                  </div>
+                  </button>
                 );
               })}
               {!rankingExpanded && restCount > 0 && (
@@ -917,10 +931,20 @@ function AnalyticsView({ transactions, payments, paid, month, cycleDay = 1, part
 
       </div>}
 
+      {/* v1.5.1: drill-down modal — klik na kategorię w "Ranking wydatków" */}
+      <CategoryTxModal
+        open={drilldownCat !== null}
+        onClose={() => setDrilldownCat(null)}
+        categoryId={drilldownCat}
+        transactions={monthTx}
+        allCats={allCats}
+        title={`Bieżący ${cycleDay > 1 ? "cykl" : "miesiąc"}`}
+      />
+
     </div>
   );
 };
 
-//    MAIN APP                                                                  
+//    MAIN APP
 
 export { AnalyticsView };

@@ -20,8 +20,9 @@ const SYNC_KEYS = [
   "goals", "customCats", "cycleDay", "cycleDayHistory", "defaultAcc", "partnerName",
   "portfolio", "month", "vacationArchiveData",
   "trips", "hobbies",
-  "tombstones",  // v1.2.4: { [arrayKey]: { [id]: deletedAtMs } } - blokuje wskrzeszanie
-  "proStatus",   // v1.2.7: licencja PRO syncuje się między urządzeniami tego samego konta
+  "tombstones",       // v1.2.4: { [arrayKey]: { [id]: deletedAtMs } } - blokuje wskrzeszanie
+  "proStatus",        // v1.2.7: licencja PRO syncuje się między urządzeniami tego samego konta
+  "displayCurrency",  // v1.5.1: preferencja waluty wyświetlania syncuje się między urządzeniami
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)

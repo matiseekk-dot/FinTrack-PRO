@@ -14,12 +14,16 @@ import {
 } from "../lib/trips.js";
 import { getCat } from "../constants.js";
 import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { CategoryTxModal } from "../components/CategoryTxModal.jsx";
 import { t } from "../i18n.js";
 
 function TripsView({ trips, setTrips, transactions, setTransactions, allCats, vacationArchive }) {
   const [modalTrip, setModalTrip] = useState(null);  // null | {} (edit/new)
   const [detailsId, setDetailsId] = useState(null);
   const [year, setYear] = useState(new Date().getFullYear());
+  // v1.5.1: drill-down kategorii w TripDetails. Trzymamy { tripId, catId } żeby
+  // modal wiedział z którego wyjazdu filtrować tx.
+  const [drilldown, setDrilldown] = useState(null); // null | { tripId, catId }
 
   // One-shot migracja: jeśli trips puste a stare vacation/vacationArchive są - zaproponuj
   const migrationCandidate = useMemo(() => {
@@ -119,8 +123,18 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
           onEdit={() => openEdit(trip)}
           onDelete={() => { deleteTrip(trip.id); }}
           onArchiveToggle={() => toggleArchive(trip.id)}
+          onDrilldownCategory={(catId) => setDrilldown({ tripId: trip.id, catId })}
         />
         {modalNode}
+        {/* v1.5.1: drill-down modal filtrowany do tx tego wyjazdu */}
+        <CategoryTxModal
+          open={drilldown !== null && drilldown.tripId === trip.id}
+          onClose={() => setDrilldown(null)}
+          categoryId={drilldown?.catId}
+          transactions={(transactions || []).filter(t => t.tripId === trip.id)}
+          allCats={allCats}
+          title={`Wyjazd: ${trip.name}`}
+        />
       </>
     );
   }
@@ -391,7 +405,7 @@ function TripCard({ trip, transactions, onClick, dimmed = false }) {
   );
 }
 
-function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onEdit, onDelete, onArchiveToggle }) {
+function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onEdit, onDelete, onArchiveToggle, onDrilldownCategory }) {
   const spending = useMemo(() => getTripSpending(transactions, trip.id), [transactions, trip.id]);
   const currencyBreakdown = useMemo(
     () => getTripSpendingByCurrency(transactions, trip.id),
@@ -546,7 +560,17 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
               const cat = (allCats || []).find(c => c.id === catId) || getCat(catId);
               const pct = (val / spending.total) * 100;
               return (
-                <div key={catId} style={{ marginBottom: 8 }}>
+                // v1.5.1: cały wiersz klikalny → drill-down do listy tx z tej kat w tym wyjeździe
+                <button
+                  key={catId}
+                  onClick={() => onDrilldownCategory && onDrilldownCategory(catId)}
+                  style={{
+                    marginBottom: 8, padding: 0,
+                    background: "none", border: "none", cursor: "pointer",
+                    width: "100%", textAlign: "left",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                     <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>
                       {cat.label || catId}
@@ -559,7 +583,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                     <div style={{ width: pct + "%", height: "100%", borderRadius: 3,
                       background: cat.color || "#3b82f6", opacity: 0.7 }}/>
                   </div>
-                </div>
+                </button>
               );
             })
           }
