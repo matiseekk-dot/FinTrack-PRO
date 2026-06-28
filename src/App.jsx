@@ -659,10 +659,15 @@ export default function App() {
       <FeedbackButton/>
 
       {quickAddOpen && (
-        <TransactionsView transactions={transactions}
+        <TransactionsView
+          proStatus={proStatus} openUpgrade={openUpgrade}
+          transactions={transactions}
           setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); }}
           accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories}
-          _forceOpenModal={true} _onClose={() => setQuickAddOpen(false)}
+          _forceOpenModal={true}
+          _onClose={() => setQuickAddOpen(false)}
+          _onModalClose={() => setQuickAddOpen(false)}
+          defaultAcc={defaultAcc}
           trips={trips}
         />
       )}

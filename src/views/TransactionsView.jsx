@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Wallet, PlusCircle, Edit2, Trash2, Copy, Search, Plane
 } from "lucide-react";
@@ -39,6 +39,18 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   };
   const [form, setForm] = useState(getEmptyForm);
   const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
+
+  // v1.6.1: gdy parent zmieni _forceOpenModal z false→true (np. user klika FAB w bottom
+  // nav będąc już w tabie transactions), wcześniej `useState(initial)` ignorował zmianę
+  // i modal się NIE otwierał. Teraz reagujemy reaktywnie. Reset form na świeży gdy
+  // otwieramy z external trigger (żeby nie pokazywać starych danych z poprzedniej edycji).
+  useEffect(() => {
+    if (_forceOpenModal) {
+      setModal(true);
+      setEditingId(null);
+      setForm(getEmptyForm());
+    }
+  }, [_forceOpenModal]);
 
   const addTx = async () => {
     if (saving) return;
@@ -518,7 +530,15 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       </div>
 
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
-      <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }} title={editingId ? t("tx.editTitle", "Edytuj transakcję") : t("tx.newTitle", "Nowa transakcja")}>
+      <Modal open={modal} onClose={() => {
+        setModal(false);
+        setEditingId(null);
+        // v1.6.1: inform parent (App.jsx quickAddOpen / FAB) że modal zamknięty
+        // — bez tego klik X w external-triggered modalu nie resetuje parent state,
+        // i kolejny klik "+" jest no-op (state już true → useEffect nie reaguje).
+        if (_onModalClose) _onModalClose();
+        if (_onClose) _onClose();
+      }} title={editingId ? t("tx.editTitle", "Edytuj transakcję") : t("tx.newTitle", "Nowa transakcja")}>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {[
             ["expense",  "📤 " + t("tx.type.expense",  "Wydatek"),  "#ef4444"],
