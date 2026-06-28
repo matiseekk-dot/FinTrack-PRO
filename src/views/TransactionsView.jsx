@@ -39,6 +39,10 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   };
   const [form, setForm] = useState(getEmptyForm);
   const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
+  // v1.6.2: lokalna kontrola pokazywania dropdown sugestii. User pisze "Biedronka Mokotów"
+  // a sugestia "Biedronka" zasłaniała pole Kwota poniżej — i gdy próbował kliknąć w Kwotę,
+  // trafiał na sugestię i nadpisywał własny wpis. Teraz Esc/blur/Enter/X-button ukrywa.
+  const [showDescSuggestions, setShowDescSuggestions] = useState(true);
 
   // v1.6.1: gdy parent zmieni _forceOpenModal z false→true (np. user klika FAB w bottom
   // nav będąc już w tabie transactions), wcześniej `useState(initial)` ignorował zmianę
@@ -568,7 +572,19 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("tx.field.desc", "Opis")}</div>
           <input
             value={form.desc}
-            onChange={e => setForm(f => ({...f, desc: e.target.value}))}
+            onChange={e => {
+              setForm(f => ({...f, desc: e.target.value}));
+              setShowDescSuggestions(true); // pokaż sugestie przy każdej zmianie
+            }}
+            onKeyDown={e => {
+              // Esc / Enter ukrywa dropdown żeby user mógł przejść do następnego pola
+              if (e.key === "Escape" || e.key === "Enter") {
+                if (e.key === "Enter") e.preventDefault(); // nie submituj formy
+                setShowDescSuggestions(false);
+              }
+            }}
+            // blur z opóźnieniem żeby klik na sugestię mógł się załapać
+            onBlur={() => setTimeout(() => setShowDescSuggestions(false), 150)}
             placeholder={t("tx.placeholder.desc", "np. Biedronka")}
             autoComplete="off"
             style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
@@ -576,7 +592,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               fontFamily: "'Space Grotesk', sans-serif", outline: "none", WebkitAppearance: "none" }}
           />
           {/* Suggestions */}
-          {form.desc.length >= 2 && (() => {
+          {showDescSuggestions && form.desc.length >= 2 && (() => {
             const q = form.desc.toLowerCase();
             const seen = new Set();
             const suggestions = transactions
@@ -594,23 +610,53 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
                 background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10,
                 marginTop: 4, overflow: "hidden", boxShadow: "0 8px 24px #00000066" }}>
+                {/* v1.6.2: Header z X — żeby user mógł explicit ukryć dropdown gdy chce wpisać
+                    własną wartość podobną do sugestii (np. "Biedronka Mokotów" vs "Biedronka") */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "6px 10px 4px 14px", borderBottom: "1px solid #0f1a2e",
+                  background: "#0a1120" }}>
+                  <span style={{ fontSize: 9, color: "#475569", fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Sugestie · Esc lub X aby ukryć
+                  </span>
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); setShowDescSuggestions(false); }}
+                    style={{
+                      background: "#1a2744", border: "none", borderRadius: 6,
+                      width: 22, height: 22, cursor: "pointer", color: "#94a3b8",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, lineHeight: 1, padding: 0,
+                    }}>
+                    ✕
+                  </button>
+                </div>
                 {suggestions.map(s => {
                   // find last transaction with this desc to pre-fill cat & acc
                   const prev = transactions.find(t => t.desc === s);
                   return (
-                    <button key={s} onClick={() => setForm(f => ({
-                      ...f, desc: s,
-                      cat: (prev ? prev.cat : null) || f.cat,
-                      acc: (prev ? prev.acc : null) || f.acc,
-                      type: prev ? (prev.amount > 0 ? "income" : "expense") : f.type,
-                    }))} style={{
-                      width: "100%", background: "none", border: "none",
-                      borderBottom: "1px solid #0f1a2e", padding: "11px 14px",
-                      cursor: "pointer", textAlign: "left", display: "flex",
-                      alignItems: "center", justifyContent: "space-between",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#1a2744"}
-                    onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                    <button key={s}
+                      // onMouseDown zamiast onClick — onClick na buttonie odpala się po blur
+                      // inputa (przez timeout 150ms), ale onMouseDown odpala się PRZED blur,
+                      // więc na pewno zdąży się wybrać sugestia.
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        setForm(f => ({
+                          ...f, desc: s,
+                          cat: (prev ? prev.cat : null) || f.cat,
+                          acc: (prev ? prev.acc : null) || f.acc,
+                          type: prev ? (prev.amount > 0 ? "income" : "expense") : f.type,
+                        }));
+                        setShowDescSuggestions(false);
+                      }}
+                      style={{
+                        width: "100%", background: "none", border: "none",
+                        borderBottom: "1px solid #0f1a2e", padding: "11px 14px",
+                        cursor: "pointer", textAlign: "left", display: "flex",
+                        alignItems: "center", justifyContent: "space-between",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1a2744"}
+                      onMouseLeave={e => e.currentTarget.style.background = "none"}>
                       <span style={{ fontSize: 14, color: "#e2e8f0" }}>{s}</span>
                       {prev && <span style={{ fontSize: 11, color: "#475569" }}>{getLocalCat(prev.cat).label}</span>}
                     </button>
