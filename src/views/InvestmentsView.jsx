@@ -77,7 +77,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
             <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>Brak pozycji</div>
           )}
         </div>
-        <button onClick={openAdd} style={{ background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
+        <button onClick={openAdd} style={{ background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
           + Dodaj
         </button>
       </div>
@@ -95,7 +95,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setImportModal(true)} style={{
-              flex: 1, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+              flex: 1, background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
               borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700,
               fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
             }}>
@@ -117,7 +117,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
           <div style={{ fontSize: 32, marginBottom: 12 }}>📈</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Dodaj swoje inwestycje</div>
           <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6 }}>ETF-y, akcje, kryptowaluty — wszystko w jednym miejscu. Śledź zyski i alokację portfela.</div>
-          <button onClick={openAdd} style={{ marginTop: 16, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none", borderRadius: 10, padding: "10px 20px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
+          <button onClick={openAdd} style={{ marginTop: 16, background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "10px 20px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
             Dodaj pierwszą pozycję
           </button>
         </Card>
@@ -250,7 +250,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                       showToast(`${acc.name} dodane do portfela ✓`);
                     }}
                     style={{
-                      background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+                      background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
                       borderRadius: 8, padding: "7px 14px", color: "white",
                       fontWeight: 700, fontSize: 12, cursor: "pointer",
                       fontFamily: "'Space Grotesk', sans-serif",
@@ -308,7 +308,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                   </div>}
                 </div>
               )}
-              <button onClick={save} style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none", borderRadius: 12, padding: "13px 0", color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginTop: 4 }}>
+              <button onClick={save} style={{ width: "100%", background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 12, padding: "13px 0", color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginTop: 4 }}>
                 {editItem ? "Zapisz zmiany" : "Dodaj pozycję"}
               </button>
             </div>

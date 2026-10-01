@@ -23,6 +23,7 @@ const SYNC_KEYS = [
   "tombstones",       // v1.2.4: { [arrayKey]: { [id]: deletedAtMs } } - blokuje wskrzeszanie
   "proStatus",        // v1.2.7: licencja PRO syncuje się między urządzeniami tego samego konta
   "displayCurrency",  // v1.5.1: preferencja waluty wyświetlania syncuje się między urządzeniami
+  "modules",          // v2.0.0 Sidegig: włączone moduły (freelance, betting, ...)
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
@@ -88,6 +89,11 @@ function mergeSnapshots(local, remote) {
         if (item && item.id != null && !isDeleted(item.id)) map.set(item.id, item);
       });
       merged[key] = Array.from(map.values());
+    }
+    else if (key === "modules") {
+      // Moduły to preferencja — lokalny wybór wygrywa. Reguła "bierz dłuższą"
+      // ponownie włączałaby moduł, który użytkownik właśnie wyłączył.
+      merged[key] = localVal;
     }
     else if (Array.isArray(localVal)) {
       // Tablice bez ID (vacationArchiveData) - bierz dłuższą

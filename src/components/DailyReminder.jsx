@@ -67,7 +67,7 @@ function DailyReminder({ transactions, onAddTx }) {
 
       {urgent && (
         <button onClick={onAddTx} style={{
-          background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+          background: "linear-gradient(135deg,#059669,#10b981)",
           border: "none", borderRadius: 12,
           padding: "9px 14px", color: "white",
           fontWeight: 700, fontSize: 12, cursor: "pointer",

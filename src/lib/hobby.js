@@ -222,6 +222,7 @@ function getHobbyStats(transactions, hobby, opts = {}) {
 
 export {
   DEFAULT_HOBBY_COLORS,
+  txMatchesHobby,
   pickHobbyColor,
   getAllHobbyTransactions,
   getHobbyStats,

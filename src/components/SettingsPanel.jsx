@@ -299,7 +299,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     XLSX.utils.book_append_sheet(wb, wsBackup, "_Backup_JSON");
 
     const today = todayLocal();
-    XLSX.writeFile(wb, `FinTrack_export_${today}.xlsx`);
+    XLSX.writeFile(wb, `Sidegig_export_${today}.xlsx`);
   };
 
   //    IMPORT                                                                  
@@ -422,7 +422,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       } catch (err) {
         console.error("Import error:", err);
         setImportStatus("err");
-        setImportMsg(t("settings.import.error", "Błąd wczytywania pliku. Upewnij się, że to plik .xlsx z FinTrack."));
+        setImportMsg(t("settings.import.error", "Błąd wczytywania pliku. Upewnij się, że to plik .xlsx z Sidegig lub FinTrack."));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -511,7 +511,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ background: "linear-gradient(135deg,#1e40af,#7c3aed)", borderRadius: 10,
+            <div style={{ background: "linear-gradient(135deg,#059669,#10b981)", borderRadius: 10,
                           padding: 8, display: "flex" }}>
               <Settings size={16} color="white"/>
             </div>
@@ -541,7 +541,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <Crown size={14} color="#fbbf24"/>
                     <span style={{ fontSize: 12, fontWeight: 800, color: "white", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      FinTrack PRO
+                      Sidegig PRO
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: "#cbd5e1" }}>
@@ -555,7 +555,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           }
           return (
             <button onClick={() => { onClose(); setTimeout(() => { if (window.__openUpgrade) window.__openUpgrade("settings"); }, 300); }} style={{
-              width: "100%", background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+              width: "100%", background: "linear-gradient(135deg,#059669,#10b981)",
               border: "none", borderRadius: 16, padding: "16px 18px",
               marginBottom: 22, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
@@ -1029,7 +1029,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           const income = transactions.filter(t => t.date.startsWith(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`) && t.amount > 0 && t.cat !== "inne").reduce((s,t) => s+t.amount,0);
           const expense = Object.values(cats).reduce((s,v) => s+v, 0);
           const rows = Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([cat,val]) => `<tr><td style="padding:4px 12px;border-bottom:1px solid #eee">${cat}</td><td style="padding:4px 12px;text-align:right;border-bottom:1px solid #eee">${val.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</td></tr>`).join("");
-          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>FinTrack – ${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>FinTrack — Raport miesięczny</h1><h2>${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</h2><div class="summary"><div class="box"><div class="label">Przychody</div><div class="val green">${income.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Wydatki</div><div class="val red">${expense.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Bilans</div><div class="val ${income-expense>=0?"green":"red"}">${(income-expense).toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div></div><table><thead><tr><th>Kategoria</th><th style="text-align:right">Kwota</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">Wygenerowano: ${new Date().toLocaleDateString("pl-PL")} · FinTrack PRO</p></body></html>`;
+          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sidegig – ${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>Sidegig — Raport miesięczny</h1><h2>${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</h2><div class="summary"><div class="box"><div class="label">Przychody</div><div class="val green">${income.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Wydatki</div><div class="val red">${expense.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Bilans</div><div class="val ${income-expense>=0?"green":"red"}">${(income-expense).toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div></div><table><thead><tr><th>Kategoria</th><th style="text-align:right">Kwota</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">Wygenerowano: ${new Date().toLocaleDateString("pl-PL")} · Sidegig</p></body></html>`;
           const w = window.open("","_blank"); w.document.write(html); w.document.close(); w.print();
         }} style={{
           width: "100%", background: "#060b14", border: "1px solid #1a2744",
@@ -1046,7 +1046,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         {/* IMPORT SECTION */}
         <SectionTitle>📥 {t("settings.import.title", "Import danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 6, lineHeight: 1.6 }}>
-          {t("settings.import.help1", "Wczytaj plik .xlsx wcześniej wyeksportowany z FinTrack. Dane zostaną")}
+          {t("settings.import.help1", "Wczytaj plik .xlsx wyeksportowany z Sidegig lub FinTrack. Dane zostaną")}
           <span style={{ color: "#f59e0b", fontWeight: 700 }}> {t("settings.import.replaced", "zastąpione")}</span>{t("settings.import.help2", " — zrób eksport przed importem jeśli chcesz zachować kopię.")}
         </p>
 
@@ -1082,7 +1082,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           fontFamily: "'Space Grotesk', sans-serif",
           transition: "border-color 0.2s",
         }}>
-          <span style={{ fontSize: 20 }}>📂</span> {t("settings.import.btnXlsx", "Wybierz plik .xlsx (FinTrack backup)")}
+          <span style={{ fontSize: 20 }}>📂</span> {t("settings.import.btnXlsx", "Wybierz plik .xlsx (kopia zapasowa)")}
           <input type="file" accept=".xlsx,.xls" onChange={handleImport}
                  style={{ display: "none" }}/>
         </label>
@@ -1389,7 +1389,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       {/* Wersja apki — czytana z package.json przez Vite define (vite.config.js) */}
       <div style={{ textAlign: "center", padding: "4px 0 4px",
         fontSize: 11, color: "#1e2d45", fontFamily: "'DM Mono', sans-serif" }}>
-        FinTrack PRO · v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"} · 2025–{new Date().getFullYear()}
+        Sidegig · v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"} · 2025–{new Date().getFullYear()}
       </div>
 
       {/* Confirm: załaduj demo */}

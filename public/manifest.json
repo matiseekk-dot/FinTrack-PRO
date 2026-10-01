@@ -1,16 +1,19 @@
 {
-  "name": "FinTrack PRO",
-  "short_name": "FinTrack",
+  "name": "Sidegig — Personal P&L",
+  "short_name": "Sidegig",
   "id": "/FinTrack-PRO/",
-  "description": "Tracker finansów osobistych z cyklem rozliczeniowym pod dzień wypłaty. Live kursy NBP, import wyciągów CSV z 8 banków (PKO/mBank/ING/Santander/Pekao/BNP/Millennium/Revolut), kalkulator IKZE/IKE/PPK, sync w chmurze.",
+  "description": "Track everything you earn on the side: freelance income, reselling (Vinted, eBay, Allegro, OLX), collections and betting results. Multi-currency with historical exchange rates.",
   "start_url": "/FinTrack-PRO/",
   "scope": "/FinTrack-PRO/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#060b14",
   "theme_color": "#060b14",
-  "lang": "pl",
-  "categories": ["finance", "productivity"],
+  "lang": "en",
+  "categories": [
+    "finance",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/FinTrack-PRO/icon-192.png",
@@ -39,8 +42,8 @@
   ],
   "shortcuts": [
     {
-      "name": "Dodaj transakcję",
-      "short_name": "Dodaj",
+      "name": "Add entry",
+      "short_name": "Add",
       "url": "/FinTrack-PRO/?action=add",
       "icons": [
         {

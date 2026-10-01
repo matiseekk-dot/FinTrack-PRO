@@ -1,4 +1,4 @@
-// FinTrack PRO — Service Worker
+// Sidegig — Service Worker
 //
 // v1.4 (2026-05-09): rewrite po audicie. Wcześniej SW był aktywnie wyrejestrowywany
 // przez index.html ze względu na "stale cache issues" — co oznaczało że PWA nie
@@ -13,7 +13,7 @@
 // gdy nie ma. Zero "stale cache" bo HTML zawsze idzie network-first.
 
 const VERSION = "__APP_VERSION__"; // build-time replace lub "dev" w runtime
-const CACHE_NAME = `fintrack-pro-${VERSION}`;
+const CACHE_NAME = `sidegig-${VERSION}`;
 const STATIC_ASSETS = [
   "/FinTrack-PRO/",
   "/FinTrack-PRO/index.html",
@@ -128,7 +128,7 @@ self.addEventListener("push", (event) => {
   try {
     const data = event.data.json();
     event.waitUntil(
-      self.registration.showNotification(data.title || "FinTrack PRO", {
+      self.registration.showNotification(data.title || "Sidegig", {
         body: data.body || "",
         icon: "/FinTrack-PRO/icon-192.png",
         badge: "/FinTrack-PRO/icon-192.png",

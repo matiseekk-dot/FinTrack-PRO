@@ -33,7 +33,7 @@ function FeedbackButton() {
       });
     }
 
-    const subject = t("feedback.subject", "FinTrack PRO - zgłoszenie");
+    const subject = t("feedback.subject", "Sidegig - zgłoszenie");
     const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.join("\n"))}`;
     window.location.href = mailto;
     
@@ -134,7 +134,7 @@ function FeedbackButton() {
 
             <button onClick={handleSend} disabled={!message.trim()} style={{
               width: "100%", padding: 14,
-              background: message.trim() ? "linear-gradient(135deg,#1e40af,#7c3aed)" : "#1e3a5f",
+              background: message.trim() ? "linear-gradient(135deg,#059669,#10b981)" : "#1e3a5f",
               border: "none", borderRadius: 12, color: "white",
               fontWeight: 700, fontSize: 14,
               cursor: message.trim() ? "pointer" : "not-allowed",

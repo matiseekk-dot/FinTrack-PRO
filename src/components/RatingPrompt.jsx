@@ -14,12 +14,12 @@ function RatingPrompt({ onDismiss }) {
       <div style={{
         background: "#0d1628", borderRadius: 24, padding: "28px 24px",
         width: "min(100vw, 360px)", border: "1px solid #1e3a5f",
-        boxShadow: "0 0 60px #7c3aed22",
+        boxShadow: "0 0 60px #10b98122",
       }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <div style={{ fontSize: 44, marginBottom: 12 }}>⭐</div>
           <div style={{ fontSize: 19, fontWeight: 800, color: "#e2e8f0", marginBottom: 8 }}>
-            Podoba Ci się FinTrack PRO?
+            Podoba Ci się Sidegig?
           </div>
           <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>
             Twoja ocena pomaga nam dotrzeć do kolejnych użytkowników i rozwijać apkę.
@@ -52,7 +52,7 @@ function RatingPrompt({ onDismiss }) {
             <button
               onClick={() => onDismiss(true)}
               style={{
-                width: "100%", background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+                width: "100%", background: "linear-gradient(135deg,#059669,#10b981)",
                 border: "none", borderRadius: 12, padding: "13px 0",
                 color: "white", fontWeight: 800, fontSize: 15,
                 cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",

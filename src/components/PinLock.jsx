@@ -207,7 +207,7 @@ function PinPad({ title, subtitle, onSubmit, onCancel, showCancel = false }) {
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
       <div style={{ marginBottom: 36, textAlign: "center" }}>
-        <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <span style={{ fontSize: 30 }}>🔐</span>
         </div>
         <div style={{ fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>{title}</div>
@@ -316,7 +316,7 @@ function LockoutScreen({ remainingMs }) {
 }
 
 // === Public components ===
-function PinScreen({ onSuccess, title = "FinTrack PRO" }) {
+function PinScreen({ onSuccess, title = "Sidegig" }) {
   const [attempts, setAttempts] = useState(() => getLockoutState().attempts);
   const [lockState, setLockState] = useState(() => isLocked());
 

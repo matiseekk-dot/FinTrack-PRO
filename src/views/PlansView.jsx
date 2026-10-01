@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PiggyBank, AlertCircle, Plane, Heart } from "lucide-react";
+import { PiggyBank, AlertCircle, Plane, Disc3 } from "lucide-react";
 import { GoalsView } from "./GoalsView.jsx";
 import { LimitsView } from "./LimitsView.jsx";
 import { TripsView } from "./TripsView.jsx";
@@ -17,6 +17,7 @@ import { t } from "../i18n.js";
  *         Limity wycięte z GoalsView jako osobna sub-zakładka.
  */
 function PlansView({
+  modules = null, initialSubTab = null,
   proStatus, openUpgrade,
   goals, setGoals,
   accounts, budgets, setBudgets,
@@ -28,14 +29,24 @@ function PlansView({
   hobbies, setHobbies,
   portfolio,
 }) {
-  const [subTab, setSubTab] = useState("goals");
-
-  const tabs = [
-    { id: "goals",  label: t("plans.tab.goals"),  Icon: PiggyBank    },
-    { id: "limits", label: t("plans.tab.limits"), Icon: AlertCircle  },
-    { id: "trips",  label: t("plans.tab.trips"),  Icon: Plane        },
-    { id: "hobby",  label: t("plans.tab.hobby"),  Icon: Heart        },
+  // Sidegig: sub-zakładki zależą od włączonych modułów. Cele i limity należą do
+  // budżetu osobistego; Wyjazdy do modułu Trips; Hobby to moduł Kolekcje.
+  // modules === null (stary kod / brak setupu) → pokazuj wszystko.
+  const allTabs = [
+    { id: "trips",  label: t("plans.tab.trips"),  Icon: Plane,       module: "trips" },
+    { id: "hobby",  label: t("plans.tab.collections", "Kolekcje"), Icon: Disc3, module: "collections" },
+    { id: "goals",  label: t("plans.tab.goals"),  Icon: PiggyBank,   module: "personal" },
+    { id: "limits", label: t("plans.tab.limits"), Icon: AlertCircle, module: "personal" },
   ];
+  const tabs = Array.isArray(modules) ? allTabs.filter(tb => modules.includes(tb.module)) : allTabs;
+  const [chosen, setSubTab] = useState(initialSubTab);
+  const subTab = tabs.some(tb => tb.id === chosen) ? chosen : (tabs[0] ? tabs[0].id : null);
+
+  if (tabs.length === 0) return (
+    <div style={{ padding: "40px 24px", textAlign: "center", color: "#94a3b8", fontSize: 13, lineHeight: 1.6 }}>
+      {t("plans.empty", "Włącz moduł Wyjazdy, Kolekcje albo Budżet osobisty w Więcej → Moduły.")}
+    </div>
+  );
 
   return (
     <div>
@@ -54,9 +65,9 @@ function PlansView({
               fontFamily: "'Space Grotesk', sans-serif",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
               background: subTab === id
-                ? "linear-gradient(135deg,#1e40af,#7c3aed)"
+                ? "linear-gradient(135deg,#059669,#10b981)"
                 : "#0f1825",
-              border: subTab === id ? "1px solid #2563eb" : "1px solid #1a2744",
+              border: subTab === id ? "1px solid #10b981" : "1px solid #1a2744",
               color: subTab === id ? "white" : "#64748b",
               transition: "all 0.15s ease",
               minWidth: 0,

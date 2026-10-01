@@ -351,6 +351,21 @@ function setDisplayCurrency(code) {
   } catch { return false; }
 }
 
+/**
+ * Kwota wpisu (w PLN) do sumowania i formatowania przez fmtDisplay.
+ * Gdy wpis był w walucie głównej, liczymy ją z oryginału po dzisiejszym kursie —
+ * fmtDisplay odda wtedy dokładnie wpisaną kwotę (45 € zostaje 45 €, bez dryfu kursu).
+ */
+function txAmountForDisplay(tx) {
+  const amount = Number(tx && tx.amount) || 0;
+  const disp = getDisplayCurrency();
+  if (disp !== "PLN" && tx.origCurrency && String(tx.origCurrency).toUpperCase() === disp && typeof tx.origAmount === "number") {
+    const rate = getRate(disp);
+    if (isFinite(rate) && rate > 0) return (amount < 0 ? -1 : 1) * Math.abs(tx.origAmount) * rate;
+  }
+  return amount;
+}
+
 export {
   getCurrentRates,
   convertToPLN,
@@ -363,5 +378,6 @@ export {
   getRateForDate,
   getDisplayCurrency,
   setDisplayCurrency,
+  txAmountForDisplay,
   SUPPORTED_CURRENCIES,
 };

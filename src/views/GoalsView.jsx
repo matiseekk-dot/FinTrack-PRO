@@ -87,7 +87,7 @@ function GoalsView({ goals, setGoals, accounts, budgets, setBudgets, transaction
                 Dodaj cel — wakacje, nowy telefon, poduszka finansowa. Śledź postęp i odkładaj systematycznie.
               </div>
               <button onClick={openAdd} style={{
-                background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+                background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
                 borderRadius: 12, padding: "12px 24px", color: "white",
                 fontWeight: 700, fontSize: 14, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",

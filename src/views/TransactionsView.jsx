@@ -6,18 +6,29 @@ import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt, todayLocal } from "../utils.js";
+import { fmt, fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { CATEGORIES, getCat, INITIAL_TEMPLATES } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
-import { t } from "../i18n.js";
+import { t, getLang } from "../i18n.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
 import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
-import { getRate, getCurrentRates, getRateForDate, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { getRate, getCurrentRates, getRateForDate, getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { txAmountInAccountCurrency } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
-function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [] }) {
+import { MODULES, SIDE_MODULES, getModule, moduleLabel } from "../lib/modules.js";
+
+// Wybór modułu w formularzu ustawia sensowną kategorię, żeby statystyki i analiza
+// (oparte na kategoriach) widziały wpis tak samo jak moduł.
+const MODULE_DEFAULT_CAT = {
+  betting:     { expense: "bukmacher", income: "bukmacherka" },
+  reselling:   { income: "sprzedaż" },
+  freelance:   { income: "dodatkowe" },
+  investments: { expense: "inwestycje" },
+};
+
+function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -26,6 +37,17 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
+  // Filtr modułu: kontrolowany z App (klik w moduł na Home) albo lokalny
+  const [localModFilter, setLocalModFilter] = useState("all");
+  const modFilter = onModuleFilterChange ? (moduleFilter || "all") : localModFilter;
+  const setModFilter = onModuleFilterChange || setLocalModFilter;
+  const lang = getLang();
+  // Moduły do wyboru przy wpisie: włączone moduły dochodu pobocznego + budżet osobisty.
+  // Wyjazdy mają własny wybór (tag wyjazdu), więc tu ich nie ma.
+  const formModules = Array.isArray(modules)
+    ? [...SIDE_MODULES.filter(id => modules.includes(id)), ...(modules.includes("personal") ? ["personal"] : [])]
+    : [];
+  const filterModules = Array.isArray(modules) ? modules : [];
   const [editingId, setEditingId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const getEmptyForm = () => {
@@ -34,8 +56,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     const presetTripId = presetTrip ? presetTrip.id : null;
     // v1.4.1: preselect waluty z aktywnego wyjazdu. Jedziesz do Serbii, defaultCurrency=EUR,
     // dodajesz tx — waluta od razu ustawiona na EUR, nie musisz klikać dropdownu.
-    const presetCurrency = (presetTrip && presetTrip.defaultCurrency) || "PLN";
-    return { date: todayLocal(), desc: "", amount: "", cat: "jedzenie", acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId };
+    const presetCurrency = (presetTrip && presetTrip.defaultCurrency) || getDisplayCurrency();
+    // Gdy lista jest przefiltrowana do modułu, nowy wpis domyślnie trafia do tego modułu
+    const presetModule = formModules.includes(modFilter) ? modFilter : null;
+    const presetCat = (presetModule && MODULE_DEFAULT_CAT[presetModule] && MODULE_DEFAULT_CAT[presetModule].expense) || "jedzenie";
+    return { date: todayLocal(), desc: "", amount: "", cat: presetCat, acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId, module: presetModule };
   };
   const [form, setForm] = useState(getEmptyForm);
   const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
@@ -170,6 +195,9 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     if (form.type === "expense" && form.tripId != null) {
       txData.tripId = form.tripId;
     }
+    // v2.0.0 Sidegig: jawny moduł. Brak wyboru = moduł liczony z kategorii/tagu (getModule).
+    if (form.module) txData.module = form.module;
+    else if (editingId) txData.module = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
     // (oszczędność miejsca + backward compat — stare tx czytane jako PLN).
     // Edge case: edit walutowej → PLN MUSI explicit-null'ować stare pola,
@@ -240,6 +268,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       if (filter === "income" && t.amount <= 0) continue;
       if (filter === "expense" && t.amount >= 0) continue;
       if (filterCat !== "all" && t.cat !== filterCat) continue;
+      if (modFilter !== "all" && getModule(t, hobbies) !== modFilter) continue;
       if (searchLower !== "") {
         const descMatch = t.desc && t.desc.toLowerCase().includes(searchLower);
         const catLabel = getLocalCat(t.cat).label;
@@ -253,7 +282,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
 
     const sorted = Object.entries(groupMap).sort((a, b) => b[0].localeCompare(a[0]));
     return { filtered: result, grouped: sorted };
-  }, [transactions, filter, filterCat, search, todayStr2]);
+  }, [transactions, filter, filterCat, search, todayStr2, modFilter, hobbies]);
 
   // Free tier warning - pokaż gdy blisko limitu
   const tierCheck = canAddTransaction(transactions, proStatus?.isPro);
@@ -290,8 +319,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         </div>
       )}
 
-      {/* Quick templates */}
-      <div style={{ overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 8, paddingTop: 8,
+      {/* Quick templates — szablony budżetu osobistego (PLN), tylko z modułem Budżet osobisty */}
+      {(!modules || modules.includes("personal")) && <div style={{ overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 8, paddingTop: 8,
         scrollbarWidth: "none", msOverflowStyle: "none" }}>
         <div style={{ display: "inline-flex", gap: 6, paddingLeft: 0 }}>
           {((() => { try { const s = JSON.parse(localStorage.getItem("ft_templates") || JSON.stringify(INITIAL_TEMPLATES)); return s.map(t => ({...t, desc: t.desc === "Zhabka" ? "Zabka" : t.desc})); } catch(_) { return INITIAL_TEMPLATES; } })()).map(tpl => (
@@ -313,7 +342,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div style={{ paddingTop: 4, paddingBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -325,9 +354,33 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             ))}
           </div>
           <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{ background: "#1e3a5f", border: "1px solid #2563eb44", color: "#60a5fa", borderRadius: 10, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600 }}>
-            <PlusCircle size={13}/> Dodaj
+            <PlusCircle size={13}/> {t("common.add", "Dodaj")}
           </button>
         </div>
+
+        {/* Filtr modułów Sidegig */}
+        {filterModules.length > 1 && (
+          <div role="group" aria-label={t("tx.module.filter", "Filtr modułu")} style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
+            {["all", ...filterModules].map(id => {
+              const on = modFilter === id;
+              const color = id === "all" ? "#34d399" : MODULES[id].color;
+              const Icon = id === "all" ? null : MODULES[id].icon;
+              return (
+                <button key={id} onClick={() => setModFilter(id)} aria-pressed={on} style={{
+                  display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
+                  padding: "6px 10px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap",
+                  fontSize: 11, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+                  background: on ? color + "22" : "#0d1628",
+                  border: `1px solid ${on ? color : "#1a2744"}`,
+                  color: on ? color : "#64748b",
+                }}>
+                  {Icon && <Icon size={12}/>}
+                  {id === "all" ? t("tx.module.all", "Wszystkie moduły") : moduleLabel(id, lang)}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Wyszukiwanie — zawsze widoczne */}
         <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -372,7 +425,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             </div>
             {!search && filterCat === "all" && (
               <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
-                background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+                background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
                 borderRadius: 12, padding: "12px 24px", color: "white",
                 fontWeight: 700, fontSize: 14, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",
@@ -383,15 +436,15 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         {grouped.map(([date, txs]) => (
           <div key={date}>
             {(() => {
-              const dayTotal = txs.filter(t => t.cat !== "inne").reduce((s,t) => s + t.amount, 0);
-              const dayExp   = txs.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(t.amount), 0);
+              const dayTotal = txs.filter(t => t.cat !== "inne").reduce((s,t) => s + txAmountForDisplay(t), 0);
+              const dayExp   = txs.filter(t => t.amount < 0 && t.cat !== "inne").reduce((s,t) => s + Math.abs(txAmountForDisplay(t)), 0);
               return (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em" }}>{date}</div>
                   {dayExp > 0 && (
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700,
                       color: dayTotal >= 0 ? "#10b981" : "#ef4444" }}>
-                      {dayTotal >= 0 ? "+" : "−"}{fmt(Math.abs(dayTotal))}
+                      {dayTotal >= 0 ? "+" : "−"}{fmtDisplay(Math.abs(dayTotal))}
                     </div>
                   )}
                 </div>
@@ -402,6 +455,12 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 const cat = getLocalCat(tx.cat);
                 const Icon = cat.icon;
                 const acc = accounts.find(a => a.id === tx.acc);
+                // Kwota w walucie głównej; gdy wpis był w tej walucie — dokładnie ta kwota (bez dryfu kursu).
+                // Oryginalna waluta pod spodem tylko gdy różni się od głównej.
+                const dispCur = getDisplayCurrency();
+                const nativeCur = (tx.origCurrency && tx.origAmount != null) ? tx.origCurrency.toUpperCase() : "PLN";
+                const nativeAmt = Math.abs(nativeCur === "PLN" ? tx.amount : tx.origAmount);
+                const mainAmt = nativeCur === dispCur ? fmtCurrency(nativeAmt, dispCur) : fmtDisplay(Math.abs(tx.amount));
                 return (
                   <div key={tx.id}
                     style={{
@@ -426,9 +485,9 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc}</div>
-                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-                        <span>{cat.label}</span>
-                        {acc && <><span>·</span><span style={{ color: acc.color }}>{acc.name}</span></>}
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2, display: "flex", alignItems: "center", gap: 5, overflow: "hidden", whiteSpace: "nowrap" }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{cat.label}</span>
+                        {acc && <><span>·</span><span style={{ color: acc.color, overflow: "hidden", textOverflow: "ellipsis" }}>{acc.name}</span></>}
                       </div>
                     </div>
 
@@ -436,11 +495,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600,
                         color: tx.amount > 0 ? "#10b981" : "#ef4444" }}>
-                        {tx.amount > 0 ? "+" : "−"}{fmt(Math.abs(tx.amount))}
+                        {tx.amount > 0 ? "+" : "−"}{mainAmt}
                       </div>
-                      {tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null && (
+                      {nativeCur !== dispCur && (
                         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#64748b", marginTop: 1 }}>
-                          {fmt(Math.abs(tx.origAmount)).replace(" zł", "")} {tx.origCurrency}
+                          {fmtCurrency(nativeAmt, nativeCur)}
                         </div>
                       )}
                     </div>
@@ -479,7 +538,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           setForm({ date: todayLocal(), desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
                             type: tx.amount > 0 ? "income" : "expense",
-                            currency: "PLN", tripId: null });
+                            currency: "PLN", tripId: null, module: tx.module || null });
                           setModal(true);
                         }}
                         title={t("tx.copy", "Kopiuj")}
@@ -500,6 +559,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                             type: tx.amount > 0 ? "income" : "expense",
                             currency: hasFx ? tx.origCurrency : "PLN",
                             tripId: tx.tripId || null,
+                            module: tx.module || null,
                           });
                           setModal(true);
                         }}
@@ -560,12 +620,49 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               } else if (v === "expense" && !expenseCatsList.find(cat => cat.id === f.cat)) {
                 nextCat = "jedzenie";
               }
+              // Wybrany moduł ma swoją kategorię dla danego typu (np. Zakłady: stawka / wygrana)
+              const modCat = f.module && MODULE_DEFAULT_CAT[f.module] && MODULE_DEFAULT_CAT[f.module][v];
+              if (modCat) nextCat = modCat;
               return { ...f, type: v, cat: nextCat };
             })} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}>
               {l}
             </button>
           ))}
         </div>
+        {/* Moduł Sidegig (bez przelewów — te zawsze są neutralne) */}
+        {form.type !== "transfer" && formModules.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {t("tx.module.label", "Moduł")}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[null, ...formModules].map(id => {
+                const on = (form.module || null) === id;
+                const color = id ? MODULES[id].color : "#94a3b8";
+                return (
+                  <button key={id || "auto"} type="button" aria-pressed={on} onClick={() => setForm(f => {
+                    const cat = id && MODULE_DEFAULT_CAT[id] && MODULE_DEFAULT_CAT[id][f.type];
+                    return { ...f, module: id, cat: cat || f.cat };
+                  })} style={{
+                    padding: "6px 11px", borderRadius: 9, cursor: "pointer",
+                    fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+                    background: on ? color + "22" : "#060b14",
+                    border: `1px solid ${on ? color : "#1a2744"}`,
+                    color: on ? color : "#64748b",
+                  }}>
+                    {id ? moduleLabel(id, lang) : t("tx.module.auto", "Auto")}
+                  </button>
+                );
+              })}
+            </div>
+            {!form.module && (
+              <div style={{ fontSize: 10, color: "#475569", marginTop: 5 }}>
+                {t("tx.module.autoHint", "Auto: moduł dobierany z kategorii (np. Zakłady → Zakłady, Sprzedaż → Odsprzedaż).")}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Description with autocomplete */}
         <div style={{ marginBottom: 14, position: "relative" }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6,
@@ -686,32 +783,33 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          {/* Currency conversion preview — live z NBP (24h cache) */}
-          {form.currency && form.currency !== "PLN" && form.amount && (() => {
-            const r  = getRate(form.currency);
+          {/* Currency conversion preview — live z NBP (24h cache). Pokazujemy równowartość
+              w walucie głównej; gdy wpis jest w walucie głównej, podgląd jest zbędny. */}
+          {form.currency && form.amount && form.currency !== getDisplayCurrency() && (() => {
+            const r  = form.currency === "PLN" ? 1 : getRate(form.currency);
             const safeRate = isFinite(r) ? r : 1;
-            const pln = (parseFloat(form.amount) * safeRate).toFixed(2);
-            const fx = getCurrentRates();
+            const plnValue = parseFloat(form.amount) * safeRate;
+            const dispIsPLN = getDisplayCurrency() === "PLN";
             return (
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#475569" }}>
-                  {form.amount} {form.currency} × {safeRate.toFixed(4)} =
+                  {form.amount} {form.currency}{dispIsPLN ? ` × ${safeRate.toFixed(4)} =` : " ≈"}
                 </span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>
-                  {pln} PLN
+                  {fmtDisplay(plnValue)}
                 </span>
               </div>
             );
           })()}
           {/* Rate note — pokazuje źródło i datę kursu */}
-          {form.currency && form.currency !== "PLN" && (() => {
+          {form.currency && form.currency !== getDisplayCurrency() && (() => {
             const fx = getCurrentRates();
             const sourceLabel = fx.source === "nbp" || fx.source === "cache"
-              ? `Kurs NBP (Tabela A) z ${fx.date}`
-              : `Kurs offline (z ${fx.date}) — sprawdź połączenie`;
+              ? t("tx.fx.source", "Kurs NBP (Tabela A) z {date}").replace("{date}", fx.date)
+              : t("tx.fx.offline", "Kurs offline (z {date}) — sprawdź połączenie").replace("{date}", fx.date);
             return (
               <div style={{ fontSize: 10, color: fx.source === "fallback" ? "#f59e0b" : "#334155", marginTop: 4 }}>
-                {sourceLabel} · zapis w PLN
+                {sourceLabel}
               </div>
             );
           })()}

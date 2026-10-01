@@ -43,7 +43,7 @@ function PortfolioCombinedView({
               justifyContent: "center",
               gap: 6,
               background: subTab === id
-                ? "linear-gradient(135deg,#1e40af,#7c3aed)"
+                ? "linear-gradient(135deg,#059669,#10b981)"
                 : "#0f1825",
               border: subTab === id ? "1px solid #2563eb" : "1px solid #1a2744",
               color: subTab === id ? "white" : "#64748b",

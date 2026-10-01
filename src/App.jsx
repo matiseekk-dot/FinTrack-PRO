@@ -1,12 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
-  Wallet, PlusCircle, X, Home, List, PiggyBank, BarChart2, Settings,
-  Briefcase, Bell, RefreshCw, Cloud, CloudOff
+  Wallet, PlusCircle, X, Home, List, Settings,
+  Briefcase, Bell, RefreshCw, Cloud, CloudOff, LayoutGrid, Menu
 } from "lucide-react";
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
-import { Onboarding } from "./components/Onboarding.jsx";
-import { EmptyStateSetup } from "./components/EmptyStateSetup.jsx";
+import { SidegigSetup } from "./components/SidegigSetup.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
 import { TransactionsView } from "./views/TransactionsView.jsx";
@@ -14,6 +13,8 @@ import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
 import { PlansView } from "./views/PlansView.jsx";
 import { PaymentsView } from "./views/PaymentsView.jsx";
 import { AnalyticsView } from "./views/AnalyticsView.jsx";
+import { SidegigHome } from "./views/SidegigHome.jsx";
+import { MoreView } from "./views/MoreView.jsx";
 import { saveToStorage, loadFromStorage } from "./data/storage.js";
 import { todayLocal, getCurrentCycleMonth } from "./utils.js";
 import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
@@ -26,7 +27,8 @@ import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
 import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
 import { getDisplayCurrency, setDisplayCurrency } from "./lib/fx.js";
-import { t } from "./i18n.js";
+import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
+import { t, getLang } from "./i18n.js";
 import { useSessionTracker } from "./hooks/useSessionTracker.js";
 import { useStreak } from "./hooks/useStreak.js";
 import { RatingPrompt } from "./components/RatingPrompt.jsx";
@@ -95,6 +97,9 @@ function applyData(d, s) {
       // (display currency jest re-czytane sync przy każdym fmtDisplay)
     }
   }
+  // v2.0.0 Sidegig: włączone moduły. null = setup Sidegig jeszcze nie przeprowadzony.
+  const mods = sanitizeModules(d.modules);
+  if (mods && s.setModules) s.setModules(mods);
   if (d.templates) try { localStorage.setItem("ft_templates", JSON.stringify(d.templates)); } catch(_) {}
   if (d.vacation)  try { localStorage.setItem("ft_vacation",  JSON.stringify(d.vacation));  } catch(_) {}
 }
@@ -103,7 +108,18 @@ export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
   const { showRatingPrompt, dismissRating } = useSessionTracker();
 
-  const [tab,          setTab]          = useState("dashboard");
+  const [tab,          setTab]          = useState("home");
+  // Sidegig: włączone moduły (null = setup jeszcze nie zrobiony → onboarding Sidegig)
+  const [modules,      setModules]      = useState(null);
+  // true gdy Firestore load się zakończył (albo nie ma czego ładować) — onboarding czeka na to,
+  // żeby drugie urządzenie nie pokazało setupu zanim przyjdą moduły z chmury.
+  const [remoteChecked, setRemoteChecked] = useState(false);
+  // Filtr modułu w zakładce Ledger (ustawiany kliknięciem wiersza na Home)
+  const [ledgerModule, setLedgerModule] = useState("all");
+  // Ponowne otwarcie setupu z Więcej → Moduły
+  const [setupOpen,    setSetupOpen]    = useState(false);
+  // Sub-zakładka Planów otwierana z Home (np. "trips")
+  const [plansSub,     setPlansSub]     = useState(null);
   const openUpgrade = (trigger) => setUpgradeModal({ open: true, trigger });
   // Expose globalnie dla komponentów które nie mają props (np. SettingsPanel close → upgrade)
   if (typeof window !== "undefined") window.__openUpgrade = openUpgrade;
@@ -167,6 +183,7 @@ export default function App() {
     tombstones,
     proStatus: getProStatusRaw(),       // v1.2.7: sync PRO status między urządzeniami
     displayCurrency: getDisplayCurrency(), // v1.5.1: sync waluty wyświetlania
+    ...(modules ? { modules } : {}),       // v2.0.0: moduły Sidegig (pomijane dopóki nie wybrane)
     templates: (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })(),
     vacation:  (() => { try { return JSON.parse(localStorage.getItem("ft_vacation")  || "null"); } catch(_) { return null; } })(),
   };
@@ -232,7 +249,7 @@ export default function App() {
     setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals,
     setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
     setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
-    setTrips, setHobbies, setTombstones,
+    setTrips, setHobbies, setTombstones, setModules,
     refreshProStatus: () => setProStatus(getProStatus()),  // v1.2.7: po sync PRO statusu
   };
 
@@ -269,10 +286,11 @@ export default function App() {
   // Load from Firestore when user logs in
   useEffect(() => {
     if (!user || !loaded) return;
-    if (skipFirestoreLoad.current) return;
+    if (skipFirestoreLoad.current) { setRemoteChecked(true); return; }
     let cancelled = false;
     loadFromFirestore(user.uid).then(d => {
       if (cancelled) return;
+      setRemoteChecked(true);
       if (d) {
         applyData(d, setters);
         if (!onboarded && (d.transactions?.length > 0 || d.payments?.length > 0)) {
@@ -315,11 +333,13 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus, modules]);
 
   // Save to Firestore
   useEffect(() => {
-    if (!loaded || !user || clearingRef.current) return;
+    // remoteChecked: nie zapisuj do chmury zanim dane z chmury się wczytają — inaczej
+    // nowe urządzenie mogłoby nadpisać Firestore pustym stanem lokalnym.
+    if (!loaded || !user || clearingRef.current || !remoteChecked) return;
     let cancelled = false;
     const t = setTimeout(() => {
       if (clearingRef.current || cancelled) return;
@@ -328,7 +348,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus]);
+  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, tombstones, proStatus, modules]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -488,24 +508,30 @@ export default function App() {
     return true;
   }).length;
 
+  const enabledModules = modules || [];
+  const hasPersonal = enabledModules.includes("personal");
+  // 3 zakładki | przycisk + | 2 zakładki. Ekrany budżetu osobistego (rachunki, analiza)
+  // są w Więcej, żeby pasek mieścił się na 320px.
   const TABS = [
-    { id: "dashboard",    label: t("nav.start"),        Icon: Home },
-    { id: "transactions", label: t("nav.transactions"), Icon: List },
-    { id: "payments",     label: t("nav.payments"),     Icon: ({ size, color }) => <Bell size={size} color={color}/>, badge: unpaidBillsCount },
-    { id: "plans",        label: t("nav.plans"),        Icon: PiggyBank },
-    { id: "analytics",    label: t("nav.analytics"),    Icon: BarChart2 },
-    { id: "portfolio",    label: t("nav.accounts"),     Icon: Briefcase },
+    { id: "home",         label: t("nav.home", "Start"),   Icon: Home },
+    { id: "transactions", label: t("nav.ledger", "Wpisy"), Icon: List },
+    { id: "plans",        label: t("nav.plans", "Plany"),  Icon: LayoutGrid },
+    hasPersonal
+      ? { id: "dashboard", label: t("nav.budget", "Budżet"), Icon: Wallet }
+      : { id: "portfolio", label: t("nav.accounts", "Konta"), Icon: Briefcase },
+    { id: "more",         label: t("nav.more", "Więcej"),  Icon: Menu, badge: hasPersonal ? unpaidBillsCount : 0 },
   ];
+  const goTab = (id) => { if (id === "plans") setPlansSub(null); setTab(id); };
 
   // Loading
-  if (!loaded || authLoading) return (
+  if (!loaded || authLoading || (user && modules === null && !remoteChecked)) return (
     <div style={{ background: "#060b14", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
       <FontLoader/>
-      <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Wallet size={24} color="white"/>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: 24 }}>
+        S
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>FinTrack PRO</div>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>Sidegig</div>
         {streak >= 2 && (
           <div style={{ background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
             padding: "2px 8px", display: "flex", alignItems: "center", gap: 4 }}>
@@ -514,38 +540,42 @@ export default function App() {
           </div>
         )}
       </div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#475569" }}>{authLoading ? "Sprawdzam konto..." : "Wczytuje dane..."}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#475569" }}>{authLoading ? t("app.checkingAccount", "Sprawdzam konto…") : t("app.loadingData", "Wczytuję dane…")}</div>
     </div>
   );
 
   // Login
   if (!user) return <LoginScreen onSignIn={signInGoogle} loading={authLoading} syncError={syncError}/>;
 
-  // Onboarding
-  if (!onboarded) return (
-    <Onboarding
-      onFinish={() => { skipFirestoreLoad.current = true; localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
-      onLoadDemo={() => { skipFirestoreLoad.current = true; loadDemo(); localStorage.setItem("ft_onboarded","1"); setOnboarded(true); }}
-    />
-  );
-
-  // Empty state setup - po onboardingu, jeśli user nie dodał jeszcze konta
-  const needsSetup = loaded && onboarded &&
-    transactions.length === 0 &&
-    accounts.every(a => !a.balance || a.balance === 0) &&
-    localStorage.getItem("ft_setup_done") !== "1";
-
-  if (needsSetup) return (
-    <EmptyStateSetup
-      onComplete={(accData) => {
-        // Zastąp domyślne konta pierwszym userskim kontem
-        const newAcc = { id: Date.now(), ...accData };
-        setAccounts([newAcc, { id: Date.now()+1, name: t("acc.defaultSavings", "Oszczędności"), type: "savings", bank: "", balance: 0, color: "#10b981", iban: "" }]);
-        setDefaultAcc(newAcc.id);
-        localStorage.setItem("ft_setup_done", "1");
-      }}
-    />
-  );
+  // Setup Sidegig — raz dla każdego (także dla użytkowników FinTrack po aktualizacji)
+  // oraz ponownie z Więcej → Moduły. Użytkownik z danymi dostaje moduły zaznaczone
+  // na podstawie tego, co już ma; nic nie jest usuwane.
+  if (modules === null || setupOpen) {
+    const hasData = transactions.length > 0 || hobbies.length > 0 || trips.length > 0;
+    return (
+      <SidegigSetup
+        initialCurrency={hasData || modules !== null ? getDisplayCurrency() : "EUR"}
+        initialModules={modules || inferEnabledModules({ transactions, hobbies, trips, portfolio, payments })}
+        isReturningUser={modules === null && hasData}
+        canCancel={modules !== null}
+        onCancel={() => setSetupOpen(false)}
+        onDone={({ currency, modules: mods }) => {
+          setDisplayCurrency(currency);
+          // Nowy użytkownik: konto startowe od razu w walucie głównej (saldo 0, brak wpisów)
+          if (!hasData && currency !== "PLN") {
+            setAccounts(prev => prev.map(a =>
+              a.id === 1 && !a.currency && !a.balance ? { ...a, currency, name: getLang() === "pl" ? a.name : "Main account" } : a
+            ));
+          }
+          setModules(mods);
+          setSetupOpen(false);
+          localStorage.setItem("ft_onboarded", "1");
+          setOnboarded(true);
+          setTab("home");
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -559,11 +589,11 @@ export default function App() {
       {/* Top bar */}
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: "linear-gradient(180deg, #060b14 80%, transparent)", paddingTop: "calc(env(safe-area-inset-top, 0px) + 16px)", paddingLeft: 16, paddingRight: 16, paddingBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Wallet size={14} color="white"/>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: 15 }}>
+            S
           </div>
-          <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>FinTrack PRO</span>
-          {cycleDay > 1 && <span title={`Cykl rozliczeniowy: od ${cycleDay}. dnia miesiąca`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#78350f22", border: "1px solid #78350f66", borderRadius: 6, padding: "2px 6px" }}>Cykl {cycleDay}.</span>}
+          <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>Sidegig</span>
+          {hasPersonal && cycleDay > 1 && <span title={`Cykl rozliczeniowy: od ${cycleDay}. dnia miesiąca`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#78350f22", border: "1px solid #78350f66", borderRadius: 6, padding: "2px 6px" }}>Cykl {cycleDay}.</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {syncing && (
@@ -575,16 +605,16 @@ export default function App() {
           {syncOk && !syncing && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#052e16", border: "1px solid #14532d", borderRadius: 8, padding: "4px 8px" }}>
               <Cloud size={10} color="#10b981"/>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#10b981" }}>Zsync</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#10b981" }}>{t("app.synced", "Zsync")}</span>
             </div>
           )}
           {syncError && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 8, padding: "4px 8px" }}>
               <CloudOff size={10} color="#ef4444"/>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#ef4444" }}>Blad sync</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#ef4444" }}>{t("app.syncError", "Błąd sync")}</span>
             </div>
           )}
-          {unpaidBillsCount > 0 && (
+          {hasPersonal && unpaidBillsCount > 0 && (
             <button onClick={() => setTab("payments")} style={{ display: "flex", alignItems: "center", gap: 4, background: "#2d1212", border: "1px solid #7f1d1d", borderRadius: 8, padding: "5px 8px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700 }}>
               <Bell size={11}/> {unpaidBillsCount}
             </button>
@@ -592,15 +622,15 @@ export default function App() {
           <div style={{ position: "relative" }}>
             <button
               onClick={() => {
-                if (window.confirm(`Wylogować się z konta ${user.displayName || user.email}?`)) signOutUser();
+                if (window.confirm(`${t("app.signOutConfirm", "Wylogować się z konta")} ${user.displayName || user.email}?`)) signOutUser();
               }}
               title={`Wyloguj: ${user.displayName || user.email}`}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 2,
                 borderRadius: "50%", transition: "opacity 0.2s" }}
             >
               {user.photoURL
-                ? <img src={user.photoURL} alt="" style={{ width: 34, height: 34, borderRadius: "50%", border: "2px solid #2563eb", display: "block" }}/>
-                : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#1e40af,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #2563eb" }}>
+                ? <img src={user.photoURL} alt="" style={{ width: 34, height: 34, borderRadius: "50%", border: "2px solid #10b981", display: "block" }}/>
+                : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #10b981" }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>{(user.displayName || user.email || "U")[0].toUpperCase()}</span>
                   </div>
               }
@@ -612,11 +642,18 @@ export default function App() {
 
       {/* Pages */}
       <div style={{ paddingBottom: 100 }}>
+        {tab === "home"         && <ErrorBoundary><SidegigHome transactions={transactions} hobbies={hobbies} trips={trips} modules={enabledModules}
+            onOpenModule={(id) => { setLedgerModule(id); setTab("transactions"); }}
+            onAddTx={() => setQuickAddOpen(true)}
+            onOpenTrips={() => { setPlansSub("trips"); setTab("plans"); }}
+            onOpenBudget={() => setTab("dashboard")}
+            onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
+        {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} unpaidBillsCount={unpaidBillsCount} onNavigate={goTab} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
         {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactionsTracked} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} trips={trips} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccountsTracked} portfolio={portfolio} setPortfolio={setPortfolioTracked}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule}/></ErrorBoundary>}
           {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPaymentsTracked} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "plans"        && <ErrorBoundary><PlansView proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoalsTracked} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactionsTracked} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTripsTracked} hobbies={hobbies} setHobbies={setHobbiesTracked} portfolio={portfolio}/></ErrorBoundary>}
+          {tab === "plans"        && <ErrorBoundary><PlansView key={plansSub || "plans"} initialSubTab={plansSub} modules={enabledModules} proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoalsTracked} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactionsTracked} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTripsTracked} hobbies={hobbies} setHobbies={setHobbiesTracked} portfolio={portfolio}/></ErrorBoundary>}
           {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={effectiveCycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 
@@ -669,6 +706,7 @@ export default function App() {
           _onModalClose={() => setQuickAddOpen(false)}
           defaultAcc={defaultAcc}
           trips={trips}
+          modules={enabledModules} hobbies={hobbies}
         />
       )}
 
@@ -678,14 +716,14 @@ export default function App() {
           {TABS.slice(0, 3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;
             return (
-              <button key={id} onClick={() => setTab(id)} style={{ flex: 1, background: active ? "#1e3a5f" : "none", border: active ? "1px solid #2563eb44" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
-                <Icon size={15} color={active ? "#60a5fa" : "#334155"}/>
+              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
+                <Icon size={15} color={active ? "#34d399" : "#475569"}/>
                 {badge > 0 && <div style={{ position: "absolute", top: 4, right: 6, background: "#ef4444", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, fontWeight: 800, color: "white" }}>{badge > 9 ? "9+" : badge}</span></div>}
-                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#60a5fa" : "#334155", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
               </button>
             );
           })}
-          <button onClick={() => { setFabOpen(true); setTab("transactions"); }} style={{ flexShrink: 0, background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "2px solid #0a1120", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, boxShadow: "0 0 16px #7c3aed55", transition: "transform 0.12s ease", margin: "0 2px", borderRadius: 16, padding: "5px 8px", minWidth: 52 }}
+          <button onClick={() => { setFabOpen(true); setTab("transactions"); }} aria-label={t("nav.add", "Dodaj")} style={{ flexShrink: 0, background: "linear-gradient(135deg,#059669,#10b981)", border: "2px solid #0a1120", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, boxShadow: "0 0 16px #10b98155", transition: "transform 0.12s ease", margin: "0 2px", borderRadius: 16, padding: "5px 8px", minWidth: 52 }}
             onPointerDown={e => e.currentTarget.style.transform = "scale(0.9)"}
             onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}>
             <PlusCircle size={15} color="white"/>
@@ -694,10 +732,10 @@ export default function App() {
           {TABS.slice(3).map(({ id, label, Icon, badge }) => {
             const active = tab === id;
             return (
-              <button key={id} onClick={() => setTab(id)} style={{ flex: 1, background: active ? "#1e3a5f" : "none", border: active ? "1px solid #2563eb44" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
-                <Icon size={15} color={active ? "#60a5fa" : "#334155"}/>
+              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
+                <Icon size={15} color={active ? "#34d399" : "#475569"}/>
                 {badge > 0 && <div style={{ position: "absolute", top: 4, right: 6, background: "#ef4444", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, fontWeight: 800, color: "white" }}>{badge > 9 ? "9+" : badge}</span></div>}
-                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#60a5fa" : "#334155", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
               </button>
             );
           })}

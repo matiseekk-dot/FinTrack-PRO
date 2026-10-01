@@ -46,7 +46,7 @@ class ErrorBoundary extends Component {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 300 }}>
             <button onClick={this.resetError} style={{
-              background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+              background: "linear-gradient(135deg,#059669,#10b981)",
               border: "none", borderRadius: 12, padding: "12px 20px",
               color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer",
               fontFamily: "'Space Grotesk', sans-serif",

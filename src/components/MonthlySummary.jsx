@@ -89,7 +89,7 @@ function MonthlySummary({ transactions, month, cycleDay = 1, onClose }) {
         )}
 
         <button onClick={onClose} style={{
-          width: "100%", background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+          width: "100%", background: "linear-gradient(135deg,#059669,#10b981)",
           border: "none", borderRadius: 14, padding: "14px 0",
           color: "white", fontWeight: 800, fontSize: 15, cursor: "pointer",
           fontFamily: "'Space Grotesk', sans-serif",

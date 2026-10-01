@@ -20,27 +20,27 @@ function LoginScreen({ onSignIn, loading, syncError }) {
       {/* Logo */}
       <div style={{
         width: 80, height: 80, borderRadius: 22,
-        background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+        background: "linear-gradient(135deg,#059669,#10b981)", color: "white", fontWeight: 900,
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 36, marginBottom: 28,
-        boxShadow: "0 0 40px #7c3aed44",
+        boxShadow: "0 0 40px #10b98144",
       }}>
-        💰
+        S
       </div>
 
       <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 8, textAlign: "center" }}>
-        FinTrack PRO
+        Sidegig
       </div>
       <div style={{ fontSize: 15, color: "#475569", marginBottom: 48, textAlign: "center", lineHeight: 1.6 }}>
-        {t("login.tagline", "Twoje finanse pod kontrolą.")}<br/>{t("login.subtitle", "Zaloguj się żeby synchronizować dane między urządzeniami.")}
+        {t("login.tagline", "Cały Twój dochód poboczny w jednym miejscu.")}<br/>{t("login.subtitle", "Zaloguj się żeby synchronizować dane między urządzeniami.")}
       </div>
 
       {/* Features */}
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12, marginBottom: 48 }}>
         {[
-          { icon: "☁️", title: t("login.feat.sync.title", "Sync w chmurze"),    desc: t("login.feat.sync.desc",    "Dane dostępne na każdym urządzeniu") },
-          { icon: "🔒", title: t("login.feat.secure.title", "Bezpieczne"),       desc: t("login.feat.secure.desc",  "Dane szyfrowane, tylko Ty masz dostęp") },
-          { icon: "📊", title: t("login.feat.analytics.title", "Pełna analityka"), desc: t("login.feat.analytics.desc", "Wykresy, cele, raporty miesięczne") },
+          { icon: "🧾", title: t("login.feat.sync.title", "Wszystko w jednym miejscu"), desc: t("login.feat.sync.desc", "Zlecenia, sprzedaż, kolekcje, zakłady") },
+          { icon: "💱", title: t("login.feat.secure.title", "Każda waluta"), desc: t("login.feat.secure.desc", "Kurs z dnia wpisu, suma w Twojej walucie") },
+          { icon: "🔒", title: t("login.feat.analytics.title", "Prywatne i zsynchronizowane"), desc: t("login.feat.analytics.desc", "Szyfrowane na urządzeniu, kopia w chmurze") },
         ].map(({ icon, title, desc }) => (
           <div key={title} style={{
             display: "flex", alignItems: "center", gap: 14,

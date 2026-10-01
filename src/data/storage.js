@@ -1,5 +1,6 @@
 import { encryptString, decryptString } from "../lib/crypto.js";
 import { dateToLocal } from "../utils.js";
+import { sanitizeModules } from "../lib/modules.js";
 
 const LS_KEY = "fintrack_v1";
 
@@ -134,6 +135,13 @@ function migrateData(d) {
   } else {
     d.proStatus = null;
   }
+  // Sidegig (schema 2): enabled modules. Brak pola = użytkownik jeszcze nie przeszedł
+  // setupu Sidegig → App pokaże onboarding z modułami wywnioskowanymi z danych.
+  // Transakcje, hobby, wyjazdy NIE są przepisywane — moduł transakcji jest liczony
+  // w locie (lib/modules.js getModule), więc migracja nie może zgubić danych.
+  d.modules = sanitizeModules(d.modules);
+  d.schemaVersion = 2;
+
   // capitalize custom category labels (migration for old data)
   if (Array.isArray(d.customCats)) {
     d.customCats = d.customCats.map(c => {

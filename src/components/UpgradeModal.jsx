@@ -78,7 +78,7 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <Crown size={20} color="#fbbf24"/>
-              <span style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0" }}>FinTrack PRO</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0" }}>Sidegig PRO</span>
             </div>
             <div style={{ fontSize: 13, color: "#94a3b8" }}>
               {trigger === "limit" && t("upgrade.trigger.limit", "Osiągnięto limit 50 transakcji miesięcznie")}
@@ -109,7 +109,7 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
           ].map(p => (
             <button key={p.id} onClick={() => setPlan(p.id)} style={{
               flex: 1,
-              background: plan === p.id ? "linear-gradient(135deg,#1e40af,#7c3aed)" : "#0d1628",
+              background: plan === p.id ? "linear-gradient(135deg,#059669,#10b981)" : "#0d1628",
               border: plan === p.id ? "2px solid #60a5fa" : "1px solid #1e3a5f",
               borderRadius: 16, padding: "14px 10px", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -171,13 +171,13 @@ function UpgradeModal({ open, onClose, trigger, onActivated }) {
         {/* CTA */}
         <button onClick={handlePurchase} disabled={opening} style={{
           width: "100%", padding: 16, marginBottom: 10,
-          background: opening ? "#1e3a5f" : "linear-gradient(135deg,#1e40af,#7c3aed)",
+          background: opening ? "#1e3a5f" : "linear-gradient(135deg,#059669,#10b981)",
           border: "none", borderRadius: 14, color: "white",
           fontWeight: 800, fontSize: 15,
           cursor: opening ? "wait" : "pointer",
           fontFamily: "'Space Grotesk', sans-serif",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          boxShadow: opening ? "none" : "0 4px 20px #7c3aed55",
+          boxShadow: opening ? "none" : "0 4px 20px #10b98155",
           opacity: opening ? 0.7 : 1,
         }}>
           {opening ? <Sparkles size={18}/> : <ExternalLink size={18}/>}

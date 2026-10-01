@@ -200,11 +200,11 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           {t("dash.empty.desc", "Dodaj pierwszą transakcję żeby zobaczyć analizę, wykresy i raporty.")}
         </div>
         <button onClick={onAddTx} style={{
-          background: "linear-gradient(135deg,#1e40af,#7c3aed)", border: "none",
+          background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
           borderRadius: 14, padding: "14px 28px", color: "white",
           fontWeight: 800, fontSize: 15, cursor: "pointer",
           fontFamily: "'Space Grotesk', sans-serif",
-          boxShadow: "0 0 24px #7c3aed44",
+          boxShadow: "0 0 24px #10b98144",
         }}>
           + {t("dash.empty.addFirst", "Dodaj pierwszą transakcję")}
         </button>
@@ -290,7 +290,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
                 )}
               </div>
               <button onClick={onAddTx} style={{
-                background: "linear-gradient(135deg,#1e40af,#7c3aed)",
+                background: "linear-gradient(135deg,#059669,#10b981)",
                 border: "none", borderRadius: 14, padding: "12px 18px",
                 color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",
