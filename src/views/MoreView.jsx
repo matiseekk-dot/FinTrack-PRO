@@ -1,4 +1,4 @@
-import { Briefcase, Wallet, Bell, BarChart2, SlidersHorizontal, Settings, ChevronRight } from "lucide-react";
+import { Briefcase, SlidersHorizontal, Settings, ChevronRight } from "lucide-react";
 import { t, getLang } from "../i18n.js";
 import { MODULES, moduleLabel } from "../lib/modules.js";
 
@@ -7,8 +7,7 @@ import { MODULES, moduleLabel } from "../lib/modules.js";
  * Personal-budget screens (Budget, Bills, Insights) appear only when the
  * Personal budget module is enabled.
  */
-function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onOpenModule, onManageModules, onOpenSettings }) {
-  const personal = modules.includes("personal");
+function MoreView({ modules = [], onNavigate, onOpenModule, onManageModules, onOpenSettings }) {
   const lang = getLang();
   // Moduły z własnym ekranem (pozostałe są dostępne jako filtr w Wpisach)
   const screens = [
@@ -27,11 +26,6 @@ function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onOpenModule
       title: t("more.money", "Pieniądze"),
       items: [
         { id: "portfolio", Icon: Briefcase, color: "#60a5fa", label: t("more.accounts", "Konta"), desc: t("more.accountsDesc", "Salda, waluty kont, inwestycje") },
-        ...(personal ? [
-          { id: "dashboard", Icon: Wallet,   color: "#94a3b8", label: t("more.budget", "Budżet osobisty"), desc: t("more.budgetDesc", "Codzienne wydatki i cykl rozliczeniowy") },
-          { id: "payments",  Icon: Bell,     color: "#f59e0b", label: t("more.bills", "Rachunki"), desc: t("more.billsDesc", "Płatności cykliczne"), badge: unpaidBillsCount },
-          { id: "analytics", Icon: BarChart2, color: "#8b5cf6", label: t("more.insights", "Analiza"), desc: t("more.insightsDesc", "Ranking wydatków, trendy, porównania") },
-        ] : []),
       ],
     },
     {

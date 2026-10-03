@@ -3,14 +3,12 @@ import {
   Wallet, X, Settings, Edit2, Trash2
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
-import { TemplatesEditor } from "./TemplatesEditor.jsx";
 import { CATEGORIES } from "../constants.js";
 import { todayLocal } from "../utils.js";
 import { PinSettings } from "./PinLock.jsx";
 import { getLang, setLang, t } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
-import { importCSV, SUPPORTED_BANKS } from "../lib/csvImport.js";
 import { getCurrentRates, refreshRates, getDisplayCurrency, setDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
@@ -18,7 +16,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setTransactions, setAccounts, setBudgets, setCycleDay, setCustomCats,
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
-                         vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData,
+                         vacationArchive = [], partnerName = "Partner", onClearData,
                          proStatus = null, user = null,
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
                          trips = [], hobbies = [], portfolio = [],
@@ -65,46 +63,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [importStatus, setImportStatus] = useState(null); // null | "ok" | "err" | "loading"
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
-  const [confirmDemo,  setConfirmDemo]  = useState(false);
-  // CSV import: "auto" = wykryj z nagłówka, lub konkretne id banku
-  const [csvBankId, setCsvBankId]       = useState("auto");
   // FX status: "" | "ok" | "err"
   const [fxRefreshStatus, setFxRefreshStatus] = useState("");
   // v1.5.0: display currency (główna waluta wyświetlania majątku/sum)
   const [displayCur, setDisplayCur] = useState(getDisplayCurrency());
 
   if (!open) return null;
-
-  // === CycleDay management ===
-  // Zmiana cycleDay tworzy nowy entry w historii od pierwszego dnia bieżącego miesiąca
-  // (lub aktualizuje istniejący entry dla tego miesiąca jeśli już jest).
-  // Stare miesiące zachowują poprzednią wartość — kluczowe dla raportów rocznych.
-  const changeCycleDay = (newDay) => {
-    const day = Math.max(1, Math.min(28, parseInt(newDay) || 1));
-    const today = new Date();
-    const firstOfThisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-
-    // Update bieżącej wartości (UI)
-    setCycleDay(day);
-
-    // Zarządzanie historią
-    if (typeof setCycleDayHistory !== "function") return;
-    setCycleDayHistory(history => {
-      const arr = Array.isArray(history) ? [...history] : [];
-      // Usuń ewentualny istniejący entry dla bieżącego miesiąca (zastępujemy)
-      const filtered = arr.filter(e => e.from !== firstOfThisMonth);
-      // Jeśli nowa wartość = wartość ostatniego entry przed bieżącym miesiącem → nie dodawaj
-      // (no-op zmiana, np. user kliknął +1 i potem -1)
-      const sorted = [...filtered].sort((a, b) => a.from.localeCompare(b.from));
-      const lastBefore = sorted.filter(e => e.from < firstOfThisMonth).pop();
-      if (lastBefore && lastBefore.day === day) {
-        // Nie ma sensu dodawać redundant entry
-        return sorted;
-      }
-      return [...sorted, { from: firstOfThisMonth, day }]
-        .sort((a, b) => a.from.localeCompare(b.from));
-    });
-  };
 
   //    EXPORT (lazy-load XLSX - 137KB gzipped, 415KB raw)
   //    v1.5.1: kolumny rozszerzone o multi-currency + osobne arkusze Wyjazdy/Hobby
@@ -520,60 +484,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     e.target.value = ""; // reset input
   };
 
-  const handleImportCSV = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImportStatus("loading");
-    setImportMsg(t("settings.import.loadingCsv", "Wczytuję CSV…"));
-
-    // Konto docelowe dla zaimportowanych transakcji.
-    // Priorytet: defaultAcc (z ustawień) → pierwsze konto z listy → 1 jako ostatnia deska.
-    const importTargetAcc = (() => {
-      if (defaultAcc != null && accounts.some(a => a.id === defaultAcc)) return defaultAcc;
-      if (accounts.length > 0) return accounts[0].id;
-      return 1;
-    })();
-    const targetAccName = (accounts.find(a => a.id === importTargetAcc) || {}).name || "Konto główne";
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = ev.target.result;
-        // Parsowanie + kategoryzacja w lib/csvImport.js
-        const forceBank = csvBankId === "auto" ? null : csvBankId;
-        const result = importCSV(text, { accId: importTargetAcc, forceBankId: forceBank });
-        if (!result.ok) {
-          throw new Error(result.error || "Nie rozpoznano formatu");
-        }
-        const newTx = result.transactions;
-        const imported = newTx.length;
-
-        let added = 0;
-        setTransactions(prev => {
-          // Dedupe po (date+desc+amount) — ponowny import tego samego pliku nie podwaja
-          const existingIds = new Set(prev.map(t => t.date + t.desc + t.amount));
-          const unique = newTx.filter(t => !existingIds.has(t.date + t.desc + t.amount));
-          added = unique.length;
-          return [...unique, ...prev].sort((a, b) => b.date.localeCompare(a.date));
-        });
-
-        setImportStatus("ok");
-        const skipped = imported - added;
-        const skipNote = skipped > 0 ? ` (pominięto ${skipped} duplikatów)` : "";
-        setImportMsg(
-          `Zaimportowano ${added} z ${result.parser.name} → "${targetAccName}"${skipNote}. ` +
-          `Sprawdź kategorie w zakładce Transakcje.`
-        );
-      } catch (err) {
-        setImportStatus("err");
-        const banks = SUPPORTED_BANKS.filter(b => b.id !== "generic").map(b => b.name).join(", ");
-        setImportMsg(`Błąd: ${err.message}. Obsługiwane banki: ${banks}.`);
-      }
-    };
-    reader.readAsText(file, "UTF-8");
-    e.target.value = "";
-  };
-
   const Divider = () => (
     <div style={{ height: 1, background: "#1a2744", margin: "18px 0" }}/>
   );
@@ -669,7 +579,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           );
         })()}
 
-        {/* CYCLE SECTION */}
         {/* ── DOMYSLNE KONTO ── */}
         <SectionTitle>💳 {t("settings.defaultAcc.title", "Domyślne konto transakcji")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
@@ -708,133 +617,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </button>
           ))}
         </div>
-
-        <SectionTitle>📅 {t("settings.cycle.title", "Cykl rozliczeniowy")}</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
-          {t("settings.cycle.help", "Ustaw dzień miesiąca, od którego zaczyna się Twój cykl. Dzień 1 = standardowy miesiąc kalendarzowy. Np. dzień 25 → cykl \"Kwiecień\" to 25 mar – 24 kwi.")}
-        </p>
-        {Array.isArray(cycleDayHistory) && cycleDayHistory.length >= 1 && (
-          <div style={{
-            background: "#0d1f35", border: "1px solid #2563eb44",
-            borderRadius: 10, padding: "10px 12px", marginBottom: 14,
-            fontSize: 11, color: "#94a3b8", lineHeight: 1.5,
-          }}>
-            ℹ️ {t("settings.cycle.changeNote", "Zmiana wartości tworzy nowy zapis od 1. dnia bieżącego miesiąca. Wcześniejsze miesiące zachowują poprzednią wartość — historia raportów się nie rozjeżdża.")}
-          </div>
-        )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <div style={{ flex: 1, background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#94a3b8" }}>{t("settings.cycle.label", "Mój miesiąc zaczyna się")}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => changeCycleDay(cycleDay - 1)}
-                style={{ background: "#1a2744", border: "none", borderRadius: 8, width: 30, height: 30,
-                         cursor: "pointer", color: "#94a3b8", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: "#60a5fa", minWidth: 32, textAlign: "center" }}>{cycleDay}</span>
-              <button onClick={() => changeCycleDay(cycleDay + 1)}
-                style={{ background: "#1a2744", border: "none", borderRadius: 8, width: 30, height: 30,
-                         cursor: "pointer", color: "#94a3b8", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick presets */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          {[1, 10, 15, 20, 25, 27].map(d => (
-            <button key={d} onClick={() => changeCycleDay(d)} style={{
-              flex: 1, background: cycleDay === d ? "#1e3a5f" : "#060b14",
-              border: `1px solid ${cycleDay === d ? "#2563eb" : "#1a2744"}`,
-              borderRadius: 8, padding: "6px 0",
-              color: cycleDay === d ? "#60a5fa" : "#475569",
-              fontSize: 12, fontWeight: 700, cursor: "pointer",
-              fontFamily: "'DM Mono', monospace",
-            }}>{d}</button>
-          ))}
-        </div>
-        <div style={{ fontSize: 11, color: "#334155", marginBottom: 16, textAlign: "center" }}>
-          {cycleDay === 1
-            ? t("settings.cycle.standard", "Standardowy miesiąc kalendarzowy")
-            : `Cykl: ${cycleDay} poprzedniego → ${cycleDay - 1} bieżącego miesiąca`}
-        </div>
-
-        {/* Historia cycleDay - widoczna jeśli była zmiana */}
-        {Array.isArray(cycleDayHistory) && cycleDayHistory.length > 1 && (
-          <div style={{
-            background: "#060b14", border: "1px solid #1a2744",
-            borderRadius: 12, padding: "12px 14px", marginBottom: 20,
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
-              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8,
-              display: "flex", alignItems: "center", gap: 6 }}>
-              📚 Historia zmian cyklu
-            </div>
-            <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8 }}>
-              {t("settings.cycle.historyHelp", "Stare miesiące używają wartości z czasu kiedy obowiązywały — raporty roczne pozostają spójne.")}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {[...cycleDayHistory]
-                .sort((a, b) => a.from.localeCompare(b.from))
-                .map((entry, idx) => {
-                  const fromMonth = entry.from.slice(0, 7);
-                  const isInitial = entry.from === "1970-01-01";
-                  const label = isInitial
-                    ? t("settings.cycle.beforeLogging", "Początek (zanim zacząłeś logować)")
-                    : `Od ${fromMonth.slice(5,7)}/${fromMonth.slice(0,4)}`;
-                  return (
-                    <div key={idx} style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      padding: "6px 10px", background: "#0a1120", borderRadius: 8,
-                      fontSize: 11,
-                    }}>
-                      <span style={{ color: "#cbd5e1" }}>{label}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input
-                          type="number"
-                          min={1} max={28}
-                          value={entry.day}
-                          onChange={e => {
-                            const newDay = Math.max(1, Math.min(28, parseInt(e.target.value) || 1));
-                            if (typeof setCycleDayHistory === "function") {
-                              setCycleDayHistory(h =>
-                                (h || []).map(x => x.from === entry.from ? { ...x, day: newDay } : x)
-                              );
-                            }
-                          }}
-                          style={{
-                            width: 50, padding: "3px 6px",
-                            background: "#060b14", border: "1px solid #1e3a5f",
-                            borderRadius: 6, color: "#60a5fa", fontSize: 11,
-                            fontFamily: "'DM Mono', monospace", fontWeight: 700,
-                            textAlign: "center",
-                          }}
-                        />
-                        {!isInitial && cycleDayHistory.length > 1 && (
-                          <button
-                            onClick={() => {
-                              if (!window.confirm(`${t("settings.cycle.deleteEntryConfirm1", "Usunąć ten zapis?")} ${t("settings.cycle.deleteEntryConfirm2", "Miesiące od")} ${fromMonth} ${t("settings.cycle.deleteEntryConfirm3", "użyją wartości z poprzedniego zapisu.")}`)) return;
-                              if (typeof setCycleDayHistory === "function") {
-                                setCycleDayHistory(h => h.filter(e => e.from !== entry.from));
-                              }
-                            }}
-                            title={t("settings.cycle.deleteEntry", "Usuń ten zapis")}
-                            style={{
-                              background: "none", border: "none", cursor: "pointer",
-                              color: "#475569", fontSize: 14, padding: "0 4px",
-                            }}>
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              }
-            </div>
-            <div style={{ fontSize: 10, color: "#475569", marginTop: 8, lineHeight: 1.5 }}>
-              💡 {t("settings.cycle.editTip", "Możesz edytować dzień każdego zapisu lub go usunąć. Przydatne jeśli po migracji wartości historyczne są nieprawidłowe.")}
-            </div>
-          </div>
-        )}
 
         <Divider/>
 
@@ -1178,49 +960,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                  style={{ display: "none" }}/>
         </label>
 
-        {/* CSV bank picker — auto-detect lub wymuś konkretny bank */}
-        <div style={{ marginTop: 8 }}>
-          <label style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
-            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, display: "block" }}>
-            Format pliku CSV
-          </label>
-          <select
-            value={csvBankId}
-            onChange={e => setCsvBankId(e.target.value)}
-            style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
-              borderRadius: 10, padding: "10px 12px", color: "#e2e8f0",
-              fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
-              outline: "none", WebkitAppearance: "none", marginBottom: 8 }}>
-            <option value="auto">🔍 Wykryj automatycznie</option>
-            {SUPPORTED_BANKS.filter(b => b.id !== "generic").map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-            <option value="generic">Inny / generic CSV</option>
-          </select>
-        </div>
-
-        <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          background: "#060b14", border: "2px dashed #14532d",
-          borderRadius: 12, padding: "14px 0", cursor: "pointer",
-          color: "#10b981", fontWeight: 700, fontSize: 13,
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>
-          <span style={{ fontSize: 18 }}>🏦</span> Import wyciągu CSV (8 banków)
-          <input type="file" accept=".csv,.txt" onChange={handleImportCSV}
-                 style={{ display: "none" }}/>
-        </label>
-        {accounts.length > 0 && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", textAlign: "center" }}>
-            {t("settings.import.targetAcc", "Transakcje trafią do")}: <span style={{ color: "#10b981", fontWeight: 600 }}>
-              {(accounts.find(a => a.id === defaultAcc) || accounts[0]).name}
-            </span>
-            {" · "}
-            <span style={{ color: "#475569" }}>
-              ({t("settings.import.changeAcc", "zmień domyślne konto wyżej")})
-            </span>
-          </div>
-        )}
-
         {/* Import status */}
         {importStatus && (
           <div style={{
@@ -1351,25 +1090,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <Divider/>
 
-        {/* Notifications */}
-        <SectionTitle>🔔 {t("settings.reminders.title", "Przypomnienia")}</SectionTitle>
-        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px 16px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 6 }}>🔔 Automatyczne pop-upy</div>
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-            {t("settings.reminders.help", "Gdy otworzysz aplikację, automatycznie pojawi się żółty banner z listą płatności które są dziś, jutro lub za 3 dni. Działa bez żadnych uprawnień — tylko zamknij banner klikając ×.")}
-          </div>
-        </div>
-
-        <Divider/>
-
         {/* Custom categories */}
-        {/* ── SZABLONY TRANSAKCJI ── */}
-        <SectionTitle>⚡ {t("settings.templates.title", "Szablony transakcji")}</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          {t("settings.templates.help", "Szybkie dodawanie — widoczne nad listą transakcji.")}
-        </p>
-        <TemplatesEditor/>
-
         <SectionTitle>🌍 Język / Language</SectionTitle>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {[["pl", "🇵🇱 Polski"], ["en", "🇬🇧 English"]].map(([code, label]) => (
@@ -1389,40 +1110,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <PinSettings/>
         <Divider/>
 
-        <SectionTitle>👫 {t("settings.partner.title", "Nazwa partnera / partnerki")}</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-          {t("settings.partner.help", "Wyświetlana w module wspólnych rachunków.")}
-        </p>
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
-          <input
-            value={partnerName}
-            onChange={e => setPartnerName && setPartnerName(e.target.value)}
-            placeholder="np. Anna, Marek, Partner…"
-            maxLength={30}
-            style={{
-              flex: 1, background: "#0a1120", border: "1px solid #1a2744",
-              borderRadius: 10, padding: "10px 14px", color: "#e2e8f0",
-              fontSize: 16, fontFamily: "inherit",
-            }}
-          />
-        </div>
-
         {/* Data reset */}
         <Divider/>
         <SectionTitle>♻️ {t("settings.reset.title", "Resetowanie danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          {t("settings.reset.help", "Załaduj przykładowe dane żeby zobaczyć jak apka wygląda w pełni, lub zresetuj wszystko do czystego stanu.")}
+          {t("settings.reset.help", "Usuń wszystkie dane z tego urządzenia i z chmury.")}
         </p>
-        <button
-          onClick={() => setConfirmDemo(true)}
-          style={{
-            width: "100%", background: "#0a1e12", border: "1px solid #16a34a44",
-            borderRadius: 12, padding: "12px 0", color: "#10b981",
-            fontWeight: 700, fontSize: 14, cursor: "pointer",
-            fontFamily: "'Space Grotesk', sans-serif", marginBottom: 10,
-          }}>
-          🎬 {t("settings.reset.loadDemo", "Załaduj dane demo")}
-        </button>
         <button
           onClick={() => setConfirmClear(true)}
           style={{
@@ -1481,30 +1174,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         Sidegig · v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"} · 2025–{new Date().getFullYear()}
       </div>
 
-      {/* Confirm: załaduj demo */}
-      {confirmDemo && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
-          <div style={{ background: "#0a1120", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, fontFamily: "'Space Grotesk', sans-serif" }}>
-            <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🎬</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>{t("settings.demo.title", "Załadować dane demo?")}</div>
-            <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
-              {t("settings.demo.desc", "Twoje obecne dane zostaną zastąpione przykładowymi transakcjami i płatnościami.")}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDemo(false)} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 12, padding: "12px 0", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Anuluj
-              </button>
-              <button onClick={() => {
-                if (typeof onLoadDemo === "function") onLoadDemo();
-                setConfirmDemo(false);
-                onClose();
-              }} style={{ flex: 1, background: "linear-gradient(135deg,#052e16,#14532d)", border: "1px solid #16a34a44", borderRadius: 12, padding: "12px 0", color: "#10b981", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-                {t("settings.demo.confirm", "Załaduj demo")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

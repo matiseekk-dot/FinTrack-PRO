@@ -1,18 +1,15 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
-  Wallet, PlusCircle, X, Home, List, Settings,
-  Briefcase, Bell, RefreshCw, Cloud, CloudOff, LayoutGrid, Menu
+  PlusCircle, X, Home, List, Settings,
+  Briefcase, RefreshCw, Cloud, CloudOff, Plane, Menu
 } from "lucide-react";
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { SidegigSetup } from "./components/SidegigSetup.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
-import { Dashboard } from "./views/Dashboard.jsx";
 import { TransactionsView } from "./views/TransactionsView.jsx";
 import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
-import { PlansView } from "./views/PlansView.jsx";
-import { PaymentsView } from "./views/PaymentsView.jsx";
-import { AnalyticsView } from "./views/AnalyticsView.jsx";
+import { TripsView } from "./views/TripsView.jsx";
 import { SidegigHome } from "./views/SidegigHome.jsx";
 import { MoreView } from "./views/MoreView.jsx";
 import { BettingView } from "./views/BettingView.jsx";
@@ -24,10 +21,8 @@ import { sanitizeCollectionItems } from "./lib/collections.js";
 import { sanitizeGigs } from "./lib/freelance.js";
 import { saveToStorage, loadFromStorage } from "./data/storage.js";
 import { todayLocal, getCurrentCycleMonth } from "./utils.js";
-import { DEMO_TRANSACTIONS, DEMO_PAYMENTS, DEMO_ACCOUNTS } from "./data/demo.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, getAllCats } from "./constants.js";
 import { useFirebase } from "./hooks/useFirebase.js";
-import { requestNotificationPermission, schedulePaymentReminders } from "./notifications.js";
 import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { UpgradeModal } from "./components/UpgradeModal.jsx";
@@ -36,10 +31,6 @@ import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tie
 import { getDisplayCurrency, setDisplayCurrency } from "./lib/fx.js";
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
-import { useSessionTracker } from "./hooks/useSessionTracker.js";
-import { useStreak } from "./hooks/useStreak.js";
-import { RatingPrompt } from "./components/RatingPrompt.jsx";
-import { MonthlySummary } from "./components/MonthlySummary.jsx";
 
 function applyData(d, s) {
   if (!d) return;
@@ -119,7 +110,6 @@ const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance"];
 
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
-  const { showRatingPrompt, dismissRating } = useSessionTracker();
 
   const [tab,          setTab]          = useState("home");
   // Sidegig: włączone moduły (null = setup jeszcze nie zrobiony → onboarding Sidegig)
@@ -131,8 +121,6 @@ export default function App() {
   const [ledgerModule, setLedgerModule] = useState("all");
   // Ponowne otwarcie setupu z Więcej → Moduły
   const [setupOpen,    setSetupOpen]    = useState(false);
-  // Sub-zakładka Planów otwierana z Home (np. "trips")
-  const [plansSub,     setPlansSub]     = useState(null);
   // Widoki modułów (Zakłady, Sprzedaż): przycisk + z paska i edycja otwierana z Wpisów
   const [moduleAddSignal, setModuleAddSignal] = useState(0);
   const [focusBetTx,   setFocusBetTx]   = useState(null);
@@ -155,7 +143,6 @@ export default function App() {
   });
   const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
-  const streak = useStreak(transactions);
   const [budgets,      setBudgets]      = useState(INITIAL_BUDGETS);
   const [payments,     setPayments]     = useState(INITIAL_PAYMENTS);
   const [paid,         setPaid]         = useState(INITIAL_PAID);
@@ -177,7 +164,6 @@ export default function App() {
   const [tombstones,   setTombstones]   = useState({});
   const [fabOpen,      setFabOpen]      = useState(false);
   const [fabMenu,      setFabMenu]      = useState(false); // long press menu
-  const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const fabPressTimer  = useRef(null);
   const [loaded,       setLoaded]       = useState(false);
   const [pinLocked,    setPinLocked]    = useState(() => localStorage.getItem(PIN_ENABLED_KEY) === "1");
@@ -388,23 +374,6 @@ export default function App() {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
   }, [vacationArchive]);
 
-  // Monthly summary — show once at start of new month
-  useEffect(() => {
-    if (!loaded || !user) return;
-    const now = new Date();
-    const summaryKey = `ft_monthly_${now.getFullYear()}_${now.getMonth()}`;
-    const shown = localStorage.getItem(summaryKey);
-    if (!shown && now.getDate() <= 3) { // Show in first 3 days of month
-      const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-      const prevKey = `${now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear()}-${String(prevMonth+1).padStart(2,"0")}`;
-      const hasPrevData = transactions.some(t => t.date.startsWith(prevKey));
-      if (hasPrevData) {
-        setTimeout(() => setShowMonthlySummary(true), 2000);
-        localStorage.setItem(summaryKey, "1");
-      }
-    }
-  }, [loaded, user]);
-
   // Zablokuj PIN po powrocie z tła
   useEffect(() => {
     const handleVisibility = () => {
@@ -416,26 +385,6 @@ export default function App() {
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
-
-  // Request notification permission and schedule reminders
-  useEffect(() => {
-    if (!loaded || !user) return;
-    // Request permission once per session
-    const asked = localStorage.getItem("ft_notif_asked");
-    if (!asked) {
-      setTimeout(() => {
-        requestNotificationPermission(user.uid);
-        localStorage.setItem("ft_notif_asked", "1");
-      }, 5000); // ask after 5s so user is already in app
-    }
-    // Schedule local reminders - tylko raz dziennie
-    const today = todayLocal();
-    const lastNotif = localStorage.getItem("ft_notif_date");
-    if (lastNotif !== today) {
-      schedulePaymentReminders(payments, paid);
-      localStorage.setItem("ft_notif_date", today);
-    }
-  }, [loaded, user]);
 
   // Self-healing migration: capitalize labels + napraw zepsuty icon (po JSON roundtrip)
   useEffect(() => {
@@ -527,40 +476,17 @@ export default function App() {
     setTimeout(() => { clearingRef.current = false; }, 2000);
   };
 
-  const loadDemo = () => {
-    setAccounts(DEMO_ACCOUNTS);
-    setTransactions(DEMO_TRANSACTIONS);
-    setPayments(DEMO_PAYMENTS);
-    const demoKey = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
-    setPaid({ [`101_${demoKey}`]: true, [`102_${demoKey}`]: true, [`103_${demoKey}`]: true });
-  };
-
-  const currentMonthKey = `${new Date().getFullYear()}-${String(month+1).padStart(2,"0")}`;
-  const realMonthKey    = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
-  const unpaidBillsCount = payments.filter(p => {
-    if (!p.trackPaid || p.freq === "weekly" || p.freq === "daily") return false;
-    if (paid[`${p.id}_${realMonthKey}`]) return false;
-    if (p.freq === "bimonthly") {
-      const startM = p.startMonth || new Date().getMonth();
-      if (Math.abs(new Date().getMonth() - startM) % 2 !== 0) return false;
-    }
-    return true;
-  }).length;
-
   const enabledModules = modules || [];
-  const hasPersonal = enabledModules.includes("personal");
-  // 3 zakładki | przycisk + | 2 zakładki. Ekrany budżetu osobistego (rachunki, analiza)
-  // są w Więcej, żeby pasek mieścił się na 320px.
+  // Pasek: zakładki po obu stronach przycisku +. Wyjazdy tylko z włączonym modułem.
   const TABS = [
     { id: "home",         label: t("nav.home", "Start"),   Icon: Home },
     { id: "transactions", label: t("nav.ledger", "Wpisy"), Icon: List },
-    { id: "plans",        label: t("nav.plans", "Plany"),  Icon: LayoutGrid },
-    hasPersonal
-      ? { id: "dashboard", label: t("nav.budget", "Budżet"), Icon: Wallet }
-      : { id: "portfolio", label: t("nav.accounts", "Konta"), Icon: Briefcase },
-    { id: "more",         label: t("nav.more", "Więcej"),  Icon: Menu, badge: hasPersonal ? unpaidBillsCount : 0 },
+    ...(enabledModules.includes("trips") ? [{ id: "trips", label: t("nav.trips", "Wyjazdy"), Icon: Plane }] : []),
+    { id: "portfolio",    label: t("nav.accounts", "Konta"), Icon: Briefcase },
+    { id: "more",         label: t("nav.more", "Więcej"),  Icon: Menu },
   ];
-  const goTab = (id) => { if (id === "plans") setPlansSub(null); setTab(id); };
+  const navSplit = Math.ceil(TABS.length / 2);
+  const goTab = (id) => setTab(id);
   // Zakłady i Sprzedaż mają własne ekrany; pozostałe moduły to przefiltrowane Wpisy
   const openModule = (id) => {
     if (MODULE_SCREENS.includes(id)) { setTab(id); return; }
@@ -584,13 +510,6 @@ export default function App() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 22, color: "#e2e8f0" }}>Sidegig</div>
-        {streak >= 2 && (
-          <div style={{ background: "#78350f22", border: "1px solid #f59e0b44", borderRadius: 8,
-            padding: "2px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 13 }}>🔥</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono', monospace" }}>{streak}</span>
-          </div>
-        )}
       </div>
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#475569" }}>{authLoading ? t("app.checkingAccount", "Sprawdzam konto…") : t("app.loadingData", "Wczytuję dane…")}</div>
     </div>
@@ -645,7 +564,6 @@ export default function App() {
             S
           </div>
           <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>Sidegig</span>
-          {hasPersonal && cycleDay > 1 && <span title={`Cykl rozliczeniowy: od ${cycleDay}. dnia miesiąca`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#78350f22", border: "1px solid #78350f66", borderRadius: 6, padding: "2px 6px" }}>Cykl {cycleDay}.</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {syncing && (
@@ -665,11 +583,6 @@ export default function App() {
               <CloudOff size={10} color="#ef4444"/>
               <span style={{ fontSize: 10, fontWeight: 700, color: "#ef4444" }}>{t("app.syncError", "Błąd sync")}</span>
             </div>
-          )}
-          {hasPersonal && unpaidBillsCount > 0 && (
-            <button onClick={() => setTab("payments")} style={{ display: "flex", alignItems: "center", gap: 4, background: "#2d1212", border: "1px solid #7f1d1d", borderRadius: 8, padding: "5px 8px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700 }}>
-              <Bell size={11}/> {unpaidBillsCount}
-            </button>
           )}
           <div style={{ position: "relative" }}>
             <button
@@ -697,20 +610,17 @@ export default function App() {
         {tab === "home"         && <ErrorBoundary><SidegigHome transactions={transactions} hobbies={hobbies} trips={trips} portfolio={portfolio} gigs={gigs} resaleItems={resaleItems} collectionItems={collectionItems} modules={enabledModules}
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
-            onOpenTrips={() => { setPlansSub("trips"); setTab("plans"); }}
-            onOpenBudget={() => setTab("dashboard")}
+            onOpenTrips={() => setTab("trips")}
+            onOpenBudget={() => { setLedgerModule("personal"); setTab("transactions"); }}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
-        {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} unpaidBillsCount={unpaidBillsCount} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
+        {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
         {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
         {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
         {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
         {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
-        {tab === "dashboard"    && <ErrorBoundary><Dashboard proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} transactions={transactions} setTransactions={setTransactionsTracked} payments={payments} paid={paid} month={month} setMonth={setMonthByUser} onAddTx={() => setQuickAddOpen(true)} cycleDay={effectiveCycleDay} budgets={budgets} allCats={allCategories} portfolio={portfolio} hobbies={hobbies} trips={trips} onRefresh={() => { if (user) loadFromFirestore(user.uid).then(d => { if (d) applyData(d, setters); }); }}/></ErrorBoundary>}
+          {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} allCats={allCategories}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccountsTracked} portfolio={portfolio} setPortfolio={setPortfolioTracked}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
-          {tab === "payments"     && <ErrorBoundary><PaymentsView payments={payments} setPayments={setPaymentsTracked} paid={paid} setPaid={setPaid} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} month={month} partnerName={partnerName}/></ErrorBoundary>}
-          {tab === "plans"        && <ErrorBoundary><PlansView key={plansSub || "plans"} initialSubTab={plansSub} modules={enabledModules} proStatus={proStatus} openUpgrade={openUpgrade} goals={goals} setGoals={setGoalsTracked} accounts={accounts} budgets={budgets} setBudgets={setBudgets} transactions={transactions} setTransactions={setTransactionsTracked} month={month} cycleDay={effectiveCycleDay} vacationArchive={vacationArchive} setVacationArchive={setVacationArchive} allCats={allCategories} trips={trips} setTrips={setTripsTracked} hobbies={hobbies} setHobbies={setHobbiesTracked} portfolio={portfolio}/></ErrorBoundary>}
-          {tab === "analytics"    && <ErrorBoundary><AnalyticsView transactions={transactions} allCats={allCategories} payments={payments} paid={paid} month={month} cycleDay={effectiveCycleDay} partnerName={partnerName} hobbies={hobbies}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -732,15 +642,13 @@ export default function App() {
         setCustomCats={setCustomCatsCap}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
-        setPartnerName={setPartnerName} user={user} onSignOut={signOutUser} onLoadDemo={loadDemo} onClearData={clearAllData}
+        user={user} onSignOut={signOutUser} onClearData={clearAllData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
         proStatus={proStatus}
       />
       </ErrorBoundary>
 
-      {showRatingPrompt && <RatingPrompt onDismiss={dismissRating}/>}
-      {showMonthlySummary && <MonthlySummary transactions={transactions} month={month} onClose={() => setShowMonthlySummary(false)}/>}
       {fabMenu && <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
 
       <UpgradeModal
@@ -771,7 +679,7 @@ export default function App() {
       {/* Bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)", zIndex: 50 }}>
         <div style={{ display: "flex", background: "#0a1120", border: "1px solid #1a2744", borderRadius: 20, margin: "0 12px", padding: "5px 3px", alignItems: "center" }}>
-          {TABS.slice(0, 3).map(({ id, label, Icon, badge }) => {
+          {TABS.slice(0, navSplit).map(({ id, label, Icon, badge }) => {
             const active = tab === id;
             return (
               <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
@@ -787,7 +695,7 @@ export default function App() {
             <PlusCircle size={15} color="white"/>
             <span style={{ fontSize: 8, fontWeight: 800, color: "white", letterSpacing: "0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>{t("nav.add").toUpperCase()}</span>
           </button>
-          {TABS.slice(3).map(({ id, label, Icon, badge }) => {
+          {TABS.slice(navSplit).map(({ id, label, Icon, badge }) => {
             const active = tab === id;
             return (
               <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>

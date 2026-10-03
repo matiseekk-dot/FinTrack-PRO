@@ -16,7 +16,7 @@ const MODULES = {
   investments: { id: "investments", icon: TrendingUp,  color: "#8b5cf6", side: true,  label: { en: "Investments", pl: "Inwestycje" },    desc: { en: "Crypto, stocks, funds outside your main broker",   pl: "Krypto, akcje, fundusze poza głównym brokerem" } },
   rental:      { id: "rental",      icon: HomeIcon,    color: "#f59e0b", side: true,  label: { en: "Rental",      pl: "Najem" },         desc: { en: "Apartment, parking, storage, gear rental",          pl: "Mieszkanie, parking, garaż, wynajem sprzętu" } },
   trips:       { id: "trips",       icon: Plane,       color: "#3b82f6", side: false, label: { en: "Trips",       pl: "Wyjazdy" },       desc: { en: "Trip budgets in any currency",                      pl: "Budżety wyjazdów w dowolnej walucie" } },
-  personal:    { id: "personal",    icon: Wallet,      color: "#64748b", side: false, label: { en: "Personal budget", pl: "Budżet osobisty" }, desc: { en: "Everyday spending, bills, limits (classic mode)", pl: "Codzienne wydatki, rachunki, limity (tryb klasyczny)" } },
+  personal:    { id: "personal",    icon: Wallet,      color: "#64748b", side: false, label: { en: "Personal spending", pl: "Wydatki osobiste" }, desc: { en: "Everyday spending, kept apart from your side income", pl: "Codzienne wydatki, osobno od dochodu pobocznego" } },
 };
 
 const MODULE_ORDER = ["freelance", "reselling", "collections", "betting", "investments", "rental", "trips", "personal"];

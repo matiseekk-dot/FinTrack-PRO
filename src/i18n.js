@@ -647,7 +647,7 @@ const TRANSLATIONS = {
 
     // Reset section
     "settings.reset.title": "Reset data",
-    "settings.reset.help": "Load demo data to see how the app looks fully populated, or reset everything to a clean state.",
+    "settings.reset.help": "Delete all data from this device and the cloud.",
     "settings.reset.loadDemo": "Load demo data",
     "settings.reset.wipe": "Wipe all data",
     "settings.privacy": "Privacy policy",
@@ -684,7 +684,7 @@ const TRANSLATIONS = {
     // Sidegig v2.0.0
     "nav.home": "Home",
     "nav.ledger": "Ledger",
-    "nav.budget": "Budget",
+    "nav.trips": "Trips",
     "nav.more": "More",
     "app.checkingAccount": "Checking your account…",
     "app.loadingData": "Loading your data…",
@@ -719,14 +719,12 @@ const TRANSLATIONS = {
     "home.trips": "Trips",
     "home.tripActive": "Happening now",
     "home.tripFrom": "From",
-    "home.personal": "Personal budget",
+    "home.personal": "Personal spending",
     "home.personalSpent": "Personal spending",
     "home.personalHint": "Not counted in side income",
     "more.money": "Money",
     "more.accounts": "Accounts",
     "more.accountsDesc": "Balances, account currencies, investments",
-    "more.budget": "Personal budget",
-    "more.budgetDesc": "Everyday spending and billing cycle",
     "more.bills": "Bills",
     "more.billsDesc": "Recurring payments",
     "more.insights": "Insights",

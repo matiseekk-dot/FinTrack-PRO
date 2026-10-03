@@ -288,7 +288,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       {/* PERSONAL BUDGET — classic FinTrack, outside the side-income total */}
       {modules.includes("personal") && (
         <>
-          <div style={{ ...sectionLbl, margin: "10px 4px 0" }}>{t("home.personal", "Budżet osobisty")}</div>
+          <div style={{ ...sectionLbl, margin: "10px 4px 0" }}>{t("home.personal", "Wydatki osobiste")}</div>
           <button onClick={onOpenBudget} style={rowBtn}>
             <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "#64748b22", border: "1px solid #64748b55", display: "grid", placeItems: "center" }}>
               <Wallet size={17} color="#94a3b8"/>

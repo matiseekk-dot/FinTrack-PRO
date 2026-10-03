@@ -17,7 +17,7 @@ import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { CategoryTxModal } from "../components/CategoryTxModal.jsx";
 import { t } from "../i18n.js";
 
-function TripsView({ trips, setTrips, transactions, setTransactions, allCats, vacationArchive }) {
+function TripsView({ trips, setTrips, transactions, setTransactions, allCats }) {
   const [modalTrip, setModalTrip] = useState(null);  // null | {} (edit/new)
   const [detailsId, setDetailsId] = useState(null);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -257,37 +257,6 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats, va
               onClick={() => setDetailsId(trip.id)} dimmed/>
           ))}
         </SectionTitle>
-      )}
-
-      {/* Stary vacationArchive (read-only) */}
-      {Array.isArray(vacationArchive) && vacationArchive.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#475569",
-            textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-            {t("trips.legacyArchive", "Archiwum przed v1.1.2 (tylko podgląd)")}
-          </div>
-          {vacationArchive.map((v, i) => (
-            <div key={i} style={{
-              background: "#0a1120", border: "1px dashed #1a2744",
-              borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-              opacity: 0.65, fontSize: 12, color: "#94a3b8",
-            }}>
-              <div style={{ fontWeight: 700, color: "#cbd5e1" }}>
-                {v.name || v.dest || "Wyjazd"}
-              </div>
-              {(v.dateFrom || v.dateTo) && (
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                  {v.dateFrom || "?"} — {v.dateTo || "?"}
-                </div>
-              )}
-              {v.spent != null && (
-                <div style={{ fontSize: 11, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
-                  Wydane: {fmtDisplay(v.spent)}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
       )}
 
       {/* Empty state */}

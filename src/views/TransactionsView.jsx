@@ -7,7 +7,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
-import { CATEGORIES, getCat, INITIAL_TEMPLATES } from "../constants.js";
+import { CATEGORIES, getCat } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 import { t, getLang } from "../i18n.js";
@@ -319,31 +319,6 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         </div>
       )}
 
-      {/* Quick templates — szablony budżetu osobistego (PLN), tylko z modułem Budżet osobisty */}
-      {(!modules || modules.includes("personal")) && <div style={{ overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 8, paddingTop: 8,
-        scrollbarWidth: "none", msOverflowStyle: "none" }}>
-        <div style={{ display: "inline-flex", gap: 6, paddingLeft: 0 }}>
-          {((() => { try { const s = JSON.parse(localStorage.getItem("ft_templates") || JSON.stringify(INITIAL_TEMPLATES)); return s.map(t => ({...t, desc: t.desc === "Zhabka" ? "Zabka" : t.desc})); } catch(_) { return INITIAL_TEMPLATES; } })()).map(tpl => (
-            <button key={tpl.id} onClick={() => {
-              const cat = getLocalCat(tpl.cat);
-              setForm({ date: todayLocal(), desc: tpl.desc,
-                amount: String(tpl.amount), cat: tpl.cat, acc: tpl.acc || 1,
-                toAcc: 2, type: "expense", currency: "PLN" });
-              setModal(true);
-            }} style={{
-              background: getLocalCat(tpl.cat).color + "22",
-              border: `1px solid ${getLocalCat(tpl.cat).color}44`,
-              borderRadius: 20, padding: "6px 12px", cursor: "pointer",
-              color: getLocalCat(tpl.cat).color, fontSize: 12, fontWeight: 600,
-              whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5,
-              flexShrink: 0,
-            }}>
-              {tpl.desc} <span style={{ opacity: 0.7 }}>{tpl.amount} zl</span>
-            </button>
-          ))}
-        </div>
-      </div>}
-
       <div style={{ paddingTop: 4, paddingBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", gap: 6 }}>
@@ -421,7 +396,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 20 }}>
               {search || filterCat !== "all"
                 ? t("tx.empty.tryFilters", "Spróbuj zmienić filtry wyszukiwania")
-                : t("tx.empty.addFirst", "Dodaj pierwszą transakcję używając przycisku poniżej lub szablonu powyżej")}
+                : t("tx.empty.addFirst", "Dodaj pierwszy wpis przyciskiem poniżej")}
             </div>
             {!search && filterCat === "all" && (
               <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
