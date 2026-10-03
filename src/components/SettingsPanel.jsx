@@ -21,7 +21,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          vacationArchive = [], partnerName = "Partner", setPartnerName, onLoadDemo, onClearData,
                          proStatus = null, user = null,
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
-                         trips = [], hobbies = [], portfolio = [] }) {
+                         trips = [], hobbies = [], portfolio = [],
+                         // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
+                         resaleItems = [], modules = null, onRestoreFull }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -271,6 +273,45 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       XLSX.utils.book_append_sheet(wb, wsPort, "Inwestycje");
     }
 
+    // Sheet: Zakłady (v2.1.0) — kupony z modułu Zakłady
+    const betTxs = transactions.filter(tx => tx.bet);
+    if (betTxs.length) {
+      const wsBets = XLSX.utils.json_to_sheet(betTxs.map(tx => ({
+        Data:        tx.date,
+        Bukmacher:   tx.bet.bookmaker || "",
+        Zdarzenie:   tx.bet.event || "",
+        Dyscyplina:  tx.bet.sport || "",
+        Kurs:        tx.bet.odds,
+        Stawka:      tx.bet.stake,
+        Waluta:      tx.bet.currency || "PLN",
+        Podatek_PL:  tx.bet.taxed ? "tak" : "nie",
+        Status:      tx.bet.status,
+        Wypłata:     tx.bet.payout ?? "",
+        Wynik_PLN:   tx.amount,
+        Rozliczony:  tx.bet.settledAt || "",
+      })));
+      XLSX.utils.book_append_sheet(wb, wsBets, "Zakłady");
+    }
+
+    // Sheet: Sprzedaż (v2.1.0) — przedmioty z modułu Sprzedaż
+    if (resaleItems && resaleItems.length) {
+      const wsResale = XLSX.utils.json_to_sheet(resaleItems.map(it => ({
+        Nazwa:          it.name,
+        Kategoria:      it.category || "",
+        Status:         it.status,
+        Waluta:         it.currency || "PLN",
+        Koszt_zakupu:   it.buyPrice ?? "",
+        Data_zakupu:    it.buyDate || "",
+        Platforma:      it.platform || "",
+        Cena_wystawienia: it.listPrice ?? "",
+        Cena_sprzedaży: it.sellPrice ?? "",
+        Prowizja:       it.fees ?? "",
+        Wysyłka:        it.shipping ?? "",
+        Data_sprzedaży: it.sellDate || "",
+      })));
+      XLSX.utils.book_append_sheet(wb, wsResale, "Sprzedaż");
+    }
+
     // Sheet 12: Full JSON backup v:2 — KOMPLET danych do restore
     // (v:1 nie miał trips/hobbies/portfolio/cycleDayHistory/tombstones/partnerName)
     const templates = (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })();
@@ -281,7 +322,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       // Wszystkie dane finansowe
       accounts, transactions, budgets, payments, paid, goals,
       customCats, cycleDay, cycleDayHistory, defaultAcc, partnerName,
-      portfolio, trips, hobbies,
+      portfolio, trips, hobbies, resaleItems, modules,
       // Legacy/templates
       templates, vacation, vacationArchiveData: vacationArchive,
       // Preferencje per device (mogą być przydatne przy restore na tym samym urządzeniu)
@@ -323,6 +364,18 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             const rows = XLSX.utils.sheet_to_json(wb.Sheets["_Backup_JSON"]);
             if (rows.length > 0 && rows[0].JSON_backup) {
               const d = JSON.parse(rows[0].JSON_backup);
+              if (d && onRestoreFull) {
+                // v2.1.0: pełne przywrócenie przez applyData w App — także wyjazdy, hobby,
+                // portfel, przedmioty Sprzedaży i moduły (wcześniej import je pomijał)
+                onRestoreFull(d);
+                setImportStatus("ok");
+                setImportMsg(
+                  `Przywrócono pełny backup: ${(d.transactions||[]).length} transakcji, ` +
+                  `${(d.accounts||[]).length} kont, ${(d.trips||[]).length} wyjazdów, ` +
+                  `${(d.hobbies||[]).length} hobby, ${(d.resaleItems||[]).length} przedmiotów`
+                );
+                return;
+              }
               if (d) {
                 // Zastosuj wszystkie dane z pełnego backupu
                 if (Array.isArray(d.accounts))     setAccounts(d.accounts);
@@ -1169,10 +1222,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               const code = e.target.value;
               if (setDisplayCurrency(code)) {
                 setDisplayCur(code);
-                // Wymuś re-render parent (App.jsx). CustomEvent emitowane przez setDisplayCurrency
-                // — komponenty subskrybujące ('ft:display-currency-changed') się przeładują.
-                // Najprościej: pełny reload bo każdy komponent kalkuluje sumy synchronously.
-                setTimeout(() => window.location.reload(), 200);
+                // v2.1.0: bez reloadu. App słucha 'ft:display-currency-changed', przerysowuje
+                // widoki i zapisuje nową walutę (reload ją gubił — stary snapshot ją nadpisywał).
               }
             }}
             style={{

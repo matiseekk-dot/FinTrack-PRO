@@ -96,6 +96,7 @@ function migrateData(d) {
   // ensure trips/hobbies są tablicami
   if (!Array.isArray(d.trips))    d.trips    = [];
   if (!Array.isArray(d.hobbies))  d.hobbies  = [];
+  if (!Array.isArray(d.resaleItems)) d.resaleItems = [];
   // sanityzacja cycleDayHistory
   if (Array.isArray(d.cycleDayHistory)) {
     d.cycleDayHistory = d.cycleDayHistory

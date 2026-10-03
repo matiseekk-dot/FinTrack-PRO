@@ -1,0 +1,474 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Plus, Check, Trash2, ShoppingBag, Tag, HandCoins } from "lucide-react";
+import { Modal } from "../components/ui/Modal.jsx";
+import { Input, Select } from "../components/ui/Input.jsx";
+import { Toast } from "../components/ui/Toast.jsx";
+import { useToast } from "../hooks/useToast.js";
+import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
+import { t, getLang } from "../i18n.js";
+import { getModule } from "../lib/modules.js";
+import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { canAddTransaction } from "../lib/tier.js";
+import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
+import {
+  PLATFORMS, ITEM_CATEGORIES, platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
+  saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats,
+} from "../lib/reselling.js";
+
+const ACCENT = "#ec4899";
+const BRAND = "linear-gradient(135deg,#059669,#10b981)";
+const STATUS_COLORS = { stock: "#64748b", listed: "#f59e0b", sold: "#10b981" };
+
+const num = (v) => parseFloat(String(v ?? "").replace(",", "."));
+const pct = (x) => x == null ? "—" : `${(x * 100).toFixed(1)}%`;
+
+const sectionTitle = { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", margin: "22px 0 10px" };
+const card = { background: "#0d1628", border: "1px solid #1a2744", borderRadius: 16 };
+const fieldLabel = { fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" };
+
+function Chip({ on, color = "#10b981", onClick, children }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      background: on ? color + "22" : "#0d1628", border: `1px solid ${on ? color : "#1a2744"}`,
+      color: on ? color : "#64748b", borderRadius: 8, padding: "6px 10px", cursor: "pointer",
+      fontSize: 12, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+    }}>{children}</button>
+  );
+}
+
+function Stat({ label, value, color = "#e2e8f0" }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Sprzedaż: przedmioty od zakupu do sprzedaży. Zakup i sprzedaż to wpisy w Wpisach
+ * (moduł reselling), więc Start i saldo konta zgadzają się bez osobnego liczenia.
+ */
+function ResellingView({ items = [], setItems, transactions, setTransactions, accounts, setAccounts, defaultAcc = 1, hobbies = [],
+  proStatus, openUpgrade, onBack, addSignal = 0, focusItemId = null, onFocusHandled }) {
+  const lang = getLang();
+  const { toast, showToast } = useToast();
+  const [period, setPeriod] = useState("month");
+  const [list, setList] = useState("stock"); // stock | sold
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const today = todayLocal();
+  const inPeriod = (date) => period === "all" || (date || "").startsWith(period === "year" ? today.slice(0, 4) : today.slice(0, 7));
+
+  const moduleTxs = useMemo(
+    () => transactions.filter(tx => tx && tx.date && getModule(tx, hobbies) === "reselling"),
+    [transactions, hobbies]
+  );
+  const stats = useMemo(
+    () => resellingStats(items, moduleTxs, inPeriod),
+    [items, moduleTxs, period, today, getDisplayCurrency()]
+  );
+  const stock = items.filter(it => it.status !== "sold")
+    .sort((a, b) => (b.buyDate || b.createdAt || "").localeCompare(a.buyDate || a.createdAt || ""));
+  const sold = items.filter(it => it.status === "sold" && inPeriod(it.sellDate))
+    .sort((a, b) => (b.sellDate || "").localeCompare(a.sellDate || ""));
+
+  // Ostatnio używane platformy na początku listy chipów
+  const platformOrder = useMemo(() => {
+    const used = [];
+    [...items].sort((a, b) => (b.sellDate || b.createdAt || "").localeCompare(a.sellDate || a.createdAt || ""))
+      .forEach(it => { if (it.platform && !used.includes(it.platform)) used.push(it.platform); });
+    const known = PLATFORMS.map(p => p.id);
+    return [...used.filter(id => known.includes(id)), ...known.filter(id => !used.includes(id))];
+  }, [items]);
+
+  const blankForm = (patch = {}) => {
+    const platform = platformOrder[0] || "vinted";
+    const rule = feeRule(platform);
+    return {
+      editingId: null, name: "", category: "other", status: "stock",
+      currency: getDisplayCurrency(), acc: defaultAcc,
+      buyPrice: "", buyDate: today, recordPurchase: true,
+      platform, customPlatform: false, listPrice: "",
+      sellPrice: "", sellDate: today, feePct: String(rule.pct), feeFixed: String(rule.fixed), shipping: "",
+      ...patch,
+    };
+  };
+
+  const formFromItem = (it, patch = {}) => {
+    const platform = it.platform || platformOrder[0] || "vinted";
+    const rule = it.feePct != null ? { pct: it.feePct, fixed: it.feeFixed ?? 0 } : feeRule(platform);
+    return {
+      editingId: it.id, name: it.name, category: it.category || "other", status: it.status,
+      currency: it.currency || "PLN", acc: it.acc ?? defaultAcc,
+      buyPrice: it.buyPrice != null ? String(it.buyPrice) : "", buyDate: it.buyDate || it.createdAt || today,
+      recordPurchase: !!it.recordPurchase,
+      platform, customPlatform: !!it.platform && !PLATFORMS.some(p => p.id === it.platform),
+      listPrice: it.listPrice != null ? String(it.listPrice) : "",
+      sellPrice: it.sellPrice != null ? String(it.sellPrice) : (it.listPrice != null ? String(it.listPrice) : ""),
+      sellDate: it.sellDate || today,
+      feePct: String(rule.pct), feeFixed: String(rule.fixed), shipping: it.shipping != null ? String(it.shipping) : "",
+      ...patch,
+    };
+  };
+
+  // Licznik jest wspólny dla ekranów modułów — reagujemy tylko na kliknięcia po wejściu na ekran
+  const firstAddSignal = useRef(addSignal);
+  useEffect(() => { if (addSignal !== firstAddSignal.current) setForm(blankForm()); }, [addSignal]);
+  useEffect(() => {
+    if (focusItemId == null) return;
+    const it = items.find(x => x.id === focusItemId);
+    if (it) setForm(formFromItem(it));
+    if (onFocusHandled) onFocusHandled();
+  }, [focusItemId]);
+
+  const setF = (patch) => setForm(f => ({ ...f, ...patch }));
+  const pickPlatform = (id) => {
+    const rule = feeRule(id);
+    setF({ platform: id, customPlatform: false, feePct: String(rule.pct), feeFixed: String(rule.fixed) });
+  };
+
+  const fee = form ? calcFee(num(form.sellPrice), { pct: num(form.feePct) || 0, fixed: num(form.feeFixed) || 0 }) : 0;
+  const previewItem = form ? { sellPrice: num(form.sellPrice) || 0, fees: fee, shipping: num(form.shipping) || 0, buyPrice: num(form.buyPrice) || 0 } : null;
+
+  const save = async () => {
+    if (!form || saving) return;
+    const name = form.name.trim();
+    if (!name) { showToast(t("resale.err.name", "Wpisz nazwę przedmiotu"), "error"); return; }
+    const buyPrice = num(form.buyPrice);
+    if (form.buyPrice !== "" && (!isFinite(buyPrice) || buyPrice < 0)) { showToast(t("resale.err.buyPrice", "Niepoprawna cena zakupu"), "error"); return; }
+    const sellPrice = num(form.sellPrice);
+    if (form.status === "sold" && (!isFinite(sellPrice) || sellPrice <= 0)) { showToast(t("resale.err.sellPrice", "Wpisz cenę sprzedaży"), "error"); return; }
+
+    const old = form.editingId != null ? items.find(x => x.id === form.editingId) : null;
+    const platform = form.platform.trim();
+    const item = {
+      id: old ? old.id : newId(),
+      name, category: form.category, status: form.status,
+      currency: form.currency, acc: parseInt(form.acc) || defaultAcc,
+      buyPrice: isFinite(buyPrice) && buyPrice > 0 ? buyPrice : null,
+      buyDate: form.buyDate, recordPurchase: !!form.recordPurchase && isFinite(buyPrice) && buyPrice > 0,
+      platform: form.status === "stock" ? (old?.platform || null) : (platform || null),
+      listPrice: form.status === "listed" && isFinite(num(form.listPrice)) ? num(form.listPrice) : (old?.listPrice ?? null),
+      sellPrice: form.status === "sold" ? sellPrice : null,
+      sellDate: form.status === "sold" ? form.sellDate : null,
+      feePct: form.status === "sold" ? (num(form.feePct) || 0) : null,
+      feeFixed: form.status === "sold" ? (num(form.feeFixed) || 0) : null,
+      fees: form.status === "sold" ? fee : null,
+      shipping: form.status === "sold" ? (num(form.shipping) || 0) : null,
+      buyTxId: old?.buyTxId ?? null, sellTxId: old?.sellTxId ?? null,
+      createdAt: old?.createdAt || today,
+    };
+
+    const oldTxs = [old?.buyTxId, old?.sellTxId]
+      .filter(id => id != null)
+      .map(id => transactions.find(tx => tx.id === id))
+      .filter(Boolean);
+    const createsTx = (item.recordPurchase && item.buyTxId == null) || (item.status === "sold" && item.sellTxId == null);
+    if (createsTx && !canAddTransaction(transactions, proStatus?.isPro).allowed) { if (openUpgrade) openUpgrade("limit"); return; }
+
+    setSaving(true);
+    try {
+      const oldBuy = oldTxs.find(tx => tx.id === item.buyTxId);
+      const oldSell = oldTxs.find(tx => tx.id === item.sellTxId);
+      const reuse = (oldTx, date) => oldTx && oldTx.date === date && (oldTx.origCurrency || "PLN") === item.currency ? (oldTx.fxRate || 1) : null;
+      const rates = {
+        buy: item.recordPurchase ? (reuse(oldBuy, item.buyDate) ?? await rateOnDate(item.currency, item.buyDate)) : 1,
+        sell: item.status === "sold" ? (reuse(oldSell, item.sellDate) ?? await rateOnDate(item.currency, item.sellDate)) : 1,
+      };
+      const { buy, sell } = buildItemTxs(item, rates, lang);
+      item.buyTxId = buy ? buy.id : null;
+      item.sellTxId = sell ? sell.id : null;
+      item.sellFxRate = sell ? (sell.fxRate || 1) : null;
+
+      commitTxChanges({ setTransactions, setAccounts }, { add: [buy, sell].filter(Boolean), remove: oldTxs });
+      setItems(prev => old ? prev.map(x => x.id === item.id ? item : x) : [item, ...prev]);
+      if (item.status === "sold" && item.platform) rememberFeeRule(item.platform, item.feePct, item.feeFixed);
+      showToast(item.status === "sold" && old?.status !== "sold"
+        ? `${t("resale.toast.sold", "Sprzedane")} · ${fmtCurrency(itemProfit(item), item.currency)} ${t("resale.profitWord", "zysku")}`
+        : old ? t("resale.toast.updated", "Zapisano ✓") : t("resale.toast.added", "Przedmiot dodany ✓"));
+      if (item.status === "sold") setList("sold"); else setList("stock");
+      setForm(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = () => {
+    const old = items.find(x => x.id === form?.editingId);
+    if (!old || !window.confirm(t("resale.confirmDelete", "Usunąć przedmiot razem z jego wpisami zakupu i sprzedaży?"))) return;
+    const linked = [old.buyTxId, old.sellTxId].filter(id => id != null).map(id => transactions.find(tx => tx.id === id)).filter(Boolean);
+    commitTxChanges({ setTransactions, setAccounts }, { remove: linked });
+    setItems(prev => prev.filter(x => x.id !== old.id));
+    showToast(t("resale.toast.deleted", "Przedmiot usunięty"), "error");
+    setForm(null);
+  };
+
+  const fmtItem = (amount, it) => fmtCurrency(amount, it.currency || "PLN");
+
+  return (
+    <div style={{ padding: "0 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 14px" }}>
+        <button onClick={onBack} aria-label={t("common.back", "Wstecz")} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: 7, cursor: "pointer", color: "#94a3b8", display: "grid", placeItems: "center" }}>
+          <ArrowLeft size={16}/>
+        </button>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: ACCENT + "22", border: `1px solid ${ACCENT}55`, display: "grid", placeItems: "center" }}>
+          <ShoppingBag size={15} color={ACCENT}/>
+        </div>
+        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: "-0.02em", flex: 1 }}>{t("resale.title", "Sprzedaż")}</h1>
+        <button onClick={() => setForm(blankForm())} style={{ background: BRAND, border: "none", borderRadius: 10, padding: "8px 12px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
+          <Plus size={14}/> {t("resale.add", "Przedmiot")}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {[["month", t("period.month", "Ten miesiąc")], ["year", t("period.year", "Ten rok")], ["all", t("period.all", "Wszystko")]].map(([id, label]) => (
+          <Chip key={id} on={period === id} onClick={() => setPeriod(id)}>{label}</Chip>
+        ))}
+      </div>
+
+      {/* Zysk */}
+      <div style={{ ...card, padding: 16, background: "linear-gradient(135deg,#0d1628,#111827)" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("resale.profit", "Zysk ze sprzedanych")}</div>
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 30, fontWeight: 800, color: stats.profit >= 0 ? "#34d399" : "#f87171", marginTop: 4, letterSpacing: "-0.02em" }}>
+          {fmtDisplay(stats.profit, { showSign: true })}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <Stat label={t("resale.soldCount", "Sprzedane")} value={String(stats.sold)}/>
+          <Stat label={t("resale.revenue", "Na konto")} value={fmtDisplay(stats.revenue)}/>
+          <Stat label={t("resale.margin", "Marża")} value={pct(stats.margin)}/>
+          <Stat label={t("resale.avgDays", "Śr. czas")} value={stats.avgDays != null ? `${stats.avgDays} ${t("resale.daysShort", "dni")}` : "—"}/>
+        </div>
+        {stats.fees > 0 && (
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 12 }}>
+            {t("resale.feesLine", "Prowizje i wysyłka: {amount}").replace("{amount}", fmtDisplay(stats.fees))}
+          </div>
+        )}
+        {stats.looseCount > 0 && (
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
+            {t("resale.looseNote", "Wpisy bez przedmiotu ({n}): {amount}").replace("{n}", stats.looseCount).replace("{amount}", fmtDisplay(stats.looseNet, { showSign: true }))}
+          </div>
+        )}
+      </div>
+
+      {/* Magazyn */}
+      {stats.stockCount > 0 && (
+        <div style={{ ...card, padding: "12px 16px", marginTop: 10, display: "flex", gap: 10 }}>
+          <Stat label={t("resale.inStock", "Na stanie")} value={String(stats.stockCount)}/>
+          <Stat label={t("resale.capital", "Zamrożone")} value={fmtDisplay(stats.capital)}/>
+          <Stat label={t("resale.listedValue", "Wystawione za")} value={stats.listedCount > 0 ? fmtDisplay(stats.listedValue) : "—"}/>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <div style={{ ...card, padding: "28px 20px", textAlign: "center", marginTop: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{t("resale.emptyTitle", "Dodaj pierwszy przedmiot")}</div>
+          <div style={{ fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.5 }}>
+            {t("resale.emptyDesc", "Zapisz, za ile kupiłeś i gdzie sprzedałeś — prowizję i zysk policzymy sami.")}
+          </div>
+          <button onClick={() => setForm(blankForm())} style={{ marginTop: 16, background: BRAND, border: "none", borderRadius: 12, padding: "11px 18px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+            + {t("resale.add", "Przedmiot")}
+          </button>
+        </div>
+      ) : <>
+        <div style={{ display: "flex", gap: 6, margin: "18px 0 10px" }}>
+          <Chip on={list === "stock"} color={ACCENT} onClick={() => setList("stock")}>{t("resale.tab.stock", "Na stanie")} · {stock.length}</Chip>
+          <Chip on={list === "sold"} color={ACCENT} onClick={() => setList("sold")}>{t("resale.tab.sold", "Sprzedane")} · {sold.length}</Chip>
+        </div>
+
+        {list === "stock" && (stock.length === 0
+          ? <div style={{ fontSize: 13, color: "#64748b", padding: "8px 2px" }}>{t("resale.stockEmpty", "Wszystko sprzedane.")}</div>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {stock.map(it => {
+                const cat = itemCategory(it.category);
+                const Icon = cat.icon;
+                const days = daysBetween(it.buyDate || it.createdAt, today);
+                return (
+                  <div key={it.id} style={{ ...card, padding: 14 }}>
+                    <button onClick={() => setForm(formFromItem(it))} style={{ all: "unset", cursor: "pointer", display: "flex", gap: 12, alignItems: "center", width: "100%" }}>
+                      <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: cat.color + "22", border: `1px solid ${cat.color}55`, display: "grid", placeItems: "center" }}>
+                        <Icon size={16} color={cat.color}/>
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</span>
+                        <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {it.status === "listed"
+                            ? `${t("resale.listedOn", "Wystawione")}${it.platform ? ` · ${platformName(it.platform, lang)}` : ""}${it.listPrice ? ` · ${fmtItem(it.listPrice, it)}` : ""}`
+                            : t("resale.status.stock", "Na stanie")}
+                          {days != null ? ` · ${days} ${t("resale.daysShort", "dni")}` : ""}
+                        </span>
+                      </span>
+                      <span style={{ textAlign: "right", flexShrink: 0 }}>
+                        <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("resale.bought", "kupione")}</span>
+                        <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700 }}>{it.buyPrice ? fmtItem(it.buyPrice, it) : "—"}</span>
+                      </span>
+                    </button>
+                    <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                      {it.status === "stock" && (
+                        <button onClick={() => setForm(formFromItem(it, { status: "listed" }))} style={actionBtn(STATUS_COLORS.listed)}>
+                          <Tag size={12}/> {t("resale.list", "Wystaw")}
+                        </button>
+                      )}
+                      <button onClick={() => setForm(formFromItem(it, { status: "sold", sellDate: today }))} style={actionBtn(STATUS_COLORS.sold)}>
+                        <HandCoins size={12}/> {t("resale.markSold", "Sprzedane")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+        )}
+
+        {list === "sold" && (sold.length === 0
+          ? <div style={{ fontSize: 13, color: "#64748b", padding: "8px 2px" }}>{t("resale.soldEmpty", "Nic nie sprzedane w tym okresie.")}</div>
+          : <div style={{ ...card, padding: "2px 14px" }}>
+              {sold.map((it, i) => {
+                const profit = itemProfit(it);
+                return (
+                  <button key={it.id} onClick={() => setForm(formFromItem(it))} style={{
+                    all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                    borderBottom: i < sold.length - 1 ? "1px solid #0f1a2e" : "none",
+                  }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</span>
+                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {[platformName(it.platform, lang), it.sellDate, `${t("resale.soldFor", "za")} ${fmtItem(it.sellPrice, it)}`].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, flexShrink: 0, color: profit >= 0 ? "#34d399" : "#f87171" }}>
+                      {fmtCurrency(profit, it.currency || "PLN", true)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+        )}
+
+        {stats.byPlatform.length > 0 && <>
+          <div style={sectionTitle}>{t("resale.byPlatform", "Platformy")}</div>
+          <div style={{ ...card, padding: "4px 14px" }}>
+            {stats.byPlatform.map((r, i) => (
+              <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < stats.byPlatform.length - 1 ? "1px solid #0f1a2e" : "none" }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{r.key === "other" ? t("resale.noPlatform", "Bez platformy") : platformName(r.key, lang)}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    {r.count} · {t("resale.revenue", "Na konto")} {fmtDisplay(r.revenue)}{r.fees > 0 ? ` · ${t("resale.feesShort", "opłaty")} ${fmtDisplay(r.fees)}` : ""}
+                  </span>
+                </span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: r.profit >= 0 ? "#34d399" : "#f87171" }}>{fmtDisplay(r.profit, { showSign: true })}</span>
+              </div>
+            ))}
+          </div>
+        </>}
+      </>}
+
+      {/* Formularz przedmiotu */}
+      <Modal open={!!form} onClose={() => setForm(null)} title={form?.editingId != null ? t("resale.editTitle", "Przedmiot") : t("resale.newTitle", "Nowy przedmiot")}>
+        {form && <>
+          <Input label={t("resale.name", "Nazwa")} placeholder={t("resale.namePh", "np. Pink Floyd – The Wall (LP)")} value={form.name} onChange={e => setF({ name: e.target.value })}/>
+
+          <div style={fieldLabel}>{t("resale.category", "Kategoria")}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {ITEM_CATEGORIES.map(c => <Chip key={c.id} on={form.category === c.id} color={c.color} onClick={() => setF({ category: c.id })}>{c.label[lang] || c.label.en}</Chip>)}
+          </div>
+
+          <div style={fieldLabel}>{t("resale.statusLabel", "Status")}</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {[["stock", t("resale.status.stock", "Na stanie")], ["listed", t("resale.status.listed", "Wystawione")], ["sold", t("resale.status.sold", "Sprzedane")]].map(([id, label]) => (
+              <Chip key={id} on={form.status === id} color={STATUS_COLORS[id]} onClick={() => setF({ status: id, ...(id === "sold" && !form.sellPrice && form.listPrice ? { sellPrice: form.listPrice } : {}) })}>{label}</Chip>
+            ))}
+          </div>
+
+          {/* Zakup */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1.3 }}><Input label={t("resale.buyPrice", "Koszt zakupu")} type="number" inputMode="decimal" step="0.01" placeholder="0" value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
+            <div style={{ flex: 0.9 }}>
+              <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
+                {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </div>
+            <div style={{ flex: 1.4 }}><Input label={t("resale.buyDate", "Kupione")} type="date" value={form.buyDate} onChange={e => setF({ buyDate: e.target.value })}/></div>
+          </div>
+          {num(form.buyPrice) > 0 && (
+            <button type="button" role="checkbox" aria-checked={form.recordPurchase} onClick={() => setF({ recordPurchase: !form.recordPurchase })} style={{
+              width: "100%", display: "flex", alignItems: "flex-start", gap: 10, margin: "-4px 0 14px", padding: "10px 12px",
+              background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, cursor: "pointer", textAlign: "left",
+              color: "#cbd5e1", fontSize: 12, lineHeight: 1.45, fontFamily: "inherit",
+            }}>
+              <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${form.recordPurchase ? "#10b981" : "#475569"}`, background: form.recordPurchase ? "#10b981" : "transparent", display: "grid", placeItems: "center" }}>
+                {form.recordPurchase && <Check size={12} color="white" strokeWidth={3}/>}
+              </span>
+              <span>{t("resale.recordPurchase", "Zapisz zakup jako wydatek. Odznacz, jeśli sprzedajesz coś, co już miałeś.")}</span>
+            </button>
+          )}
+
+          {/* Platforma (wystawione / sprzedane) */}
+          {form.status !== "stock" && <>
+            <div style={fieldLabel}>{t("resale.platform", "Platforma")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {platformOrder.map(id => <Chip key={id} on={!form.customPlatform && form.platform === id} color={ACCENT} onClick={() => pickPlatform(id)}>{platformName(id, lang)}</Chip>)}
+              <Chip on={form.customPlatform} color={ACCENT} onClick={() => setF({ customPlatform: true, platform: "", feePct: "0", feeFixed: "0" })}>{t("resale.otherPlatform", "Inna…")}</Chip>
+            </div>
+            {form.customPlatform && <Input placeholder={t("resale.platformName", "Nazwa platformy")} value={form.platform} onChange={e => setF({ platform: e.target.value })}/>}
+          </>}
+
+          {form.status === "listed" && (
+            <Input label={t("resale.listPrice", "Cena wystawienia")} type="number" inputMode="decimal" step="0.01" value={form.listPrice} onChange={e => setF({ listPrice: e.target.value })}/>
+          )}
+
+          {form.status === "sold" && <>
+            <div style={{ display: "flex", gap: 8, marginTop: form.customPlatform ? 0 : 6 }}>
+              <div style={{ flex: 1.4 }}><Input label={t("resale.sellPrice", "Cena sprzedaży")} type="number" inputMode="decimal" step="0.01" value={form.sellPrice} onChange={e => setF({ sellPrice: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.feePct", "Prowizja %")} type="number" inputMode="decimal" step="0.1" value={form.feePct} onChange={e => setF({ feePct: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.feeFixed", "+ stała")} type="number" inputMode="decimal" step="0.01" value={form.feeFixed} onChange={e => setF({ feeFixed: e.target.value })}/></div>
+            </div>
+            <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 14px", lineHeight: 1.45 }}>
+              {t("resale.feeHint", "Typowe opłaty sprzedającego — zależą od kraju i kategorii. Zmienione zapamiętamy dla tej platformy.")}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}><Input label={t("resale.shipping", "Wysyłka (płacisz Ty)")} type="number" inputMode="decimal" step="0.01" placeholder="0" value={form.shipping} onChange={e => setF({ shipping: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.sellDate", "Sprzedane")} type="date" value={form.sellDate} onChange={e => setF({ sellDate: e.target.value })}/></div>
+            </div>
+            {num(form.sellPrice) > 0 && (
+              <div style={{ ...card, background: "#060b14", padding: "10px 12px", marginBottom: 14, fontSize: 12, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>{t("resale.fee", "Prowizja")}</span><span style={{ fontFamily: "'DM Mono', monospace" }}>−{fmtCurrency(fee, form.currency)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>{t("resale.revenue", "Na konto")}</span><span style={{ fontFamily: "'DM Mono', monospace", color: "#e2e8f0" }}>{fmtCurrency(saleNet(previewItem), form.currency)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                  <span>{t("resale.profitOne", "Zysk")}</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", color: itemProfit(previewItem) >= 0 ? "#34d399" : "#f87171" }}>{fmtCurrency(itemProfit(previewItem), form.currency, true)}</span>
+                </div>
+              </div>
+            )}
+          </>}
+
+          <Select label={t("tx.account", "Konto")} value={form.acc} onChange={e => setF({ acc: parseInt(e.target.value) })}>
+            {accounts.filter(a => a.type !== "invest").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+
+          <button onClick={save} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+            {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}
+          </button>
+          {form.editingId != null && (
+            <button onClick={remove} style={{ width: "100%", marginTop: 8, background: "none", border: "1px solid #7f1d1d", borderRadius: 12, padding: 12, color: "#f87171", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Trash2 size={14}/> {t("resale.delete", "Usuń przedmiot")}
+            </button>
+          )}
+        </>}
+      </Modal>
+
+      <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
+    </div>
+  );
+}
+
+function actionBtn(color) {
+  return {
+    flex: 1, background: color + "18", border: `1px solid ${color}55`, color,
+    borderRadius: 9, padding: "7px 2px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+  };
+}
+
+export { ResellingView };

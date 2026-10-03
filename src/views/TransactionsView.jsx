@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import {
-  Wallet, PlusCircle, Edit2, Trash2, Copy, Search, Plane
+  Wallet, PlusCircle, Edit2, Trash2, Copy, Search, Plane, ChevronRight
 } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
@@ -28,7 +28,7 @@ const MODULE_DEFAULT_CAT = {
   investments: { expense: "inwestycje" },
 };
 
-function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange }) {
+function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -461,6 +461,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 const nativeCur = (tx.origCurrency && tx.origAmount != null) ? tx.origCurrency.toUpperCase() : "PLN";
                 const nativeAmt = Math.abs(nativeCur === "PLN" ? tx.amount : tx.origAmount);
                 const mainAmt = nativeCur === dispCur ? fmtCurrency(nativeAmt, dispCur) : fmtDisplay(Math.abs(tx.amount));
+                // Wpis kuponu albo przedmiotu: edycja w ekranie modułu, żeby kurs/prowizja zgadzały się z kwotą
+                const linked = !!onOpenLinked && (!!tx.bet || tx.resaleItemId != null);
                 return (
                   <div key={tx.id}
                     style={{
@@ -472,6 +474,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     }}
                     onTouchStart={e => { e.currentTarget._swipeX = e.touches[0].clientX; }}
                     onTouchEnd={e => {
+                      if (linked) return; // kupon/przedmiot usuwa się w jego ekranie
                       const dx = e.changedTouches[0].clientX - (e.currentTarget._swipeX || 0);
                       if (dx < -50) { setSwipedId(tx.id); hapticError(); }
                       else if (dx > 30) setSwipedId(null);
@@ -529,6 +532,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     )}
 
                     {/* Action buttons   always visible */}
+                    {linked ? (
+                      <button onClick={() => onOpenLinked(tx)} title={t("tx.openLinked", "Otwórz w module")}
+                        style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,
+                          padding: "5px 7px", cursor: "pointer", color: "#a78bfa", flexShrink: 0 }}>
+                        <ChevronRight size={12}/>
+                      </button>
+                    ) : (
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <button
                         onClick={() => {
@@ -585,6 +595,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                         <Trash2 size={12}/>
                       </button>
                     </div>
+                    )}
                   </div>
                 );
               })}

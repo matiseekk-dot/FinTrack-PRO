@@ -1,15 +1,26 @@
 import { Briefcase, Wallet, Bell, BarChart2, SlidersHorizontal, Settings, ChevronRight } from "lucide-react";
-import { t } from "../i18n.js";
+import { t, getLang } from "../i18n.js";
+import { MODULES, moduleLabel } from "../lib/modules.js";
 
 /**
  * "More" tab: secondary destinations that don't earn a bottom-nav slot.
  * Personal-budget screens (Budget, Bills, Insights) appear only when the
  * Personal budget module is enabled.
  */
-function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onManageModules, onOpenSettings }) {
+function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onOpenModule, onManageModules, onOpenSettings }) {
   const personal = modules.includes("personal");
+  const lang = getLang();
+  // Moduły z własnym ekranem (pozostałe są dostępne jako filtr w Wpisach)
+  const screens = [
+    ["betting",   t("more.bettingDesc", "Kupony, ROI, bukmacherzy")],
+    ["reselling", t("more.resellingDesc", "Przedmioty, prowizje, zysk na sztuce")],
+  ].filter(([id]) => modules.includes(id));
 
   const groups = [
+    ...(screens.length ? [{
+      title: t("more.moduleScreens", "Moduły"),
+      items: screens.map(([id, desc]) => ({ id: `__mod_${id}`, Icon: MODULES[id].icon, color: MODULES[id].color, label: moduleLabel(id, lang), desc })),
+    }] : []),
     {
       title: t("more.money", "Pieniądze"),
       items: [
@@ -33,6 +44,7 @@ function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onManageModu
   const open = (id) => {
     if (id === "__modules") return onManageModules && onManageModules();
     if (id === "__settings") return onOpenSettings && onOpenSettings();
+    if (id.startsWith("__mod_")) return onOpenModule && onOpenModule(id.slice(6));
     return onNavigate && onNavigate(id);
   };
 

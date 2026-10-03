@@ -352,6 +352,19 @@ function setDisplayCurrency(code) {
 }
 
 /**
+ * Kwota w dowolnej walucie → PLN do sumowania i fmtDisplay.
+ * Waluta główna: po dzisiejszym kursie, żeby fmtDisplay oddał dokładnie tę kwotę.
+ * Inne waluty: po kursie z dnia wpisu (fxRate), a bez niego po dzisiejszym.
+ */
+function amountForDisplay(amount, currency, fxRate) {
+  const num = Number(amount) || 0;
+  const cur = (currency || "PLN").toUpperCase();
+  if (cur === "PLN") return num;
+  const rate = cur === getDisplayCurrency() || !(fxRate > 0) ? getRate(cur) : fxRate;
+  return isFinite(rate) && rate > 0 ? num * rate : num;
+}
+
+/**
  * Kwota wpisu (w PLN) do sumowania i formatowania przez fmtDisplay.
  * Gdy wpis był w walucie głównej, liczymy ją z oryginału po dzisiejszym kursie —
  * fmtDisplay odda wtedy dokładnie wpisaną kwotę (45 € zostaje 45 €, bez dryfu kursu).
@@ -379,5 +392,6 @@ export {
   getDisplayCurrency,
   setDisplayCurrency,
   txAmountForDisplay,
+  amountForDisplay,
   SUPPORTED_CURRENCIES,
 };
