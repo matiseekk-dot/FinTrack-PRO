@@ -50,6 +50,12 @@ function moduleDesc(id, lang = "en") {
  * legacy shape: trip tag → trips, known category → side module, hobby match →
  * collections, anything else → personal.
  */
+// Wpłaty i wypłaty z kategorii Inwestycje to przeniesienie pieniędzy do/z aktywów,
+// a nie zysk ani strata — nie liczą się do dochodu pobocznego ani do wydatków.
+function isCapitalFlow(tx) {
+  return !!tx && tx.cat === "inwestycje";
+}
+
 function getModule(tx, hobbies = []) {
   if (!tx) return "personal";
   if (tx.module && MODULES[tx.module]) return tx.module;
@@ -86,5 +92,5 @@ function sanitizeModules(value) {
 
 export {
   MODULES, MODULE_ORDER, SIDE_MODULES, DEFAULT_MODULES,
-  moduleLabel, moduleDesc, getModule, inferEnabledModules, sanitizeModules,
+  moduleLabel, moduleDesc, getModule, isCapitalFlow, inferEnabledModules, sanitizeModules,
 };

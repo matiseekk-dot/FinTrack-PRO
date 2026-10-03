@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, Wallet, SlidersHorizontal } from "lucide-react";
 import { fmtDisplay, todayLocal } from "../utils.js";
-import { MODULES, SIDE_MODULES, getModule, moduleLabel } from "../lib/modules.js";
+import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
 import { groupTrips, getTripSpending } from "../lib/trips.js";
 import { txAmountForDisplay, getDisplayCurrency } from "../lib/fx.js";
 import { t, getLang } from "../i18n.js";
@@ -21,7 +21,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
   const lang = getLang();
   const monthNames = lang === "pl" ? MONTHS_PL : MONTHS_EN;
   const now = new Date();
@@ -34,10 +34,10 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = []
   // Each transaction resolved once: module + YYYY-MM. Transfers (cat "inne") never count.
   const resolved = useMemo(() => transactions
     .filter(tx => tx && tx.date && tx.cat !== "inne")
-    .map(tx => ({ tx, amt: txAmountForDisplay(tx), mod: getModule(tx, hobbies), ym: tx.date.slice(0, 7) })),
+    .map(tx => ({ tx, amt: txAmountForDisplay(tx), mod: getModule(tx, hobbies), ym: tx.date.slice(0, 7), capital: isCapitalFlow(tx) })),
   [transactions, hobbies, getDisplayCurrency()]);
 
-  const netFor = (ym) => resolved.reduce((s, r) => (r.ym === ym && sideEnabled.includes(r.mod)) ? s + r.amt : s, 0);
+  const netFor = (ym) => resolved.reduce((s, r) => (r.ym === ym && !r.capital && sideEnabled.includes(r.mod)) ? s + r.amt : s, 0);
 
   const ym = ymKey(period.y, period.m);
   const prevPeriod = shiftMonth(period, -1);
@@ -45,14 +45,15 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = []
 
   const stats = useMemo(() => {
     const perModule = {};
-    for (const id of sideEnabled) perModule[id] = { net: 0, income: 0, expense: 0, count: 0 };
+    for (const id of sideEnabled) perModule[id] = { net: 0, income: 0, expense: 0, count: 0, invested: 0 };
     let personalSpent = 0;
     for (const r of resolved) {
       if (r.ym !== ym) continue;
       if (perModule[r.mod]) {
         const p = perModule[r.mod];
-        p.net += r.amt;
         p.count += 1;
+        if (r.capital) { p.invested -= r.amt; continue; } // wpłata/wypłata, nie wynik
+        p.net += r.amt;
         if (r.amt > 0) p.income += r.amt; else p.expense += Math.abs(r.amt);
       } else if (r.mod === "personal" && r.amt < 0) {
         personalSpent += Math.abs(r.amt);
@@ -64,7 +65,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = []
 
   const prevNet = netFor(prevYm);
   const ytdNet = resolved.reduce((s, r) =>
-    (r.ym.startsWith(String(period.y)) && r.ym <= ym && sideEnabled.includes(r.mod)) ? s + r.amt : s, 0);
+    (r.ym.startsWith(String(period.y)) && r.ym <= ym && !r.capital && sideEnabled.includes(r.mod)) ? s + r.amt : s, 0);
   const everAnySide = resolved.some(r => sideEnabled.includes(r.mod));
 
   // Last 6 months of net side income for the mini chart
@@ -149,9 +150,20 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = []
         const m = MODULES[id];
         const Icon = m.icon;
         const s = stats.perModule[id];
-        const sub = s.count === 0
+        let sub = s.count === 0
           ? t("home.noEntries", "Brak wpisów w tym miesiącu")
           : `${s.count} ${s.count === 1 ? t("home.entry", "wpis") : t("home.entries", "wpisy")} · ${[s.income > 0 && `+${fmtDisplay(s.income)}`, s.expense > 0 && `−${fmtDisplay(s.expense)}`].filter(Boolean).join(" / ")}`;
+        // Inwestycje: wpłaty to nie strata. Pokazujemy je neutralnie, a po prawej wynik portfela.
+        let right = s.count === 0 ? null : s.net;
+        if (id === "investments") {
+          const pnl = portfolio.reduce((sum, p) => sum + (Number(p.pnlPLN) || 0), 0);
+          const parts = [];
+          if (s.invested > 0) parts.push(`${t("home.invested", "wpłacono")} ${fmtDisplay(s.invested)}`);
+          else if (s.invested < 0) parts.push(`${t("home.withdrawn", "wypłacono")} ${fmtDisplay(-s.invested)}`);
+          if (portfolio.length > 0) parts.push(t("home.portfolioResult", "wynik portfela"));
+          if (parts.length) sub = parts.join(" · ");
+          right = portfolio.length > 0 ? pnl : (s.net !== 0 ? s.net : null);
+        }
         return (
           <button key={id} onClick={() => onOpenModule && onOpenModule(id)} style={rowBtn}>
             <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: m.color + "22", border: `1px solid ${m.color}55`, display: "grid", placeItems: "center" }}>
@@ -162,8 +174,8 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], modules = []
               <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>
             </span>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, flexShrink: 0,
-              color: s.count === 0 ? "#475569" : s.net >= 0 ? "#34d399" : "#f87171" }}>
-              {s.count === 0 ? "—" : fmtDisplay(s.net, { showSign: true })}
+              color: right == null ? "#475569" : right >= 0 ? "#34d399" : "#f87171" }}>
+              {right == null ? "—" : fmtDisplay(right, { showSign: true })}
             </span>
             <Arrow size={14} color="#334155"/>
           </button>

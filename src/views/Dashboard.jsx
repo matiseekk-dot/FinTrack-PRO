@@ -107,17 +107,21 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
 
   const cycleSums = useMemo(() => {
     const monthTx = cycleTxs(transactions, month, cycleDay);
-    let income = 0, expense = 0;
+    // v2.2.0: wpłata na inwestycje to nie wydatek — pieniądze zmieniają formę, nie znikają.
+    // Liczymy ją osobno; bilans gotówki dalej ją odejmuje (pieniądze są u brokera).
+    let income = 0, expense = 0, invested = 0;
     for (const t of monthTx) {
       if (t.cat === "inne") continue;
       if (t.amount > 0) income += t.amount;
+      else if (t.cat === "inwestycje") invested += Math.abs(t.amount);
       else expense += Math.abs(t.amount);
     }
-    return { monthTx, income, expense, balance: income - expense };
+    return { monthTx, income, expense, invested, balance: income - expense - invested };
   }, [transactions, month, cycleDay]);
   const monthTx = cycleSums.monthTx;
   const income = cycleSums.income;
   const expense = cycleSums.expense;
+  const invested = cycleSums.invested;
   const balance = cycleSums.balance;
   const cycleLabel = fmtCycleLabel(month, cycleDay);
 
@@ -256,7 +260,7 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
 
       {/* ═══ HERO: BILANS DNIA ═══ */}
       {(() => {
-        const todayTx = transactions.filter(t => t.date === todayISO && t.cat !== "inne");
+        const todayTx = transactions.filter(t => t.date === todayISO && t.cat !== "inne" && !(t.cat === "inwestycje" && t.amount < 0));
         const todayExp = todayTx.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
         const todayInc = todayTx.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
         const todayBal = todayInc - todayExp;
@@ -447,10 +451,11 @@ function Dashboard({ accounts, transactions, setTransactions, payments, paid = {
           <span style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0" }}>{cycleDay > 1 ? fmtCycleLabel(month, cycleDay) : MONTH_NAMES[month] + " " + new Date().getFullYear()}</span>
           <button onClick={() => setMonth(m => Math.min(11, m+1))} style={{ background: "#1a2744", border: "none", borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: "#94a3b8" }}><ChevronRight size={14}/></button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: invested > 0 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
           {[
             { label: t("dash.income"), val: income, color: "#10b981", Icon: ArrowDownLeft },
             { label: t("dash.expenses"), val: expense, color: "#ef4444", Icon: ArrowUpRight },
+            ...(invested > 0 ? [{ label: t("dash.invested", "Zainwestowano"), val: invested, color: "#8b5cf6", Icon: TrendingUp }] : []),
             { label: t("dash.balance"), val: balance, color: balance >= 0 ? "#10b981" : "#ef4444", Icon: balance >= 0 ? TrendingUp : TrendingDown },
           ].map(({ label, val, color, Icon }) => (
             <div key={label} style={{ background: "#060b14", borderRadius: 12, padding: "10px 10px" }}>

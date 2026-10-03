@@ -674,7 +674,7 @@ export default function App() {
 
       {/* Pages — key: po zmianie waluty głównej widoki liczą sumy od nowa */}
       <div key={`fx${fxEpoch}`} style={{ paddingBottom: 100 }}>
-        {tab === "home"         && <ErrorBoundary><SidegigHome transactions={transactions} hobbies={hobbies} trips={trips} modules={enabledModules}
+        {tab === "home"         && <ErrorBoundary><SidegigHome transactions={transactions} hobbies={hobbies} trips={trips} portfolio={portfolio} modules={enabledModules}
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
             onOpenTrips={() => { setPlansSub("trips"); setTab("plans"); }}

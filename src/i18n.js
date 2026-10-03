@@ -740,6 +740,11 @@ const TRANSLATIONS = {
     "plans.empty": "Turn on Trips, Collections or Personal budget in More → Modules.",
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
+    // Sidegig v2.1.1 — inwestycje to nie wydatek
+    "home.invested": "invested",
+    "home.withdrawn": "withdrawn",
+    "home.portfolioResult": "portfolio result",
+    "dash.invested": "Invested",
     // Sidegig v2.1.0 — Zakłady i Sprzedaż
     "bet.status.pending": "Open",
     "bet.status.won": "Won",
