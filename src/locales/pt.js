@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Escolha até {n} atalhos. Início e Mais ficam sempre.",
   "more.navFull": "A barra está cheia — desmarque um para escolher outro.",
   "more.navReset": "Restaurar padrão",
+  "settings.export.shareErr": "Não foi possível salvar o arquivo. Tente novamente.",
 };

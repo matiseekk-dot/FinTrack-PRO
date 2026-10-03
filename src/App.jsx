@@ -31,6 +31,8 @@ import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
 import { getNavTabs, setNavTabs, navItem } from "./lib/nav.js";
+import { initNative } from "./lib/native.js";
+import { closeTopOverlay } from "./lib/backButton.js";
 
 function applyData(d, s) {
   if (!d) return;
@@ -477,6 +479,19 @@ export default function App() {
     // Allow saves again after a short delay (let state settle)
     setTimeout(() => { clearingRef.current = false; }, 2000);
   };
+
+  // Android: Wstecz zamyka najpierw otwarte okno, potem wraca z ekranu na Start,
+  // a na Starcie (i na blokadzie PIN) minimalizuje aplikację.
+  const backRef = useRef(null);
+  backRef.current = () => {
+    if (pinLocked) return false;
+    if (closeTopOverlay()) return true;
+    if (fabMenu) { setFabMenu(false); return true; }
+    if (setupOpen && modules) { setSetupOpen(false); return true; }
+    if (tab !== "home") { setTab("home"); return true; }
+    return false;
+  };
+  useEffect(() => { initNative({ onBack: () => backRef.current() }); }, []);
 
   const enabledModules = modules || [];
   // Pasek: Start + do 3 skrótów wybranych przez użytkownika (domyślnie jego moduły) + Więcej,

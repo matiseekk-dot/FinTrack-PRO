@@ -9,6 +9,8 @@ import { PinSettings } from "./PinLock.jsx";
 import { positionValues } from "../lib/accountTypes.js";
 import { getLang, setLang, t, getLocale, LANGUAGES } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
+import { useBackHandler } from "../lib/backButton.js";
+import { isNative, sitePage, linkProps, shareFile } from "../lib/native.js";
 import { Crown } from "lucide-react";
 import { getCurrentRates, refreshRates, getDisplayCurrency, setDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 
@@ -72,6 +74,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
   const [fxRefreshStatus, setFxRefreshStatus] = useState("");
   // v1.5.0: display currency (główna waluta wyświetlania majątku/sum)
   const [displayCur, setDisplayCur] = useState(getDisplayCurrency());
+  useBackHandler(open, onClose);
+  useBackHandler(open && confirmClear, () => setConfirmClear(false));
 
   if (!open) return null;
 
@@ -346,7 +350,13 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
     XLSX.utils.book_append_sheet(wb, wsBackup, "_Backup_JSON");
 
     const today = todayLocal();
-    XLSX.writeFile(wb, `Sidegig_export_${today}.xlsx`);
+    const filename = `Sidegig_export_${today}.xlsx`;
+    if (isNative) {
+      try { await shareFile({ filename, base64: XLSX.write(wb, { bookType: "xlsx", type: "base64" }), title: filename }); }
+      catch (e) { console.error("[FT] export share error", e); alert(t("settings.export.shareErr", "Nie udało się zapisać pliku. Spróbuj ponownie.")); }
+      return;
+    }
+    XLSX.writeFile(wb, filename);
   };
 
   //    IMPORT                                                                  
@@ -914,6 +924,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           const period = now.toLocaleDateString(getLocale(), { month: "long", year: "numeric" });
           const rows = Object.entries(cats).sort((x,y) => y[1]-x[1]).map(([cat,val]) => `<tr><td style="padding:4px 12px;border-bottom:1px solid #eee">${catLabel(cat)}</td><td style="padding:4px 12px;text-align:right;border-bottom:1px solid #eee">${pln(val)}</td></tr>`).join("");
           const html = `<!DOCTYPE html><html lang="${getLang()}"><head><meta charset="utf-8"><title>Sidegig – ${period}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>Sidegig — ${t("report.title", "Raport miesięczny")}</h1><h2>${period}</h2><div class="summary"><div class="box"><div class="label">${t("report.income", "Przychody")}</div><div class="val green">${pln(income)}</div></div><div class="box"><div class="label">${t("report.expenses", "Wydatki")}</div><div class="val red">${pln(expense)}</div></div><div class="box"><div class="label">${t("report.balance", "Bilans")}</div><div class="val ${income-expense>=0?"green":"red"}">${pln(income-expense)}</div></div></div><table><thead><tr><th>${t("report.category", "Kategoria")}</th><th style="text-align:right">${t("report.amount", "Kwota")}</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">${t("report.generated", "Wygenerowano")}: ${now.toLocaleDateString(getLocale())} · Sidegig</p></body></html>`;
+          if (isNative) {
+            // WebView nie drukuje — plik HTML do udostępnienia (np. Chrome → Drukuj → PDF)
+            shareFile({ filename: `Sidegig_report_${ym}.html`, text: html, title: `Sidegig – ${period}` }).catch(e => console.error("[FT] report share error", e));
+            return;
+          }
           const w = window.open("","_blank"); w.document.write(html); w.document.close(); w.print();
         }} style={{
           width: "100%", background: "#060b14", border: "1px solid #1a2744",
@@ -1163,12 +1178,12 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
       {/* Linki prawne */}
       <div style={{ display: "flex", justifyContent: "center", gap: 20, padding: "16px 0 4px" }}>
-        <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
+        <a {...linkProps(sitePage("privacy.html"))}
           style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
             textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
           {t("settings.privacy", "Polityka prywatności")}
         </a>
-        <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
+        <a {...linkProps(sitePage("terms.html"))}
           style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
             textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
           {t("settings.terms", "Regulamin")}

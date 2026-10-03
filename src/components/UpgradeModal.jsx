@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles, Crown, ExternalLink } from "lucide-react";
 import { t } from "../i18n.js";
+import { useBackHandler } from "../lib/backButton.js";
 
 // v1.3.0: Refactor po przejściu z Gumroad license keys na Google Play Billing.
 // v1.3.1: TIER_FEATURES jako funkcja (nie const) - ewaluuje t() przy każdym renderze.
@@ -18,6 +19,7 @@ const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=pl.skudev.
 const PLAY_STORE_INTENT = "market://details?id=pl.skudev.fintrackpro";
 
 function UpgradeModal({ open, onClose, trigger, onActivated }) {
+  useBackHandler(open, onClose);
   const [plan, setPlan] = useState("yearly");
   const [opening, setOpening] = useState(false);
 

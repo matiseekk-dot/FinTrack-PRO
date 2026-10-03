@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Scegli fino a {n} scorciatoie. Home e Altro restano sempre.",
   "more.navFull": "La barra è piena: togline una per sceglierne un'altra.",
   "more.navReset": "Ripristina predefinito",
+  "settings.export.shareErr": "Impossibile salvare il file. Riprova.",
 };

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MessageCircle, X, Send, Check } from "lucide-react";
 import { exportErrorsForSupport, clearLocalErrors } from "../lib/errorTracking.js";
 import { t } from "../i18n.js";
+import { useBackHandler } from "../lib/backButton.js";
 
 const SUPPORT_EMAIL = "matiseekk@gmail.com";
 
@@ -10,6 +11,7 @@ function FeedbackButton() {
   const [message, setMessage] = useState("");
   const [includeErrors, setIncludeErrors] = useState(true);
   const [sent, setSent] = useState(false);
+  useBackHandler(open, () => setOpen(false));
 
   const handleSend = () => {
     const errorsInfo = includeErrors ? exportErrorsForSupport() : null;

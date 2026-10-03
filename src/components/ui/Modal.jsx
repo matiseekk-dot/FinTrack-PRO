@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
+import { useBackHandler } from "../../lib/backButton.js";
 
 function Modal({ open, onClose, title, children }) {
+  useBackHandler(open, onClose);
   if (!open) return null;
   return (
     <div

@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Kies maximaal {n} snelkoppelingen. Start en Meer staan er altijd.",
   "more.navFull": "De balk is vol — haal er een weg om een andere te kiezen.",
   "more.navReset": "Standaard herstellen",
+  "settings.export.shareErr": "Het bestand kon niet worden opgeslagen. Probeer het opnieuw.",
 };

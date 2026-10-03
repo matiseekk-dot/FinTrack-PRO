@@ -10,6 +10,7 @@ import { t } from "../i18n.js";
 import { positionValues } from "../lib/accountTypes.js";
 import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { useToast } from "../hooks/useToast.js";
+import { useBackHandler } from "../lib/backButton.js";
 function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];
   const accLabel = (a) => a === "Zwykłe" ? t("inv.acc.regular", "Zwykłe") : a;
@@ -17,6 +18,8 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
+  useBackHandler(modal, () => setModal(false));
+  useBackHandler(importModal, () => setImportModal(false));
 
   // Konta inwestycyjne które nie mają jeszcze pozycji w portfelu
   const investAccounts = accounts.filter(a => a.type === "invest");

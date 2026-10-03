@@ -11,6 +11,7 @@ import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { rateOnDate, commitTxChanges } from "../lib/ledger.js";
+import { linkProps } from "../lib/native.js";
 import {
   BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel, marketBookmakers,
   potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats,
@@ -339,7 +340,7 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
       {/* Odpowiedzialna gra */}
       <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.55, textAlign: "center", margin: "26px 8px 8px" }}>
         {t("bet.responsible", "Sidegig tylko zapisuje wyniki — nie przyjmuje zakładów. Jeśli granie przestaje być zabawą, poszukaj wsparcia:")}{" "}
-        <a href="https://www.begambleaware.org" target="_blank" rel="noopener noreferrer" style={{ color: "#64748b" }}>BeGambleAware.org</a>
+        <a {...linkProps("https://www.begambleaware.org")} style={{ color: "#64748b" }}>BeGambleAware.org</a>
       </div>
 
       {/* Formularz kuponu */}

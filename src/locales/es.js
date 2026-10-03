@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Elige hasta {n} accesos. Inicio y Más siempre están.",
   "more.navFull": "La barra está llena: quita uno para elegir otro.",
   "more.navReset": "Restaurar predeterminado",
+  "settings.export.shareErr": "No se pudo guardar el archivo. Inténtalo de nuevo.",
 };

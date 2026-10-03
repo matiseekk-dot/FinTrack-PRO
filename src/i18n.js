@@ -513,6 +513,7 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "settings.export.shareErr": "Couldn't save the file. Please try again.",
     "more.ledgerDesc": "Every entry, filters, personal spending",
     "more.navTitle": "Bottom bar",
     "more.navDesc": "Choose the shortcuts at the bottom",

@@ -10,8 +10,10 @@ import { t } from "../i18n.js";
 import { X } from "lucide-react";
 import { fmt, fmtDisplay } from "../utils.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
+import { useBackHandler } from "../lib/backButton.js";
 
 function CategoryTxModal({ open, onClose, categoryId, transactions = [], allCats = [], title = null }) {
+  useBackHandler(open && !!categoryId, onClose);
   if (!open || !categoryId) return null;
 
   const cat = resolveCategory(categoryId, allCats);

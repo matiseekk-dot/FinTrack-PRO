@@ -1,0 +1,30 @@
+{
+  "appId": "pl.skudev.sidegig",
+  "appName": "Sidegig",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#060b14"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#060b14",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_INSIDE"
+    },
+    "SocialLogin": {
+      "providers": {
+        "google": true,
+        "facebook": false,
+        "apple": false,
+        "twitter": false
+      },
+      "logLevel": 1
+    }
+  }
+}

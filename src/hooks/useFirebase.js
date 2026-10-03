@@ -1,12 +1,34 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  signInWithPopup, signOut, onAuthStateChanged
+  signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged
 } from "firebase/auth";
 import {
   doc, getDoc, setDoc, onSnapshot, serverTimestamp
 } from "firebase/firestore";
-import { auth, db, googleProvider } from "../firebase.js";
+import { auth, db, googleProvider, GOOGLE_WEB_CLIENT_ID } from "../firebase.js";
 import { t } from "../i18n.js";
+import { isNative } from "../lib/native.js";
+
+// Android: natywne okno wyboru konta Google → idToken → Firebase credential.
+// signInWithPopup nie działa w WebView (Google blokuje logowanie w osadzonych przeglądarkach).
+let socialLoginReady = null;
+async function socialLogin() {
+  const { SocialLogin } = await import("@capgo/capacitor-social-login");
+  if (!socialLoginReady) {
+    if (!GOOGLE_WEB_CLIENT_ID) throw Object.assign(new Error("GOOGLE_WEB_CLIENT_ID is not set (src/firebase.js)"), { code: "config" });
+    socialLoginReady = SocialLogin.initialize({ google: { webClientId: GOOGLE_WEB_CLIENT_ID } });
+  }
+  await socialLoginReady;
+  return SocialLogin;
+}
+
+async function signInGoogleNative() {
+  const SocialLogin = await socialLogin();
+  const res = await SocialLogin.login({ provider: "google", options: {} });
+  const idToken = res && res.result && res.result.idToken;
+  if (!idToken) throw new Error("Google sign-in returned no idToken");
+  await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+}
 
 function debounce(fn, ms) {
   let t;
@@ -145,9 +167,10 @@ export function useFirebase() {
   const signInGoogle = useCallback(async () => {
     try {
       setSyncError(null);
-      await signInWithPopup(auth, googleProvider);
+      if (isNative) await signInGoogleNative();
+      else await signInWithPopup(auth, googleProvider);
     } catch (e) {
-      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") {
+      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" || e.code === "USER_CANCELLED") {
         return;
       }
       setSyncError(t("err.login.failed", "Logowanie nie powiodło się. Spróbuj ponownie."));
@@ -162,6 +185,8 @@ export function useFirebase() {
         snapshotUnsubRef.current = null;
       }
       await signOut(auth);
+      // Bez tego następne logowanie od razu wybiera to samo konto Google
+      if (isNative) (await socialLogin()).logout({ provider: "google" }).catch(() => {});
     } catch (e) {
       console.error("[FB] signOut error", e);
     }

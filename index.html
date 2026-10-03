@@ -38,7 +38,8 @@
       // w activate event (CACHE_NAME zawiera wersję apki z __APP_VERSION__).
       // Wcześniej (pre-v1.4) SW był wyrejestrowywany tutaj — przez co PWA nie
       // miała offline mode. Teraz rejestrujemy normalnie.
-      if ('serviceWorker' in navigator) {
+      // Tylko wersja www — aplikacja Android ma pliki w paczce, SW nie jest jej potrzebny.
+      if ('serviceWorker' in navigator && location.pathname.indexOf('/FinTrack-PRO/') === 0) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/FinTrack-PRO/sw.js').catch(err => {
             console.warn('[FT] SW registration failed:', err);

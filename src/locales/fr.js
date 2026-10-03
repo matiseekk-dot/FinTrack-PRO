@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Choisissez jusqu'à {n} raccourcis. Accueil et Plus restent toujours.",
   "more.navFull": "La barre est pleine — retirez-en un pour en choisir un autre.",
   "more.navReset": "Rétablir par défaut",
+  "settings.export.shareErr": "Impossible d'enregistrer le fichier. Réessayez.",
 };

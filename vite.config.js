@@ -22,9 +22,11 @@ const swVersionPlugin = () => ({
   },
 });
 
-export default defineConfig({
+// `vite build --mode android` (npm run build:android): aplikacja Capacitor serwuje
+// dist z katalogu głównego WebView, więc ścieżki muszą być względne.
+export default defineConfig(({ mode }) => ({
   plugins: [react(), swVersionPlugin()],
-  base: '/FinTrack-PRO/',
+  base: mode === 'android' ? './' : '/FinTrack-PRO/',
   // Inject wersji z package.json — używana w UI (SettingsPanel) i jako cache-busting
   // dla Service Workera. Bez tego mieliśmy hardcodowane "v1.1.0" w UI gdy package.json
   // był 1.3.9.
@@ -52,4 +54,4 @@ export default defineConfig({
     // Zwiększ próg warning bo mamy świadomie duży bundle
     chunkSizeWarningLimit: 600,
   },
-})
+}))

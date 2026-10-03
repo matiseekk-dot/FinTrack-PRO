@@ -683,4 +683,5 @@ export default {
   "more.navHint": "Wähle bis zu {n} Verknüpfungen. Start und Mehr sind immer da.",
   "more.navFull": "Die Leiste ist voll — entferne eine, um eine andere zu wählen.",
   "more.navReset": "Standard wiederherstellen",
+  "settings.export.shareErr": "Die Datei konnte nicht gespeichert werden. Bitte versuche es erneut.",
 };

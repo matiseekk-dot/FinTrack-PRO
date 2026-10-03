@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FontLoader } from "./FontLoader.jsx";
 import { t } from "../i18n.js";
+import { sitePage, linkProps } from "../lib/native.js";
 
 function LoginScreen({ onSignIn, loading, syncError }) {
   const [pressed, setPressed] = useState(false);
@@ -98,11 +99,11 @@ function LoginScreen({ onSignIn, loading, syncError }) {
       )}
       <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.8 }}>
         {t("login.terms.prefix", "Logując się akceptujesz")}{" "}
-        <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
+        <a {...linkProps(sitePage("terms.html"))}
           style={{ color: "#475569", textDecoration: "underline" }}>
           {t("login.terms.tos", "Regulamin")}
         </a>{" "}{t("login.terms.and", "i")}{" "}
-        <a href="/FinTrack-PRO/privacy.html" target="_blank" rel="noopener"
+        <a {...linkProps(sitePage("privacy.html"))}
           style={{ color: "#475569", textDecoration: "underline" }}>
           {t("login.terms.privacy", "Politykę prywatności")}
         </a>.<br/>
