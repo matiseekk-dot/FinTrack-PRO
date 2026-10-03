@@ -676,4 +676,11 @@ export default {
   "settings.import.colCategory": "ex.: jedzenie",
   "trips.title": "Viagens",
   "trips.countLabel": "Viagens: {n}",
+  "more.ledgerDesc": "Todos os lançamentos, filtros, gastos pessoais",
+  "more.navTitle": "Barra inferior",
+  "more.navDesc": "Escolha os atalhos da barra",
+  "more.navPinned": "Na barra",
+  "more.navHint": "Escolha até {n} atalhos. Início e Mais ficam sempre.",
+  "more.navFull": "A barra está cheia — desmarque um para escolher outro.",
+  "more.navReset": "Restaurar padrão",
 };

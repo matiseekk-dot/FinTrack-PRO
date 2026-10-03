@@ -676,4 +676,11 @@ export default {
   "settings.import.colCategory": "es. jedzenie",
   "trips.title": "Viaggi",
   "trips.countLabel": "Viaggi: {n}",
+  "more.ledgerDesc": "Tutti i movimenti, filtri, spese personali",
+  "more.navTitle": "Barra in basso",
+  "more.navDesc": "Scegli le scorciatoie in basso",
+  "more.navPinned": "Nella barra",
+  "more.navHint": "Scegli fino a {n} scorciatoie. Home e Altro restano sempre.",
+  "more.navFull": "La barra è piena: togline una per sceglierne un'altra.",
+  "more.navReset": "Ripristina predefinito",
 };

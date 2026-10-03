@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
-  PlusCircle, X, Home, List, Settings,
-  Briefcase, RefreshCw, Cloud, CloudOff, Plane, Menu
+  PlusCircle, X, Settings, RefreshCw, Cloud, CloudOff
 } from "lucide-react";
 import { FontLoader } from "./components/FontLoader.jsx";
 import { SettingsPanel } from "./components/SettingsPanel.jsx";
@@ -31,6 +30,7 @@ import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tie
 import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.js";
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
+import { getNavTabs, setNavTabs, navItem } from "./lib/nav.js";
 
 function applyData(d, s) {
   if (!d) return;
@@ -163,6 +163,8 @@ export default function App() {
   // Format: { [arrayKey]: { [id]: deletedAtMs } }. Auto-purge po 30 dniach (w mergeSnapshots).
   const [tombstones,   setTombstones]   = useState({});
   const [fabOpen,      setFabOpen]      = useState(false);
+  // Zmiana skrótów na dolnym pasku (Więcej → Dolny pasek) — wymusza ponowny odczyt
+  const [,             setNavVersion]   = useState(0);
   const [fabMenu,      setFabMenu]      = useState(false); // long press menu
   const fabPressTimer  = useRef(null);
   const [loaded,       setLoaded]       = useState(false);
@@ -448,7 +450,7 @@ export default function App() {
       "ft_tax_reserve_pct",                     // v2.2.0: rezerwa na podatek (Freelance)
       "ft_notif_asked", "ft_notif_date",
       "ft_setup_done",
-      // ft_device_id i ft_lang ZOSTAJĄ — to preferencje urządzenia, nie dane usera.
+      // ft_device_id, ft_lang i ft_nav_tabs ZOSTAJĄ — to preferencje urządzenia, nie dane usera.
       // ft_onboarded ustawiamy na "1" zaraz potem.
     ];
     KEYS_TO_WIPE.forEach(k => { try { localStorage.removeItem(k); } catch {} });
@@ -477,14 +479,13 @@ export default function App() {
   };
 
   const enabledModules = modules || [];
-  // Pasek: zakładki po obu stronach przycisku +. Wyjazdy tylko z włączonym modułem.
-  const TABS = [
-    { id: "home",         label: t("nav.home", "Start"),   Icon: Home },
-    { id: "transactions", label: t("nav.ledger", "Wpisy"), Icon: List },
-    ...(enabledModules.includes("trips") ? [{ id: "trips", label: t("nav.trips", "Wyjazdy"), Icon: Plane }] : []),
-    { id: "portfolio",    label: t("nav.accounts", "Konta"), Icon: Briefcase },
-    { id: "more",         label: t("nav.more", "Więcej"),  Icon: Menu },
-  ];
+  // Pasek: Start + do 3 skrótów wybranych przez użytkownika (domyślnie jego moduły) + Więcej,
+  // po obu stronach przycisku +. Edycja w Więcej podbija navVersion → render czyta wybór od nowa.
+  const navTabs = getNavTabs(enabledModules);
+  const TABS = ["home", ...navTabs, "more"].map(id => navItem(id));
+  // Ekran spoza paska (np. moduł otwarty z Więcej) podświetla Więcej
+  const activeTab = TABS.some(x => x.id === tab) ? tab : "more";
+  const changeNavTabs = (ids) => { setNavTabs(ids); setNavVersion(v => v + 1); };
   const navSplit = Math.ceil(TABS.length / 2);
   const goTab = (id) => setTab(id);
   // Zakłady i Sprzedaż mają własne ekrany; pozostałe moduły to przefiltrowane Wpisy
@@ -614,7 +615,7 @@ export default function App() {
             onOpenTrips={() => setTab("trips")}
             onOpenBudget={() => { setLedgerModule("personal"); setTab("transactions"); }}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
-        {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
+        {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} navTabs={navTabs} onNavTabsChange={changeNavTabs} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
         {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
         {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
         {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
@@ -680,13 +681,12 @@ export default function App() {
       {/* Bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "linear-gradient(180deg, transparent 0%, #060b14 20%)", paddingTop: 20, paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)", zIndex: 50 }}>
         <div style={{ display: "flex", background: "#0a1120", border: "1px solid #1a2744", borderRadius: 20, margin: "0 12px", padding: "5px 3px", alignItems: "center" }}>
-          {TABS.slice(0, navSplit).map(({ id, label, Icon, badge }) => {
-            const active = tab === id;
+          {TABS.slice(0, navSplit).map(({ id, label, Icon }) => {
+            const active = activeTab === id;
             return (
-              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
+              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} aria-label={label} style={{ flex: 1, minWidth: 0, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
                 <Icon size={15} color={active ? "#34d399" : "#475569"}/>
-                {badge > 0 && <div style={{ position: "absolute", top: 4, right: 6, background: "#ef4444", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, fontWeight: 800, color: "white" }}>{badge > 9 ? "9+" : badge}</span></div>}
-                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: label.length > 8 ? 7 : 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: label.length > 8 ? "0.02em" : "0.05em" }}>{label}</span>
               </button>
             );
           })}
@@ -696,13 +696,12 @@ export default function App() {
             <PlusCircle size={15} color="white"/>
             <span style={{ fontSize: 8, fontWeight: 800, color: "white", letterSpacing: "0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>{t("nav.add").toUpperCase()}</span>
           </button>
-          {TABS.slice(navSplit).map(({ id, label, Icon, badge }) => {
-            const active = tab === id;
+          {TABS.slice(navSplit).map(({ id, label, Icon }) => {
+            const active = activeTab === id;
             return (
-              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} style={{ flex: 1, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
+              <button key={id} onClick={() => goTab(id)} aria-current={active ? "page" : undefined} aria-label={label} style={{ flex: 1, minWidth: 0, background: active ? "#10b9811f" : "none", border: active ? "1px solid #10b98144" : "1px solid transparent", borderRadius: 13, padding: "7px 2px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all 0.2s ease", position: "relative" }}>
                 <Icon size={15} color={active ? "#34d399" : "#475569"}/>
-                {badge > 0 && <div style={{ position: "absolute", top: 4, right: 6, background: "#ef4444", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, fontWeight: 800, color: "white" }}>{badge > 9 ? "9+" : badge}</span></div>}
-                <span style={{ fontSize: 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: label.length > 8 ? 7 : 8, fontWeight: 700, color: active ? "#34d399" : "#475569", textTransform: "uppercase", letterSpacing: label.length > 8 ? "0.02em" : "0.05em" }}>{label}</span>
               </button>
             );
           })}

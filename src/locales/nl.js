@@ -676,4 +676,11 @@ export default {
   "settings.import.colCategory": "bijv. jedzenie",
   "trips.title": "Reizen",
   "trips.countLabel": "Reizen: {n}",
+  "more.ledgerDesc": "Alle boekingen, filters, persoonlijke uitgaven",
+  "more.navTitle": "Onderbalk",
+  "more.navDesc": "Kies de snelkoppelingen onderaan",
+  "more.navPinned": "In de balk",
+  "more.navHint": "Kies maximaal {n} snelkoppelingen. Start en Meer staan er altijd.",
+  "more.navFull": "De balk is vol — haal er een weg om een andere te kiezen.",
+  "more.navReset": "Standaard herstellen",
 };

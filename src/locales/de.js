@@ -676,4 +676,11 @@ export default {
   "settings.import.colCategory": "z. B. jedzenie",
   "trips.title": "Reisen",
   "trips.countLabel": "Reisen: {n}",
+  "more.ledgerDesc": "Alle Einträge, Filter, private Ausgaben",
+  "more.navTitle": "Leiste unten",
+  "more.navDesc": "Wähle die Verknüpfungen unten",
+  "more.navPinned": "In der Leiste",
+  "more.navHint": "Wähle bis zu {n} Verknüpfungen. Start und Mehr sind immer da.",
+  "more.navFull": "Die Leiste ist voll — entferne eine, um eine andere zu wählen.",
+  "more.navReset": "Standard wiederherstellen",
 };

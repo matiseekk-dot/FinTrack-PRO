@@ -676,4 +676,11 @@ export default {
   "settings.import.colCategory": "напр. jedzenie",
   "trips.title": "Подорожі",
   "trips.countLabel": "Подорожей: {n}",
+  "more.ledgerDesc": "Усі записи, фільтри, особисті витрати",
+  "more.navTitle": "Нижня панель",
+  "more.navDesc": "Оберіть ярлики внизу",
+  "more.navPinned": "На панелі",
+  "more.navHint": "Оберіть до {n} ярликів. Головна і Ще є завжди.",
+  "more.navFull": "Панель заповнена — зніміть один ярлик, щоб обрати інший.",
+  "more.navReset": "Відновити типові",
 };

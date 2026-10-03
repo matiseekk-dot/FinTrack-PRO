@@ -70,7 +70,7 @@ const TRANSLATIONS = {
     "nav.plans": "Plany",
     "nav.hobby": "Hobby",
     "nav.analytics": "Analiza",
-    "nav.accounts": "Portfel",
+    "nav.accounts": "Konta",
     "nav.add": "Dodaj",
 
     // Plans (parent tab)
@@ -513,6 +513,13 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "more.ledgerDesc": "Every entry, filters, personal spending",
+    "more.navTitle": "Bottom bar",
+    "more.navDesc": "Choose the shortcuts at the bottom",
+    "more.navPinned": "On the bar",
+    "more.navHint": "Pick up to {n} shortcuts. Home and More are always there.",
+    "more.navFull": "The bar is full — unpick one to choose another.",
+    "more.navReset": "Restore default",
     "trips.title": "Trips",
     "trips.countLabel": "Trips: {n}",
     "exptype.variable": "Variable",
