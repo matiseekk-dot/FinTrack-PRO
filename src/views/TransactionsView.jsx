@@ -462,7 +462,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 const nativeAmt = Math.abs(nativeCur === "PLN" ? tx.amount : tx.origAmount);
                 const mainAmt = nativeCur === dispCur ? fmtCurrency(nativeAmt, dispCur) : fmtDisplay(Math.abs(tx.amount));
                 // Wpis kuponu albo przedmiotu: edycja w ekranie modułu, żeby kurs/prowizja zgadzały się z kwotą
-                const linked = !!onOpenLinked && (!!tx.bet || tx.resaleItemId != null);
+                const linked = !!onOpenLinked && (!!tx.bet || tx.resaleItemId != null || tx.gigId != null || tx.collectionItemId != null);
                 return (
                   <div key={tx.id}
                     style={{

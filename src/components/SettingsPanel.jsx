@@ -23,7 +23,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
                          trips = [], hobbies = [], portfolio = [],
                          // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
-                         resaleItems = [], modules = null, onRestoreFull }) {
+                         resaleItems = [], modules = null, onRestoreFull,
+                         // v2.2.0: katalog Kolekcji i zlecenia Freelance
+                         collectionItems = [], gigs = [] }) {
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatColor, setNewCatColor] = useState("#06b6d4");
   const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
@@ -312,6 +314,41 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       XLSX.utils.book_append_sheet(wb, wsResale, "Sprzedaż");
     }
 
+    // Sheet: Kolekcje (v2.2.0) — katalog pozycji
+    if (collectionItems && collectionItems.length) {
+      const hobbyName = (id) => ((hobbies || []).find(h => h.id === id) || {}).name || "";
+      const wsColl = XLSX.utils.json_to_sheet(collectionItems.map(it => ({
+        Kolekcja:     hobbyName(it.hobbyId),
+        Tytuł:        it.title,
+        Twórca:       it.creator || "",
+        Format:       it.format || "",
+        Stan:         it.condition || "",
+        Status:       it.status,
+        Waluta:       it.currency || "PLN",
+        Cena_zakupu:  it.buyPrice ?? "",
+        Data_zakupu:  it.buyDate || "",
+        Wartość:      it.value ?? "",
+        Kupię_do:     it.targetPrice ?? "",
+      })));
+      XLSX.utils.book_append_sheet(wb, wsColl, "Kolekcje");
+    }
+
+    // Sheet: Freelance (v2.2.0) — zlecenia
+    if (gigs && gigs.length) {
+      const wsGigs = XLSX.utils.json_to_sheet(gigs.map(g => ({
+        Klient:      g.client || "",
+        Opis:        g.title || "",
+        Kwota:       g.amount,
+        Waluta:      g.currency || "PLN",
+        Godziny:     g.hours ?? "",
+        Wykonane:    g.date || "",
+        Termin:      g.dueDate || "",
+        Status:      g.status,
+        Zapłacone:   g.paidDate || "",
+      })));
+      XLSX.utils.book_append_sheet(wb, wsGigs, "Freelance");
+    }
+
     // Sheet 12: Full JSON backup v:2 — KOMPLET danych do restore
     // (v:1 nie miał trips/hobbies/portfolio/cycleDayHistory/tombstones/partnerName)
     const templates = (() => { try { return JSON.parse(localStorage.getItem("ft_templates") || "null"); } catch(_) { return null; } })();
@@ -322,7 +359,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       // Wszystkie dane finansowe
       accounts, transactions, budgets, payments, paid, goals,
       customCats, cycleDay, cycleDayHistory, defaultAcc, partnerName,
-      portfolio, trips, hobbies, resaleItems, modules,
+      portfolio, trips, hobbies, resaleItems, collectionItems, gigs, modules,
       // Legacy/templates
       templates, vacation, vacationArchiveData: vacationArchive,
       // Preferencje per device (mogą być przydatne przy restore na tym samym urządzeniu)
@@ -372,7 +409,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 setImportMsg(
                   `Przywrócono pełny backup: ${(d.transactions||[]).length} transakcji, ` +
                   `${(d.accounts||[]).length} kont, ${(d.trips||[]).length} wyjazdów, ` +
-                  `${(d.hobbies||[]).length} hobby, ${(d.resaleItems||[]).length} przedmiotów`
+                  `${(d.hobbies||[]).length} hobby, ${(d.resaleItems||[]).length} przedmiotów, ` +
+                  `${(d.collectionItems||[]).length} pozycji kolekcji, ${(d.gigs||[]).length} zleceń`
                 );
                 return;
               }

@@ -7,7 +7,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
 import { Stat, MiniStat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
-import { fmt, fmtShort, cycleTxs } from "../utils.js";
+import { fmtDisplay as fmt, fmtShort, cycleTxs } from "../utils.js"; // v2.2.0: kwoty w walucie głównej
 import {
   pickHobbyColor, DEFAULT_HOBBY_COLORS, getAllHobbyTransactions, getHobbyStats
 } from "../lib/hobby.js";
@@ -374,7 +374,8 @@ function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) 
   );
 }
 
-function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit, onDelete }) {
+// embedded: osadzone w ekranie Kolekcji (v2.2.0) — bez własnego „Wstecz” i przycisków edycji
+function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit, onDelete, embedded = false }) {
   const stats = useMemo(() => getHobbyStats(transactions, hobby, { cycleTxs: cyclePool }),
     [transactions, hobby, cyclePool]);
   // v1.3.2: zamiast samych wydatków, pokazujemy mieszane (wydatki + przychody)
@@ -385,14 +386,14 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
   const hasIncome = stats.incomeAllTime > 0 || stats.incomeCount > 0;
 
   return (
-    <div style={{ padding: "0 16px 100px" }}>
-      <button onClick={onBack} style={{
+    <div style={{ padding: embedded ? 0 : "0 16px 100px" }}>
+      {!embedded && <button onClick={onBack} style={{
         background: "none", border: "none", color: "#a855f7", fontSize: 13,
         cursor: "pointer", padding: "0 0 12px 0", display: "flex", alignItems: "center", gap: 4,
         fontFamily: "'Space Grotesk', sans-serif",
       }}>
         <ChevronLeft size={14}/> {t("hobby.back", "Wstecz")}
-      </button>
+      </button>}
 
       {/* Header card */}
       <Card style={{ padding: "18px 20px", marginBottom: 14, borderColor: hobby.color + "66" }}>
@@ -421,10 +422,10 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4 }}>
+          {!embedded && <div style={{ display: "flex", gap: 4 }}>
             <button onClick={onEdit} title={t("common.edit", "Edytuj")} style={iconBtn}><Edit2 size={14}/></button>
             <button onClick={onDelete} title={t("common.delete", "Usuń")} style={{...iconBtn, color: "#ef4444"}}><Trash2 size={14}/></button>
-          </div>
+          </div>}
         </div>
 
         {/* Wydatki — bez zmian */}
@@ -839,4 +840,4 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
   );
 }
 
-export { HobbyView };
+export { HobbyView, HobbyDetails, HobbyModal };

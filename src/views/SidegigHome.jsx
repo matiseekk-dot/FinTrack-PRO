@@ -1,9 +1,13 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, Wallet, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, Wallet, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { fmtDisplay, todayLocal } from "../utils.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
 import { groupTrips, getTripSpending } from "../lib/trips.js";
-import { txAmountForDisplay, getDisplayCurrency } from "../lib/fx.js";
+import { txAmountForDisplay, amountForDisplay, getDisplayCurrency } from "../lib/fx.js";
+import { bettingStats } from "../lib/betting.js";
+import { daysBetween } from "../lib/reselling.js";
+import { collectionStats } from "../lib/collections.js";
+import { isOverdue } from "../lib/freelance.js";
 import { t, getLang } from "../i18n.js";
 
 const BRAND = "linear-gradient(135deg,#059669,#10b981)";
@@ -21,7 +25,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
   const lang = getLang();
   const monthNames = lang === "pl" ? MONTHS_PL : MONTHS_EN;
   const now = new Date();
@@ -76,6 +80,43 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
   const maxAbs = Math.max(1, ...bars.map(b => Math.abs(b.net)));
 
   const trend = prevNet !== 0 ? ((stats.net - prevNet) / Math.abs(prevNet)) * 100 : null;
+
+  // Rzeczy do zrobienia w modułach: zaległe faktury, otwarte kupony, długo leżący towar
+  const today = todayLocal();
+  const attention = useMemo(() => {
+    const out = [];
+    const sum = (list) => list.reduce((s, g) => s + amountForDisplay(g.amount, g.currency), 0);
+    if (modules.includes("freelance")) {
+      const unpaid = gigs.filter(g => g.status === "unpaid");
+      const overdue = unpaid.filter(g => isOverdue(g, today));
+      if (overdue.length) out.push({ id: "freelance", tone: "#f87171", text: t("home.att.overdue", "Faktury po terminie: {n} · {amount}").replace("{n}", overdue.length).replace("{amount}", fmtDisplay(sum(overdue))) });
+      else if (unpaid.length) out.push({ id: "freelance", tone: "#fbbf24", text: t("home.att.unpaid", "Czeka na zapłatę: {n} · {amount}").replace("{n}", unpaid.length).replace("{amount}", fmtDisplay(sum(unpaid))) });
+    }
+    if (modules.includes("betting")) {
+      const open = transactions.filter(tx => tx.bet && tx.bet.status === "pending");
+      if (open.length) out.push({ id: "betting", tone: "#a78bfa", text: t("home.att.openBets", "Kupony do rozliczenia: {n}").replace("{n}", open.length) });
+    }
+    if (modules.includes("reselling")) {
+      const stale = resaleItems.filter(r => r.status !== "sold" && (daysBetween(r.buyDate || r.createdAt, today) || 0) > 30);
+      if (stale.length) out.push({ id: "reselling", tone: "#ec4899", text: t("home.att.stale", "Na stanie dłużej niż 30 dni: {n}").replace("{n}", stale.length) });
+    }
+    return out;
+  }, [modules, gigs, transactions, resaleItems, today, getDisplayCurrency()]);
+
+  // Dodatkowa informacja w wierszu modułu (ROI, stan magazynu, wartość kolekcji, zaległe)
+  const extras = useMemo(() => {
+    const x = {};
+    const monthBets = resolved.filter(r => r.ym === ym && r.mod === "betting").map(r => r.tx);
+    const bs = bettingStats(monthBets);
+    if (bs.roi != null) x.betting = `ROI ${bs.roi > 0 ? "+" : ""}${(bs.roi * 100).toFixed(1)}%`;
+    const stock = resaleItems.filter(r => r.status !== "sold").length;
+    if (stock > 0) x.reselling = t("home.extra.stock", "{n} na stanie").replace("{n}", stock);
+    const cs = collectionStats(collectionItems, resaleItems).total;
+    if (cs.value > 0) x.collections = t("home.extra.collection", "kolekcja {amount}").replace("{amount}", fmtDisplay(cs.value));
+    const unpaid = gigs.filter(g => g.status === "unpaid").reduce((s, g) => s + amountForDisplay(g.amount, g.currency), 0);
+    if (unpaid > 0) x.freelance = t("home.extra.unpaid", "czeka {amount}").replace("{amount}", fmtDisplay(unpaid));
+    return x;
+  }, [resolved, ym, resaleItems, collectionItems, gigs]);
 
   // Trips card: active trip first, otherwise the next upcoming one
   const tripCard = useMemo(() => {
@@ -136,6 +177,22 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         </div>
       </div>
 
+      {/* WYMAGA UWAGI */}
+      {attention.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {attention.map(a => (
+            <button key={a.id + a.text} onClick={() => onOpenModule && onOpenModule(a.id)} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, cursor: "pointer",
+              background: a.tone + "12", border: `1px solid ${a.tone}44`, color: "#e2e8f0", fontFamily: "inherit", textAlign: "left",
+            }}>
+              <AlertCircle size={14} color={a.tone} style={{ flexShrink: 0 }}/>
+              <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{a.text}</span>
+              <Arrow size={14} color="#475569"/>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* MODULE ROWS */}
       {sideEnabled.length > 0 && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 4px 0" }}>
@@ -164,6 +221,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
           if (parts.length) sub = parts.join(" · ");
           right = portfolio.length > 0 ? pnl : (s.net !== 0 ? s.net : null);
         }
+        if (extras[id]) sub = s.count === 0 ? extras[id] : `${sub} · ${extras[id]}`;
         return (
           <button key={id} onClick={() => onOpenModule && onOpenModule(id)} style={rowBtn}>
             <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: m.color + "22", border: `1px solid ${m.color}55`, display: "grid", placeItems: "center" }}>

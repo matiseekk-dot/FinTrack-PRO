@@ -48,6 +48,8 @@ function pickHobbyColor(existingHobbies) {
 function txMatchesHobby(tx, hobby) {
   if (!tx || !hobby) return false;
   if (tx.cat === "inne") return false;     // transfery zawsze pomijamy
+  // v2.2.0: zakup dodany z katalogu Kolekcji ma jawne hobbyId — liczy się tylko tam
+  if (tx.hobbyId != null) return tx.hobbyId === hobby.id;
   const cats = Array.isArray(hobby.categories) ? hobby.categories : [];
   const keywords = Array.isArray(hobby.keywords) ? hobby.keywords : [];
 
@@ -225,5 +227,6 @@ export {
   txMatchesHobby,
   pickHobbyColor,
   getAllHobbyTransactions,
+  getHobbyExpenses,
   getHobbyStats,
 };

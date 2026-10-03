@@ -14,6 +14,8 @@ function MoreView({ modules = [], unpaidBillsCount = 0, onNavigate, onOpenModule
   const screens = [
     ["betting",   t("more.bettingDesc", "Kupony, ROI, bukmacherzy")],
     ["reselling", t("more.resellingDesc", "Przedmioty, prowizje, zysk na sztuce")],
+    ["collections", t("more.collectionsDesc", "Katalog, wartość, lista życzeń")],
+    ["freelance", t("more.freelanceDesc", "Zlecenia, klienci, zaległe płatności")],
   ].filter(([id]) => modules.includes(id));
 
   const groups = [

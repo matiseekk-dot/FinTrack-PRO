@@ -25,11 +25,13 @@ const SYNC_KEYS = [
   "displayCurrency",  // v1.5.1: preferencja waluty wyświetlania syncuje się między urządzeniami
   "modules",          // v2.0.0 Sidegig: włączone moduły (freelance, betting, ...)
   "resaleItems",      // v2.1.0: przedmioty modułu Sprzedaż
+  "collectionItems",  // v2.2.0: katalog Kolekcji
+  "gigs",             // v2.2.0: zlecenia Freelance
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
 const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals",
-  "portfolio", "customCats", "trips", "hobbies", "resaleItems"];
+  "portfolio", "customCats", "trips", "hobbies", "resaleItems", "collectionItems", "gigs"];
 
 // Tombstones starsze niż 30 dni są auto-purgowane przy każdym merge.
 // 30 dni to bezpieczny próg - po tym czasie dane na drugim urządzeniu (które

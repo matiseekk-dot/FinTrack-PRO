@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { PiggyBank, AlertCircle, Plane, Disc3 } from "lucide-react";
+import { PiggyBank, AlertCircle, Plane } from "lucide-react";
 import { GoalsView } from "./GoalsView.jsx";
 import { LimitsView } from "./LimitsView.jsx";
 import { TripsView } from "./TripsView.jsx";
-import { HobbyView } from "./HobbyView.jsx";
 import { t } from "../i18n.js";
 
 /**
@@ -30,11 +29,10 @@ function PlansView({
   portfolio,
 }) {
   // Sidegig: sub-zakładki zależą od włączonych modułów. Cele i limity należą do
-  // budżetu osobistego; Wyjazdy do modułu Trips; Hobby to moduł Kolekcje.
+  // budżetu osobistego; Wyjazdy do modułu Trips. Hobby (v2.2.0) ma własny ekran Kolekcji.
   // modules === null (stary kod / brak setupu) → pokazuj wszystko.
   const allTabs = [
     { id: "trips",  label: t("plans.tab.trips"),  Icon: Plane,       module: "trips" },
-    { id: "hobby",  label: t("plans.tab.collections", "Kolekcje"), Icon: Disc3, module: "collections" },
     { id: "goals",  label: t("plans.tab.goals"),  Icon: PiggyBank,   module: "personal" },
     { id: "limits", label: t("plans.tab.limits"), Icon: AlertCircle, module: "personal" },
   ];
@@ -44,7 +42,7 @@ function PlansView({
 
   if (tabs.length === 0) return (
     <div style={{ padding: "40px 24px", textAlign: "center", color: "#94a3b8", fontSize: 13, lineHeight: 1.6 }}>
-      {t("plans.empty", "Włącz moduł Wyjazdy, Kolekcje albo Budżet osobisty w Więcej → Moduły.")}
+      {t("plans.empty", "Włącz moduł Wyjazdy albo Budżet osobisty w Więcej → Moduły.")}
     </div>
   );
 
@@ -110,14 +108,6 @@ function PlansView({
         />
       )}
 
-      {subTab === "hobby" && (
-        <HobbyView
-          hobbies={hobbies} setHobbies={setHobbies}
-          transactions={transactions}
-          allCats={allCats}
-          month={month} cycleDay={cycleDay}
-        />
-      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Check, Trash2, ShoppingBag, Tag, HandCoins } from "luc
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
+import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, actionBtn, num } from "../components/ModuleUI.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
@@ -16,34 +17,9 @@ import {
 } from "../lib/reselling.js";
 
 const ACCENT = "#ec4899";
-const BRAND = "linear-gradient(135deg,#059669,#10b981)";
 const STATUS_COLORS = { stock: "#64748b", listed: "#f59e0b", sold: "#10b981" };
 
-const num = (v) => parseFloat(String(v ?? "").replace(",", "."));
 const pct = (x) => x == null ? "—" : `${(x * 100).toFixed(1)}%`;
-
-const sectionTitle = { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", margin: "22px 0 10px" };
-const card = { background: "#0d1628", border: "1px solid #1a2744", borderRadius: 16 };
-const fieldLabel = { fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" };
-
-function Chip({ on, color = "#10b981", onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      background: on ? color + "22" : "#0d1628", border: `1px solid ${on ? color : "#1a2744"}`,
-      color: on ? color : "#64748b", borderRadius: 8, padding: "6px 10px", cursor: "pointer",
-      fontSize: 12, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
-    }}>{children}</button>
-  );
-}
-
-function Stat({ label, value, color = "#e2e8f0" }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-    </div>
-  );
-}
 
 /**
  * Sprzedaż: przedmioty od zakupu do sprzedaży. Zakup i sprzedaż to wpisy w Wpisach
@@ -144,6 +120,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, ac
     const old = form.editingId != null ? items.find(x => x.id === form.editingId) : null;
     const platform = form.platform.trim();
     const item = {
+      ...(old || {}), // zachowuje pola spoza formularza (np. fromCollectionItemId)
       id: old ? old.id : newId(),
       name, category: form.category, status: form.status,
       currency: form.currency, acc: parseInt(form.acc) || defaultAcc,
@@ -461,14 +438,6 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, ac
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
     </div>
   );
-}
-
-function actionBtn(color) {
-  return {
-    flex: 1, background: color + "18", border: `1px solid ${color}55`, color,
-    borderRadius: 9, padding: "7px 2px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "inherit",
-    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-  };
 }
 
 export { ResellingView };

@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Check, X, RotateCcw, HandCoins, Trash2, Target } from 
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
+import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, num } from "../components/ModuleUI.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
@@ -16,7 +17,6 @@ import {
 } from "../lib/betting.js";
 
 const ACCENT = "#a78bfa";
-const BRAND = "linear-gradient(135deg,#059669,#10b981)";
 
 const STATUS_META = {
   pending: { color: "#f59e0b", label: () => t("bet.status.pending", "Otwarty") },
@@ -27,7 +27,6 @@ const STATUS_META = {
 };
 
 const pct = (x, sign = false) => x == null ? "—" : `${sign && x > 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
-const num = (v) => parseFloat(String(v ?? "").replace(",", "."));
 
 function Sparkline({ series }) {
   if (series.length < 2) return null;
@@ -45,29 +44,6 @@ function Sparkline({ series }) {
     </svg>
   );
 }
-
-function Stat({ label, value, color = "#e2e8f0" }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-    </div>
-  );
-}
-
-function Chip({ on, color = "#10b981", onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      background: on ? color + "22" : "#0d1628", border: `1px solid ${on ? color : "#1a2744"}`,
-      color: on ? color : "#64748b", borderRadius: 8, padding: "6px 10px", cursor: "pointer",
-      fontSize: 12, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
-    }}>{children}</button>
-  );
-}
-
-const sectionTitle = { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", margin: "22px 0 10px" };
-const card = { background: "#0d1628", border: "1px solid #1a2744", borderRadius: 16 };
-const fieldLabel = { fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" };
 
 /**
  * Zakłady: wynik, ROI i obrót z kuponów. Każdy kupon to wpis w Wpisach (moduł betting),

@@ -97,6 +97,8 @@ function migrateData(d) {
   if (!Array.isArray(d.trips))    d.trips    = [];
   if (!Array.isArray(d.hobbies))  d.hobbies  = [];
   if (!Array.isArray(d.resaleItems)) d.resaleItems = [];
+  if (!Array.isArray(d.collectionItems)) d.collectionItems = [];
+  if (!Array.isArray(d.gigs)) d.gigs = [];
   // sanityzacja cycleDayHistory
   if (Array.isArray(d.cycleDayHistory)) {
     d.cycleDayHistory = d.cycleDayHistory
