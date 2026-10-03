@@ -1,55 +1,17 @@
-import { MONTHS, MONTH_NAMES } from "./constants.js";
 import { getDisplayCurrency, convertFromPLN } from "./lib/fx.js";
-
-function buildHistData(transactions, cycleDayOrHistory = 1) {
-  const monthSet = new Set(transactions.map(t => t.date.slice(0,7)));
-  const months   = [...monthSet].sort();
-  const last6    = months.slice(-6);
-  // Cycle = 1 (kalendarzowy) jako shortcut tylko dla starego liczbowego argumentu
-  const isCalendarMonth = typeof cycleDayOrHistory === "number" && cycleDayOrHistory <= 1;
-  return last6.map(ym => {
-    const [year, mm] = ym.split("-");
-    const mIdx  = parseInt(mm) - 1;
-    const txs   = isCalendarMonth
-      ? transactions.filter(t => t.date.startsWith(ym) && t.cat !== "inne")
-      : cycleTxs(transactions, mIdx, cycleDayOrHistory, parseInt(year))
-          .filter(t => t.cat !== "inne");
-    const income  = txs.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
-    const expense = txs.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-    return { m: MONTHS[mIdx], ym, income: Math.round(income), expense: Math.round(expense), balance: Math.round(income - expense) };
-  });
-}
+import { getLocale } from "./i18n.js";
 
 //    UTILS
+// Kwota w PLN (format zależny od języka apki)
 function fmt(n, showSign = false) {
-  const num = Number(n);
-  if (!Number.isFinite(num)) return "0,00 zł";
-  const s = Math.abs(num).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (showSign) return (num >= 0 ? "+" : "−") + s + " zł";
-  return s + " zł";
-};
+  return fmtCurrency(n, "PLN", showSign);
+}
 
 function fmtShort(n) {
   const num = Number(n);
   if (!Number.isFinite(num)) return "0";
   if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1) + "k";
   return num.toFixed(0);
-};
-
-// Mapa formatowania per waluta. PLN: "1 234,56 zł". USD: "$1,234.56". EUR: "1 234,56 €".
-// Dla nieznanej waluty fallback do generycznego "1234.56 CUR".
-const CURRENCY_FORMAT = {
-  PLN: { locale: "pl-PL", style: "currency", currency: "PLN" },
-  EUR: { locale: "de-DE", style: "currency", currency: "EUR" },
-  USD: { locale: "en-US", style: "currency", currency: "USD" },
-  GBP: { locale: "en-GB", style: "currency", currency: "GBP" },
-  CHF: { locale: "de-CH", style: "currency", currency: "CHF" },
-  CZK: { locale: "cs-CZ", style: "currency", currency: "CZK" },
-  HUF: { locale: "hu-HU", style: "currency", currency: "HUF" },
-  SEK: { locale: "sv-SE", style: "currency", currency: "SEK" },
-  NOK: { locale: "nb-NO", style: "currency", currency: "NOK" },
-  DKK: { locale: "da-DK", style: "currency", currency: "DKK" },
-  JPY: { locale: "ja-JP", style: "currency", currency: "JPY" },
 };
 
 /**
@@ -78,22 +40,18 @@ function fmtCurrency(amount, currency, showSign = false) {
   return formatRaw(num, currency, showSign);
 }
 
+// Format kwoty w języku apki: pl "1 234,56 €", en "€1,234.56", de "1.234,56 €".
+// Miejsca po przecinku według waluty (JPY bez groszy) — robi to Intl.
+const nfCache = {};
 function formatRaw(num, currency, showSign) {
   const code = (currency || "PLN").toUpperCase();
-  const cfg = CURRENCY_FORMAT[code];
+  const locale = getLocale();
   let s;
-  if (cfg) {
-    try {
-      s = new Intl.NumberFormat(cfg.locale, {
-        style: "currency",
-        currency: cfg.currency,
-        minimumFractionDigits: code === "JPY" ? 0 : 2,
-        maximumFractionDigits: code === "JPY" ? 0 : 2,
-      }).format(Math.abs(num));
-    } catch {
-      s = Math.abs(num).toFixed(2) + " " + code;
-    }
-  } else {
+  try {
+    const key = locale + code;
+    const nf = nfCache[key] || (nfCache[key] = new Intl.NumberFormat(locale, { style: "currency", currency: code }));
+    s = nf.format(Math.abs(num));
+  } catch {
     s = Math.abs(num).toFixed(2) + " " + code;
   }
   if (!showSign) return s;
@@ -209,17 +167,12 @@ function cycleTxs(transactions, month, cycleDayOrHistory, year) {
   return transactions.filter(t => t.date >= start && t.date <= end);
 };
 
-function fmtCycleLabel(month, cycleDayOrHistory) {
-  const y = new Date().getFullYear();
-  const cycleDay = resolveCycleDay(month, cycleDayOrHistory, y);
-  if (cycleDay <= 1) return MONTH_NAMES[month] + " " + y;
-  const prevMonth = month === 0 ? 11 : month - 1;
-  // Clamp day do liczby dni w odpowiednim miesiącu dla ładnego wyświetlenia
-  const startDay = Math.min(cycleDay, daysInMonth(month === 0 ? y-1 : y, prevMonth + 1));
-  const endDay   = Math.min(cycleDay - 1, daysInMonth(y, month + 1));
-  return `${startDay} ${MONTHS[prevMonth]} – ${endDay} ${MONTHS[month]} ${y}`;
-};
-
+// Nazwa miesiąca w języku apki (Intl), z wielkiej litery: „Październik”, „October”, „Oktober”.
+// style: "long" | "short"
+function monthName(m, style = "long") {
+  const s = new Intl.DateTimeFormat(getLocale(), { month: style }).format(new Date(2000, m, 1));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 // ═══ LOCAL DATE HELPERS ═══
 // new Date().toISOString() zwraca UTC. W PL (UTC+1/+2) między 22:00 a 00:00
@@ -238,6 +191,6 @@ function dateToLocal(d) {
 }
 
 
-export { buildHistData, fmt, fmtShort, fmtDisplay, fmtCurrency,
-         getCycleRange, cycleTxs, fmtCycleLabel,
+export { fmt, fmtShort, fmtDisplay, fmtCurrency, monthName,
+         getCycleRange, cycleTxs,
          todayLocal, dateToLocal, getCurrentCycleMonth };

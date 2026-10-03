@@ -3,16 +3,18 @@ import { Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { FontLoader } from "./FontLoader.jsx";
 import { MODULES, MODULE_ORDER, moduleLabel, moduleDesc } from "../lib/modules.js";
 import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { t, getLang } from "../i18n.js";
+import { t, getLang, getLocale } from "../i18n.js";
 
 const BRAND = "linear-gradient(135deg,#059669,#10b981)";
 
-const CURRENCY_NAMES = {
-  EUR: "Euro", PLN: "Polski złoty", USD: "US dollar", GBP: "British pound",
-  CHF: "Swiss franc", CZK: "Czech koruna", HUF: "Hungarian forint",
-  SEK: "Swedish krona", NOK: "Norwegian krone", DKK: "Danish krone", JPY: "Japanese yen",
-};
-const CURRENCIES = ["EUR", "PLN", ...SUPPORTED_CURRENCIES.filter(c => c !== "EUR")];
+// Nazwa waluty w języku użytkownika (Intl), np. „euro”, „Euro”, „real brasileño”
+function currencyName(code) {
+  try {
+    const n = new Intl.DisplayNames([getLocale()], { type: "currency" }).of(code);
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : code;
+  } catch (_) { return code; }
+}
+const ALL_CURRENCIES = ["PLN", ...SUPPORTED_CURRENCIES];
 
 /**
  * Two-step Sidegig setup: home currency, then modules.
@@ -89,7 +91,7 @@ function SidegigSetup({ initialCurrency = "EUR", initialModules = [], isReturnin
           </p>
 
           <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-            {CURRENCIES.map(code => {
+            {[initialCurrency, ...ALL_CURRENCIES.filter(c => c !== initialCurrency)].map(code => {
               const on = currency === code;
               return (
                 <button key={code} role="radio" aria-checked={on} onClick={() => setCurrency(code)} style={{
@@ -100,7 +102,7 @@ function SidegigSetup({ initialCurrency = "EUR", initialModules = [], isReturnin
                   color: "#e2e8f0", fontFamily: "inherit", textAlign: "left",
                 }}>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 14, width: 40, color: on ? "#34d399" : "#cbd5e1" }}>{code}</span>
-                  <span style={{ flex: 1, fontSize: 13, color: "#94a3b8" }}>{CURRENCY_NAMES[code] || code}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: "#94a3b8" }}>{currencyName(code)}</span>
                   {on && <Check size={16} color="#34d399"/>}
                 </button>
               );

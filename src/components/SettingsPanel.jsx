@@ -4,12 +4,17 @@ import {
 } from "lucide-react";
 import { Card } from "./ui/Card.jsx";
 import { CATEGORIES } from "../constants.js";
-import { todayLocal } from "../utils.js";
+import { todayLocal, fmtCurrency } from "../utils.js";
 import { PinSettings } from "./PinLock.jsx";
-import { getLang, setLang, t } from "../i18n.js";
+import { positionValues } from "../lib/accountTypes.js";
+import { getLang, setLang, t, getLocale, LANGUAGES } from "../i18n.js";
 import { getProStatus } from "../lib/tier.js";
 import { Crown } from "lucide-react";
 import { getCurrentRates, refreshRates, getDisplayCurrency, setDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+
+const currencyName = (code) => {
+  try { return new Intl.DisplayNames([getLocale()], { type: "currency" }).of(code); } catch { return code; }
+};
 
 function SettingsPanel({ open, onClose, accounts, transactions, budgets, payments, paid,
                          goals, customCats, defaultAcc, setDefaultAcc,
@@ -228,8 +233,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         Ilość:        p.qty || 0,
         Cena_średnia: p.avgPrice || 0,
         Cena_aktualna:p.currentPrice || 0,
-        Wartość_PLN:  p.valuePLN || 0,
-        PnL_PLN:      p.pnlPLN || 0,
+        Wartość_PLN:  +positionValues(p).valuePLN.toFixed(2),
+        PnL_PLN:      +positionValues(p).pnlPLN.toFixed(2),
         PnL_proc:     p.pnlPct != null ? p.pnlPct.toFixed(2) + "%" : "",
         Konto:        p.account || "",
         Waluta:       p.currency || "PLN",
@@ -371,10 +376,11 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                 onRestoreFull(d);
                 setImportStatus("ok");
                 setImportMsg(
-                  `Przywrócono pełny backup: ${(d.transactions||[]).length} transakcji, ` +
-                  `${(d.accounts||[]).length} kont, ${(d.trips||[]).length} wyjazdów, ` +
-                  `${(d.hobbies||[]).length} hobby, ${(d.resaleItems||[]).length} przedmiotów, ` +
-                  `${(d.collectionItems||[]).length} pozycji kolekcji, ${(d.gigs||[]).length} zleceń`
+                  t("settings.import.restored", "Przywrócono kopię: wpisy {tx}, konta {acc}, wyjazdy {trips}, kolekcje {hobbies}, przedmioty {items}, pozycje katalogu {catalog}, zlecenia {gigs}")
+                    .replace("{tx}", (d.transactions||[]).length).replace("{acc}", (d.accounts||[]).length)
+                    .replace("{trips}", (d.trips||[]).length).replace("{hobbies}", (d.hobbies||[]).length)
+                    .replace("{items}", (d.resaleItems||[]).length).replace("{catalog}", (d.collectionItems||[]).length)
+                    .replace("{gigs}", (d.gigs||[]).length)
                 );
                 return;
               }
@@ -516,7 +522,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                           padding: 8, display: "flex" }}>
               <Settings size={16} color="white"/>
             </div>
-            <span style={{ fontWeight: 800, fontSize: 18 }}>Ustawienia</span>
+            <span style={{ fontWeight: 800, fontSize: 18 }}>{t("settings.title", "Ustawienia")}</span>
           </div>
           <button onClick={onClose} style={{ background: "#1a2744", border: "none", borderRadius: 10,
                                              padding: 10, cursor: "pointer", color: "#94a3b8",
@@ -547,7 +553,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                   </div>
                   <div style={{ fontSize: 11, color: "#cbd5e1" }}>
                     {pro.type === "lifetime" && t("settings.pro.lifetime", "Dożywotni dostęp · dziękuję za wsparcie!")}
-                    {pro.type === "yearly" && pro.expiresAt && `${t("settings.pro.validUntil", "Ważny do")} ${new Date(pro.expiresAt).toLocaleDateString(getLang() === "en" ? "en-US" : "pl-PL")}`}
+                    {pro.type === "yearly" && pro.expiresAt && `${t("settings.pro.validUntil", "Ważny do")} ${new Date(pro.expiresAt).toLocaleDateString(getLocale())}`}
                     {pro.type === "trial" && t("settings.pro.trial", "Wersja próbna")}
                   </div>
                 </div>
@@ -649,7 +655,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     <input
                       value={editForm.label}
                       onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
-                      placeholder="Nazwa kategorii"
+                      placeholder={t("settings.cats.namePh", "Nazwa kategorii")}
                       style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
                         borderRadius: 8, padding: "9px 11px", color: "#e2e8f0", fontSize: 14,
                         fontFamily: "'Space Grotesk', sans-serif", outline: "none",
@@ -659,7 +665,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     {/* Color picker */}
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
-                        marginBottom: 6, textTransform: "uppercase" }}>Kolor</div>
+                        marginBottom: 6, textTransform: "uppercase" }}>{t("common.color", "Kolor")}</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4",
                           "#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
@@ -681,8 +687,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                         <div style={{ display: "flex", gap: 6 }}>
                           {[
                             ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
-                            ["variable",  "Zmienne",   "#f59e0b"],
-                            ["lifestyle", "Lifestyle", "#ec4899"],
+                            ["variable",  t("exptype.variable", "Zmienne"),   "#f59e0b"],
+                            ["lifestyle", t("exptype.lifestyle", "Lifestyle"), "#ec4899"],
                           ].map(([v, l, col]) => (
                             <button key={v}
                               onClick={() => setEditForm(f => ({ ...f, expenseType: v }))}
@@ -706,14 +712,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                         color: "#94a3b8", borderRadius: 8, padding: "9px 0",
                         fontSize: 12, fontWeight: 700, cursor: "pointer",
                         fontFamily: "'Space Grotesk', sans-serif",
-                      }}>Anuluj</button>
+                      }}>{t("common.cancel", "Anuluj")}</button>
                       <button onClick={saveEditCat} style={{
                         flex: 2, background: "linear-gradient(135deg,#1e40af,#3b82f6)",
                         border: "none", color: "white",
                         borderRadius: 8, padding: "9px 0",
                         fontSize: 12, fontWeight: 700, cursor: "pointer",
                         fontFamily: "'Space Grotesk', sans-serif",
-                      }}>Zapisz zmiany</button>
+                      }}>{t("tx.saveChanges", "Zapisz zmiany")}</button>
                     </div>
                   </div>
                 );
@@ -746,8 +752,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                                   :                                   "#f472b6",
                       }}>
                         {cat.expenseType === "fixed" ? t("settings.cats.fixed", "Stałe")
-                         : cat.expenseType === "variable" ? "Zmienne"
-                         : "Lifestyle"}
+                         : cat.expenseType === "variable" ? t("exptype.variable", "Zmienne")
+                         : t("exptype.lifestyle", "Lifestyle")}
                       </span>
                     )}
                   </div>
@@ -755,7 +761,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     <button onClick={() => startEditCat(cat)}
                       style={{ background: "none", border: "none", cursor: "pointer",
                         color: "#475569", padding: 4 }}
-                      title="Edytuj">
+                      title={t("common.edit", "Edytuj")}>
                       <Edit2 size={13}/>
                     </button>
                     <button onClick={() => {
@@ -796,7 +802,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               outline: "none", marginBottom: 10, WebkitAppearance: "none" }}
           />
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase" }}>Kolor</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase" }}>{t("common.color", "Kolor")}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
                 <div key={c} onClick={() => setNewCatColor(c)}
@@ -816,8 +822,8 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               <div style={{ display: "flex", gap: 6 }}>
                 {[
                   ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
-                  ["variable",  "Zmienne",   "#f59e0b"],
-                  ["lifestyle", "Lifestyle", "#ec4899"],
+                  ["variable",  t("exptype.variable", "Zmienne"),   "#f59e0b"],
+                  ["lifestyle", t("exptype.lifestyle", "Lifestyle"), "#ec4899"],
                 ].map(([v, l, c]) => (
                   <button key={v} onClick={() => setNewCatExpenseType(v)} style={{
                     flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700,
@@ -895,14 +901,19 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <div style={{ height: 10 }}/>
         <button onClick={() => {
-          const monthNames = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
+          // Raport bieżącego miesiąca do druku / PDF — w języku i formacie apki
+          const now = new Date();
+          const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+          const monthTx = transactions.filter(tx => tx.date.startsWith(ym) && tx.cat !== "inne");
           const cats = {};
-          transactions.filter(t => t.date.startsWith(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`) && t.amount < 0 && t.cat !== "inne")
-            .forEach(t => { cats[t.cat] = (cats[t.cat]||0) + Math.abs(t.amount); });
-          const income = transactions.filter(t => t.date.startsWith(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`) && t.amount > 0 && t.cat !== "inne").reduce((s,t) => s+t.amount,0);
-          const expense = Object.values(cats).reduce((s,v) => s+v, 0);
-          const rows = Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([cat,val]) => `<tr><td style="padding:4px 12px;border-bottom:1px solid #eee">${cat}</td><td style="padding:4px 12px;text-align:right;border-bottom:1px solid #eee">${val.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</td></tr>`).join("");
-          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sidegig – ${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>Sidegig — Raport miesięczny</h1><h2>${new Date().toLocaleDateString("pl-PL",{month:"long",year:"numeric"})}</h2><div class="summary"><div class="box"><div class="label">Przychody</div><div class="val green">${income.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Wydatki</div><div class="val red">${expense.toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div><div class="box"><div class="label">Bilans</div><div class="val ${income-expense>=0?"green":"red"}">${(income-expense).toLocaleString("pl-PL",{minimumFractionDigits:2})} zł</div></div></div><table><thead><tr><th>Kategoria</th><th style="text-align:right">Kwota</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">Wygenerowano: ${new Date().toLocaleDateString("pl-PL")} · Sidegig</p></body></html>`;
+          monthTx.filter(tx => tx.amount < 0).forEach(tx => { cats[tx.cat] = (cats[tx.cat]||0) + Math.abs(tx.amount); });
+          const income = monthTx.filter(tx => tx.amount > 0).reduce((sum,tx) => sum+tx.amount,0);
+          const expense = Object.values(cats).reduce((sum,v) => sum+v, 0);
+          const pln = (v) => fmtCurrency(v, "PLN");
+          const catLabel = (id) => ([...CATEGORIES, ...(customCats || [])].find(c => c.id === id) || {}).label || id;
+          const period = now.toLocaleDateString(getLocale(), { month: "long", year: "numeric" });
+          const rows = Object.entries(cats).sort((x,y) => y[1]-x[1]).map(([cat,val]) => `<tr><td style="padding:4px 12px;border-bottom:1px solid #eee">${catLabel(cat)}</td><td style="padding:4px 12px;text-align:right;border-bottom:1px solid #eee">${pln(val)}</td></tr>`).join("");
+          const html = `<!DOCTYPE html><html lang="${getLang()}"><head><meta charset="utf-8"><title>Sidegig – ${period}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>Sidegig — ${t("report.title", "Raport miesięczny")}</h1><h2>${period}</h2><div class="summary"><div class="box"><div class="label">${t("report.income", "Przychody")}</div><div class="val green">${pln(income)}</div></div><div class="box"><div class="label">${t("report.expenses", "Wydatki")}</div><div class="val red">${pln(expense)}</div></div><div class="box"><div class="label">${t("report.balance", "Bilans")}</div><div class="val ${income-expense>=0?"green":"red"}">${pln(income-expense)}</div></div></div><table><thead><tr><th>${t("report.category", "Kategoria")}</th><th style="text-align:right">${t("report.amount", "Kwota")}</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">${t("report.generated", "Wygenerowano")}: ${now.toLocaleDateString(getLocale())} · Sidegig</p></body></html>`;
           const w = window.open("","_blank"); w.document.write(html); w.document.close(); w.print();
         }} style={{
           width: "100%", background: "#060b14", border: "1px solid #1a2744",
@@ -911,7 +922,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           fontFamily: "'Space Grotesk', sans-serif",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
-          <span style={{ fontSize: 16 }}>🖨</span> Drukuj / Zapisz PDF
+          <span style={{ fontSize: 16 }}>🖨</span> {t("settings.report.btn", "Drukuj raport miesiąca (PDF)")}
         </button>
 
         <Divider/>
@@ -928,13 +939,13 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                       padding: "10px 14px", marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8,
                         textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Wymagane kolumny (arkusz Transakcje)
+            {t("settings.import.columns", "Wymagane kolumny (arkusz „Transakcje”)")}
           </div>
           {[
-            ["Data",      "RRRR-MM-DD",  "#3b82f6"],
-            ["Opis",      "tekst",       "#10b981"],
-            ["Kwota",     "+/- liczba",  "#f59e0b"],
-            ["Kategoria", "np. jedzenie","#8b5cf6"],
+            ["Data",      t("settings.import.colDate", "RRRR-MM-DD"),  "#3b82f6"],
+            ["Opis",      t("settings.import.colText", "tekst"),       "#10b981"],
+            ["Kwota",     t("settings.import.colNumber", "+/- liczba"),  "#f59e0b"],
+            ["Kategoria", t("settings.import.colCategory", "np. jedzenie"),"#8b5cf6"],
             ["Konto_ID",  "1, 2, 3…",   "#06b6d4"],
           ].map(([col, hint, color]) => (
             <div key={col} style={{ display: "flex", justifyContent: "space-between",
@@ -987,10 +998,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         {/* v1.5.0: Główna waluta wyświetlania. Internal storage zawsze PLN —
             zmiana tylko zmienia jak są pokazywane sumy/Dashboard/budżety. */}
-        <SectionTitle>🌍 Główna waluta wyświetlania</SectionTitle>
+        <SectionTitle>🌍 {t("settings.currency.title", "Waluta główna")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.6 }}>
-          Apka zlicza majątek i sumy w wybranej walucie. Dane w bazie nadal w PLN —
-          to tylko zmiana wyświetlania (kursy NBP w tle).
+          {t("settings.currency.help", "W niej pokazujemy sumy i bilans. Każdy wpis zachowuje swoją walutę — przeliczamy po kursie z dnia wpisu.")}
         </p>
         <div style={{ marginBottom: 14 }}>
           <select
@@ -1011,15 +1021,13 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               WebkitAppearance: "none", appearance: "none",
               boxSizing: "border-box", cursor: "pointer",
             }}>
-            <option value="PLN">🇵🇱 PLN — Polski złoty</option>
-            {SUPPORTED_CURRENCIES.map(c => (
-              <option key={c} value={c}>{c}</option>
+            {["PLN", ...SUPPORTED_CURRENCIES].map(c => (
+              <option key={c} value={c}>{c} — {currencyName(c)}</option>
             ))}
           </select>
           {displayCur !== "PLN" && (
             <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 6, lineHeight: 1.5 }}>
-              ⚠️ Konwersja przez NBP mid rate. Drift dla cross-currency (np. EUR↔USD)
-              wynosi ~0.1% przez podwójny przelicznik.
+              ⚠️ {t("settings.currency.drift", "Przeliczamy po kursach średnich NBP. Między dwiema walutami obcymi (np. EUR↔USD) różnica może wynieść ok. 0,1%.")}
             </div>
           )}
         </div>
@@ -1027,19 +1035,19 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* FX rates — NBP Tabela A */}
-        <SectionTitle>💱 Kursy walut</SectionTitle>
+        <SectionTitle>💱 {t("settings.fx.title", "Kursy walut")}</SectionTitle>
         {(() => {
           const fx = getCurrentRates();
           const sourceLabel = fx.source === "nbp" || fx.source === "cache"
-            ? `Tabela NBP A z ${fx.date}`
-            : `Offline / fallback (z ${fx.date})`;
+            ? t("settings.fx.table", "Tabela NBP A z {date}").replace("{date}", fx.date)
+            : t("settings.fx.offline", "Offline — kursy z {date}").replace("{date}", fx.date);
           const sourceColor = fx.source === "fallback" ? "#f59e0b" : "#94a3b8";
           return (
             <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12,
               padding: "14px 16px", marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>Źródło: NBP API</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{t("settings.fx.source", "Źródło: NBP (Narodowy Bank Polski)")}</div>
                   <div style={{ fontSize: 11, color: sourceColor, marginTop: 3 }}>{sourceLabel}</div>
                 </div>
                 <button
@@ -1057,14 +1065,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     fontFamily: "'Space Grotesk', sans-serif",
                     opacity: fxRefreshStatus === "loading" ? 0.6 : 1,
                   }}>
-                  {fxRefreshStatus === "loading" ? "Odświeżam…" : "Odśwież"}
+                  {fxRefreshStatus === "loading" ? t("settings.fx.refreshing", "Odświeżam…") : t("settings.fx.refresh", "Odśwież")}
                 </button>
               </div>
               {fxRefreshStatus === "ok" && (
-                <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>✓ Pobrano świeże kursy z NBP</div>
+                <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>✓ {t("settings.fx.ok", "Pobrano świeże kursy")}</div>
               )}
               {fxRefreshStatus === "err" && (
-                <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>⚠ Brak połączenia — używam ostatniego cache</div>
+                <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}>⚠ {t("settings.fx.err", "Brak połączenia — używam ostatnio pobranych kursów")}</div>
               )}
               {/* Lista 5 najpopularniejszych kursów dla podglądu */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 10 }}>
@@ -1074,15 +1082,14 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                     <div key={code} style={{ background: "#0a1120", borderRadius: 8, padding: "6px 4px", textAlign: "center" }}>
                       <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, letterSpacing: "0.05em" }}>{code}</div>
                       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#cbd5e1" }}>
-                        {r ? r.toFixed(3) : "—"}
+                        {r ? r.toLocaleString(getLocale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : "—"}
                       </div>
                     </div>
                   );
                 })}
               </div>
               <div style={{ fontSize: 10, color: "#334155", marginTop: 8, lineHeight: 1.5 }}>
-                Kursy NBP średnie (Tabela A) używane w konwersji wieloalutowych transakcji.
-                Auto-odświeżanie raz na dobę. Bank ma własny kurs + spread — to jest tracker, nie księgowość.
+                {t("settings.fx.note", "Średnie kursy NBP (Tabela A), odświeżane raz na dobę. Twój bank ma własny kurs i spread — Sidegig to tracker, nie księgowość.")}
               </div>
             </div>
           );
@@ -1091,16 +1098,16 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Custom categories */}
-        <SectionTitle>🌍 Język / Language</SectionTitle>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {[["pl", "🇵🇱 Polski"], ["en", "🇬🇧 English"]].map(([code, label]) => (
-            <button key={code} onClick={() => setLang(code)} style={{
-              flex: 1, padding: "12px 0", borderRadius: 12, cursor: "pointer",
+        <SectionTitle>🌍 {t("settings.language", "Język")} / Language</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+          {LANGUAGES.map(({ code, name, flag }) => (
+            <button key={code} onClick={() => code !== getLang() && setLang(code)} aria-pressed={getLang() === code} style={{
+              padding: "11px 10px", borderRadius: 12, cursor: "pointer", textAlign: "left",
               fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
-              background: getLang() === code ? "linear-gradient(135deg,#1e40af,#3b82f6)" : "#0d1628",
-              border: getLang() === code ? "1px solid #2563eb" : "1px solid #1e3a5f66",
-              color: getLang() === code ? "white" : "#94a3b8",
-            }}>{label}</button>
+              background: getLang() === code ? "#10b98122" : "#0d1628",
+              border: getLang() === code ? "1px solid #10b981" : "1px solid #1e3a5f66",
+              color: getLang() === code ? "#34d399" : "#94a3b8",
+            }}>{flag} {name}</button>
           ))}
         </div>
         <Divider/>
@@ -1140,7 +1147,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmClear(false)} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 12, padding: "12px 0", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Anuluj
+                {t("common.cancel", "Anuluj")}
               </button>
               <button onClick={() => {
                 if (typeof onClearData === "function") onClearData();
@@ -1164,7 +1171,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <a href="/FinTrack-PRO/terms.html" target="_blank" rel="noopener"
           style={{ fontSize: 11, color: "#334155", fontFamily: "'Space Grotesk', sans-serif",
             textDecoration: "none", borderBottom: "1px solid #1a2744", paddingBottom: 1 }}>
-          Regulamin
+          {t("settings.terms", "Regulamin")}
         </a>
       </div>
 

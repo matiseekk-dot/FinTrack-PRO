@@ -3,12 +3,16 @@ import { PieChart, Pie, Cell } from "recharts";
 import { X } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
-import { Input } from "../components/ui/Input.jsx";
+import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { fmt } from "../utils.js";
+import { fmtDisplay as fmt } from "../utils.js";
+import { t } from "../i18n.js";
+import { positionValues } from "../lib/accountTypes.js";
+import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { useToast } from "../hooks/useToast.js";
 function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];
+  const accLabel = (a) => a === "Zwykłe" ? t("inv.acc.regular", "Zwykłe") : a;
   const COLORS = ["#8b5cf6","#f59e0b","#10b981","#3b82f6","#ef4444","#06b6d4","#ec4899","#a3e635"];
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
@@ -30,8 +34,8 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
     const qty   = parseFloat(form.qty) || 0;
     const avg   = parseFloat(form.avgPrice) || 0;
     const cur   = parseFloat(form.currentPrice) || 0;
-    const val   = qty * cur;
-    const pnl   = qty * (cur - avg);
+    // Wartość w PLN po bieżącym kursie waluty pozycji (fmt pokazuje ją w walucie głównej)
+    const { valuePLN: val, pnlPLN: pnl } = positionValues({ qty, currentPrice: cur, avgPrice: avg, currency: form.currency });
     const pnlPct = avg > 0 ? ((cur - avg) / avg * 100) : 0;
     // Spread editItem żeby zachować pola spoza form (np. linkedAccId z "Dodaj z konta").
     // Bez tego edycja gubi link do konta i Dashboard przestaje pokazywać aktualną wycenę
@@ -46,16 +50,16 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
 
   const remove = (id) => setPortfolio(p => p.filter(x => x.id !== id));
 
-  const totalValue = portfolio.reduce((s, p) => s + p.valuePLN, 0);
-  const totalPnL   = portfolio.reduce((s, p) => s + p.pnlPLN, 0);
+  const totalValue = portfolio.reduce((s, p) => s + positionValues(p).valuePLN, 0);
+  const totalPnL   = portfolio.reduce((s, p) => s + positionValues(p).pnlPLN, 0);
   const totalInv   = totalValue - totalPnL;
   const totalPct   = totalInv > 0 ? (totalPnL / totalInv * 100) : 0;
 
   const byAccount = ACCOUNT_TYPES.map(acc => ({
     acc,
     items: portfolio.filter(p => p.account === acc),
-    val:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+p.valuePLN, 0),
-    pnl:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+p.pnlPLN, 0),
+    val:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+positionValues(p).valuePLN, 0),
+    pnl:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+positionValues(p).pnlPLN, 0),
   })).filter(g => g.items.length > 0);
 
   const colorFor = (ticker) => COLORS[portfolio.findIndex(p => p.ticker === ticker) % COLORS.length];
@@ -65,7 +69,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
       <div style={{ paddingTop: 8, paddingBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Portfel inwestycyjny</div>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>{t("inv.title", "Portfel inwestycyjny")}</div>
           {portfolio.length > 0 ? (
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 26, fontWeight: 500 }}>{fmt(totalValue)}</span>
@@ -74,11 +78,11 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
               </span>
             </div>
           ) : (
-            <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>Brak pozycji</div>
+            <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{t("inv.noPositions", "Brak pozycji")}</div>
           )}
         </div>
         <button onClick={openAdd} style={{ background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          + Dodaj
+          + {t("common.add", "Dodaj")}
         </button>
       </div>
 
@@ -86,12 +90,12 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
       {unlinkedInvestAccounts.length > 0 && portfolio.length === 0 && (
         <Card style={{ marginBottom: 12, padding: "14px 16px", background: "#0a1e3a", border: "1px solid #1e40af44" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-            💡 Masz konta inwestycyjne
+            💡 {t("inv.haveAccounts", "Masz konta inwestycyjne")}
           </div>
           <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
-            Znaleziono {unlinkedInvestAccounts.length === 1 ? "konto" : "konta"} inwestycyjne:{" "}
-            <strong style={{ color: "#e2e8f0" }}>{unlinkedInvestAccounts.map(a => a.name).join(", ")}</strong>.
-            Chcesz dodać je jako pozycje w portfelu?
+            {t("inv.found", "Znalezione konta inwestycyjne:")}{" "}
+            <strong style={{ color: "#e2e8f0" }}>{unlinkedInvestAccounts.map(a => a.name).join(", ")}</strong>.{" "}
+            {t("inv.addAsPositions", "Dodać je jako pozycje w portfelu?")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setImportModal(true)} style={{
@@ -99,14 +103,14 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
               borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700,
               fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
             }}>
-              Dodaj z kont
+              {t("inv.addFromAccounts", "Dodaj z kont")}
             </button>
             <button onClick={openAdd} style={{
               flex: 1, background: "#0d1628", border: "1px solid #1a2744",
               borderRadius: 10, padding: "9px 0", color: "#64748b", fontWeight: 600,
               fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
             }}>
-              Dodaj ręcznie
+              {t("inv.addManually", "Dodaj ręcznie")}
             </button>
           </div>
         </Card>
@@ -115,10 +119,10 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
       {portfolio.length === 0 && unlinkedInvestAccounts.length === 0 && (
         <Card style={{ textAlign: "center", padding: "32px 16px" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📈</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Dodaj swoje inwestycje</div>
-          <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6 }}>ETF-y, akcje, kryptowaluty — wszystko w jednym miejscu. Śledź zyski i alokację portfela.</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>{t("inv.emptyTitle", "Dodaj swoje inwestycje")}</div>
+          <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6 }}>{t("inv.emptyDesc", "ETF-y, akcje, kryptowaluty — w jednym miejscu. Śledź zysk i podział portfela.")}</div>
           <button onClick={openAdd} style={{ marginTop: 16, background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "10px 20px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-            Dodaj pierwszą pozycję
+            {t("inv.addFirst", "Dodaj pierwszą pozycję")}
           </button>
         </Card>
       )}
@@ -127,10 +131,10 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
         <>
           {/* Alokacja pie */}
           <Card style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Alokacja</div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{t("inv.allocation", "Alokacja")}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <PieChart width={110} height={110}>
-                <Pie data={portfolio.map(p => ({ name: p.ticker, value: p.valuePLN }))} cx={50} cy={50} innerRadius={30} outerRadius={50} dataKey="value" strokeWidth={2} stroke="#060b14">
+                <Pie data={portfolio.map(p => ({ name: p.ticker, value: positionValues(p).valuePLN }))} cx={50} cy={50} innerRadius={30} outerRadius={50} dataKey="value" strokeWidth={2} stroke="#060b14">
                   {portfolio.map((p) => <Cell key={p.ticker} fill={colorFor(p.ticker)}/>)}
                 </Pie>
               </PieChart>
@@ -141,7 +145,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: colorFor(p.ticker) }}/>
                       <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: "#94a3b8" }}>{p.ticker}</span>
                     </div>
-                    <span style={{ fontSize: 11, color: "#64748b" }}>{totalValue > 0 ? (p.valuePLN / totalValue * 100).toFixed(0) : 0}%</span>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>{totalValue > 0 ? (positionValues(p).valuePLN / totalValue * 100).toFixed(0) : 0}%</span>
                   </div>
                 ))}
               </div>
@@ -153,7 +157,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
               {byAccount.map(({ acc, val, pnl }, i) => (
                 <Card key={acc} style={{ padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{acc}</div>
+                  <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{accLabel(acc)}</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600, color: COLORS[i % COLORS.length] }}>{fmt(val)}</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: pnl >= 0 ? "#10b981" : "#ef4444", marginTop: 3 }}>
                     {pnl >= 0 ? "+" : ""}{fmt(pnl)}
@@ -167,7 +171,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
           {byAccount.map(({ acc, items, val }, gi) => (
             <div key={acc}>
               <div style={{ fontSize: 11, fontWeight: 700, color: COLORS[gi % COLORS.length], marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {acc} · {fmt(val)}
+                {accLabel(acc)} · {fmt(val)}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
                 {items.map(p => (
@@ -176,21 +180,21 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color: colorFor(p.ticker), background: colorFor(p.ticker) + "22", borderRadius: 5, padding: "1px 7px", fontFamily: "'DM Mono', monospace" }}>{p.ticker}</span>
-                          <span style={{ fontSize: 10, background: "#1e3a5f33", color: "#60a5fa", border: "1px solid #2563eb44", borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>{p.account}</span>
+                          <span style={{ fontSize: 10, background: "#1e3a5f33", color: "#60a5fa", border: "1px solid #2563eb44", borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>{accLabel(p.account)}</span>
                         </div>
                         {p.name && <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 3 }}>{p.name}</div>}
                         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#334155" }}>
-                          {p.qty} szt. · avg {p.avgPrice.toFixed(2)} {p.currency}
+                          {p.qty} {t("inv.pcs", "szt.")} · {t("inv.avg", "śr.")} {p.avgPrice.toFixed(2)} {p.currency}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
-                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600 }}>{fmt(p.valuePLN)}</div>
-                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: p.pnlPLN >= 0 ? "#10b981" : "#ef4444", marginTop: 3 }}>
-                          {p.pnlPLN >= 0 ? "+" : ""}{fmt(p.pnlPLN)} ({p.pnlPct >= 0 ? "+" : ""}{p.pnlPct.toFixed(2)}%)
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600 }}>{fmt(positionValues(p).valuePLN)}</div>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: positionValues(p).pnlPLN >= 0 ? "#10b981" : "#ef4444", marginTop: 3 }}>
+                          {positionValues(p).pnlPLN >= 0 ? "+" : ""}{fmt(positionValues(p).pnlPLN)} ({p.pnlPct >= 0 ? "+" : ""}{p.pnlPct.toFixed(2)}%)
                         </div>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
-                          <button onClick={() => openEdit(p)} style={{ background: "#1e3a5f", border: "none", borderRadius: 6, padding: "4px 8px", color: "#60a5fa", cursor: "pointer", fontSize: 11 }}>Edytuj</button>
-                          <button onClick={() => remove(p.id)} style={{ background: "#1a0808", border: "none", borderRadius: 6, padding: "4px 8px", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>Usuń</button>
+                          <button onClick={() => openEdit(p)} style={{ background: "#1e3a5f", border: "none", borderRadius: 6, padding: "4px 8px", color: "#60a5fa", cursor: "pointer", fontSize: 11 }}>{t("common.edit", "Edytuj")}</button>
+                          <button onClick={() => remove(p.id)} style={{ background: "#1a0808", border: "none", borderRadius: 6, padding: "4px 8px", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>{t("common.delete", "Usuń")}</button>
                         </div>
                       </div>
                     </div>
@@ -209,12 +213,11 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
           <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0",
             padding: "24px 20px 40px", width: "min(100vw,480px)", maxHeight: "85vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <span style={{ fontSize: 17, fontWeight: 700 }}>Importuj z kont</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{t("inv.importTitle", "Dodaj z kont")}</span>
               <button onClick={() => setImportModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
             </div>
             <div style={{ fontSize: 13, color: "#475569", marginBottom: 16, lineHeight: 1.6 }}>
-              Wybierz konta inwestycyjne do dodania. Wartość zostanie pobrana z salda konta.
-              Możesz później edytować szczegóły (ticker, ilość sztuk).
+              {t("inv.importDesc", "Wybierz konta do dodania. Wartość weźmiemy z salda konta — ticker i ilość możesz później zmienić.")}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
               {unlinkedInvestAccounts.map(acc => (
@@ -227,7 +230,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                     <div style={{ width: 10, height: 10, borderRadius: "50%", background: acc.color }}/>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{acc.name}</div>
-                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{acc.bank || "Inwestycje"} · {fmt(acc.balance)}</div>
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{acc.bank || t("inv.investments", "Inwestycje")} · {fmt(acc.balance)}</div>
                     </div>
                   </div>
                   <button
@@ -247,7 +250,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                         linkedAccId: acc.id,
                       };
                       setPortfolio(p => [...p, item]);
-                      showToast(`${acc.name} dodane do portfela ✓`);
+                      showToast(`${acc.name} — ${t("inv.added", "dodane do portfela ✓")}`);
                     }}
                     style={{
                       background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
@@ -255,7 +258,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                       fontWeight: 700, fontSize: 12, cursor: "pointer",
                       fontFamily: "'Space Grotesk', sans-serif",
                     }}>
-                    Dodaj
+                    {t("common.add", "Dodaj")}
                   </button>
                 </div>
               ))}
@@ -266,7 +269,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
               fontWeight: 700, fontSize: 14, cursor: "pointer",
               fontFamily: "'Space Grotesk', sans-serif",
             }}>
-              Gotowe
+              {t("common.done", "Gotowe")}
             </button>
           </div>
         </div>
@@ -277,39 +280,41 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
         <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "min(100vw, 480px)", maxHeight: "85vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <span style={{ fontSize: 17, fontWeight: 700 }}>{editItem ? "Edytuj pozycję" : "Nowa pozycja"}</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{editItem ? t("inv.editTitle", "Edytuj pozycję") : t("inv.newTitle", "Nowa pozycja")}</span>
               <button onClick={() => { setModal(false); setEditItem(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Ticker / Symbol (np. IWDA, NVDA)" value={form.ticker} onChange={e => setForm(f => ({...f, ticker: e.target.value}))} placeholder="np. IWDA.AS"/>
-              <Input label="Nazwa (opcjonalnie)" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="np. iShares MSCI World"/>
+              <Input label={t("inv.ticker", "Ticker / symbol (np. IWDA, NVDA)")} value={form.ticker} onChange={e => setForm(f => ({...f, ticker: e.target.value}))} placeholder="IWDA.AS"/>
+              <Input label={t("inv.name", "Nazwa (opcjonalnie)")} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="iShares MSCI World"/>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Input label="Ilość (szt.)" type="number" value={form.qty} onChange={e => setForm(f => ({...f, qty: e.target.value}))} placeholder="0"/>
-                <Input label="Waluta" value={form.currency} onChange={e => setForm(f => ({...f, currency: e.target.value}))} placeholder="PLN"/>
+                <Input label={t("inv.qty", "Ilość")} type="number" inputMode="decimal" value={form.qty} onChange={e => setForm(f => ({...f, qty: e.target.value}))} placeholder="0"/>
+                <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setForm(f => ({...f, currency: e.target.value}))}>
+                  {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Input label="Śr. cena zakupu" type="number" value={form.avgPrice} onChange={e => setForm(f => ({...f, avgPrice: e.target.value}))} placeholder="0.00"/>
-                <Input label="Aktualna cena" type="number" value={form.currentPrice} onChange={e => setForm(f => ({...f, currentPrice: e.target.value}))} placeholder="0.00"/>
+                <Input label={t("inv.avgPrice", "Śr. cena zakupu")} type="number" inputMode="decimal" value={form.avgPrice} onChange={e => setForm(f => ({...f, avgPrice: e.target.value}))} placeholder="0.00"/>
+                <Input label={t("inv.curPrice", "Aktualna cena")} type="number" inputMode="decimal" value={form.currentPrice} onChange={e => setForm(f => ({...f, currentPrice: e.target.value}))} placeholder="0.00"/>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Konto</div>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{t("inv.accountType", "Rachunek")}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {ACCOUNT_TYPES.map(t => (
-                    <button key={t} onClick={() => setForm(f => ({...f, account: t}))} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${form.account === t ? "#2563eb" : "#1a2744"}`, background: form.account === t ? "#1e3a5f" : "#060b14", color: form.account === t ? "#60a5fa" : "#475569", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{t}</button>
+                  {ACCOUNT_TYPES.map(at => (
+                    <button key={at} onClick={() => setForm(f => ({...f, account: at}))} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${form.account === at ? "#2563eb" : "#1a2744"}`, background: form.account === at ? "#1e3a5f" : "#060b14", color: form.account === at ? "#60a5fa" : "#475569", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{accLabel(at)}</button>
                   ))}
                 </div>
               </div>
               {form.qty && form.currentPrice && (
                 <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 14px", border: "1px solid #1a2744" }}>
-                  <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>Podgląd</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600 }}>{fmt(parseFloat(form.qty||0) * parseFloat(form.currentPrice||0))}</div>
+                  <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>{t("inv.preview", "Podgląd")}</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600 }}>{fmt(positionValues({ qty: parseFloat(form.qty||0), currentPrice: parseFloat(form.currentPrice||0), avgPrice: parseFloat(form.avgPrice||0), currency: form.currency }).valuePLN)}</div>
                   {form.avgPrice && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: parseFloat(form.currentPrice) >= parseFloat(form.avgPrice) ? "#10b981" : "#ef4444", marginTop: 3 }}>
-                    {parseFloat(form.currentPrice) >= parseFloat(form.avgPrice) ? "+" : ""}{fmt(parseFloat(form.qty||0) * (parseFloat(form.currentPrice||0) - parseFloat(form.avgPrice||0)))}
+                    {parseFloat(form.currentPrice) >= parseFloat(form.avgPrice) ? "+" : ""}{fmt(positionValues({ qty: parseFloat(form.qty||0), currentPrice: parseFloat(form.currentPrice||0), avgPrice: parseFloat(form.avgPrice||0), currency: form.currency }).pnlPLN)}
                   </div>}
                 </div>
               )}
               <button onClick={save} style={{ width: "100%", background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 12, padding: "13px 0", color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginTop: 4 }}>
-                {editItem ? "Zapisz zmiany" : "Dodaj pozycję"}
+                {editItem ? t("tx.saveChanges", "Zapisz zmiany") : t("inv.addPosition", "Dodaj pozycję")}
               </button>
             </div>
           </div>

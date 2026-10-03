@@ -88,7 +88,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     if (!editingId) {
       const rateCheck = checkLimit("addTransaction");
       if (!rateCheck.allowed) {
-        alert(`Zbyt wiele transakcji naraz. Poczekaj ${Math.ceil(rateCheck.resetIn/1000)}s.`);
+        alert(t("tx.rateLimit", "Za dużo wpisów naraz. Spróbuj za {s} s.").replace("{s}", Math.ceil(rateCheck.resetIn/1000)));
         return;
       }
     }
@@ -492,7 +492,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           ));
                           setTransactions(t => t.filter(x => x.id !== tx.id));
                           setSwipedId(null);
-                          showToast(`Usunięto: ${tx.desc}`, "error", 3000);
+                          showToast(t("tx.deleted", "Usunięto: {desc}").replace("{desc}", tx.desc), "error", 3000);
                           hapticError();
                         }}
                         style={{
@@ -562,7 +562,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                               : a
                           ));
                           setTransactions(t => t.filter(x => x.id !== tx.id));
-                          showToast(`Usunięto: ${tx.desc}`, "error", 3000);
+                          showToast(t("tx.deleted", "Usunięto: {desc}").replace("{desc}", tx.desc), "error", 3000);
                         }}
                         title={t("common.delete", "Usuń")}
                         style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 7,
@@ -700,7 +700,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                   background: "#0a1120" }}>
                   <span style={{ fontSize: 9, color: "#475569", fontWeight: 700,
                     textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    Sugestie · Esc lub X aby ukryć
+                    {t("tx.suggestionsHint", "Podpowiedzi · Esc albo X, by ukryć")}
                   </span>
                   <button
                     type="button"
@@ -752,7 +752,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         {/* Amount + currency converter */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6,
-            textTransform: "uppercase", letterSpacing: "0.08em" }}>Kwota</div>
+            textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("tx.amount", "Kwota")}</div>
           <div style={{ display: "flex", gap: 8 }}>
             <input type="number" inputMode="decimal" value={form.amount}
               onChange={e => setForm(f => ({...f, amount: e.target.value}))}

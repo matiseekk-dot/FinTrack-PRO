@@ -12,7 +12,7 @@ import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import {
-  PLATFORMS, ITEM_CATEGORIES, platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
+  PLATFORMS, ITEM_CATEGORIES, marketPlatforms, platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
   saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats,
 } from "../lib/reselling.js";
 
@@ -55,7 +55,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, ac
     const used = [];
     [...items].sort((a, b) => (b.sellDate || b.createdAt || "").localeCompare(a.sellDate || a.createdAt || ""))
       .forEach(it => { if (it.platform && !used.includes(it.platform)) used.push(it.platform); });
-    const known = PLATFORMS.map(p => p.id);
+    const known = marketPlatforms(lang);
     return [...used.filter(id => known.includes(id)), ...known.filter(id => !used.includes(id))];
   }, [items]);
 

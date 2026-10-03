@@ -1,3 +1,4 @@
+import { t } from "../i18n.js";
 import { useState, useEffect } from "react";
 
 const PIN_KEY = "ft_pin_hash";       // legacy: String.hashCode result (pre-v1.4)
@@ -302,10 +303,10 @@ function LockoutScreen({ remainingMs }) {
         <span style={{ fontSize: 36 }}>🛑</span>
       </div>
       <div style={{ fontWeight: 800, fontSize: 22, color: "#fca5a5", textAlign: "center" }}>
-        Zbyt wiele nieudanych prób
+        {t("pin.lockedTitle", "Zbyt wiele nieudanych prób")}
       </div>
       <div style={{ fontSize: 13, color: "#64748b", marginTop: 8, textAlign: "center", maxWidth: 320, lineHeight: 1.5 }}>
-        Zaczekaj zanim spróbujesz ponownie. Lockout chroni przed bruteforce'em.
+        {t("pin.lockedDesc", "Zaczekaj, zanim spróbujesz ponownie. Blokada chroni przed zgadywaniem PIN-u.")}
       </div>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 32, fontWeight: 700,
         color: "#ef4444", marginTop: 20, letterSpacing: "0.05em" }}>
@@ -353,10 +354,10 @@ function PinScreen({ onSuccess, title = "Sidegig" }) {
   // Subtitle pokazuje liczbę prób + ostrzeżenie gdy blisko lockoutu
   const nextLockoutFails = LOCKOUT_TIERS.slice().reverse().find(t => attempts < t.fails);
   const subtitle = attempts === 0
-    ? "Podaj PIN aby odblokować"
+    ? t("pin.enterToUnlock", "Podaj PIN, aby odblokować")
     : nextLockoutFails && (nextLockoutFails.fails - attempts) <= 2
-      ? `Nieprawidłowy PIN · za ${nextLockoutFails.fails - attempts} prób blokada`
-      : `Nieprawidłowy PIN · próba ${attempts}`;
+      ? t("pin.wrongLockSoon", "Zły PIN · blokada za {n} prób").replace("{n}", nextLockoutFails.fails - attempts)
+      : t("pin.wrongAttempt", "Zły PIN · próba {n}").replace("{n}", attempts);
 
   return <PinPad title={title} subtitle={subtitle} onSubmit={handleSubmit}/>;
 }
@@ -394,18 +395,18 @@ function PinSettings() {
     return false;
   };
 
-  if (mode === "setup")   return <PinPad title="Ustaw PIN" subtitle="Wpisz 4-cyfrowy PIN" onSubmit={handleSetup} onCancel={() => setMode(null)} showCancel/>;
-  if (mode === "confirm") return <PinPad title="Potwierdź PIN" subtitle="Wpisz PIN ponownie" onSubmit={handleConfirm} onCancel={() => setMode(null)} showCancel/>;
-  if (mode === "disable") return <PinPad title="Podaj PIN" subtitle="Wpisz aktualny PIN aby wyłączyć" onSubmit={handleDisable} onCancel={() => setMode(null)} showCancel/>;
+  if (mode === "setup")   return <PinPad title={t("pin.setTitle", "Ustaw PIN")} subtitle={t("pin.setSub", "Wpisz 4-cyfrowy PIN")} onSubmit={handleSetup} onCancel={() => setMode(null)} showCancel/>;
+  if (mode === "confirm") return <PinPad title={t("pin.confirmTitle", "Potwierdź PIN")} subtitle={t("pin.confirmSub", "Wpisz PIN ponownie")} onSubmit={handleConfirm} onCancel={() => setMode(null)} showCancel/>;
+  if (mode === "disable") return <PinPad title={t("pin.enterTitle", "Podaj PIN")} subtitle={t("pin.disableSub", "Wpisz aktualny PIN, aby wyłączyć")} onSubmit={handleDisable} onCancel={() => setMode(null)} showCancel/>;
 
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0" }}>
       <div>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>
-          {enabled ? "🔒 Blokada PIN włączona" : "🔓 Blokada PIN"}
+          {enabled ? "🔒 " + t("pin.onTitle", "Blokada PIN włączona") : "🔓 " + t("pin.offTitle", "Blokada PIN")}
         </div>
         <div style={{ fontSize: 12, color: "#475569", marginTop: 3 }}>
-          {enabled ? "Apka jest zabezpieczona kodem PIN (PBKDF2 + lockout)" : "Zabezpiecz apkę 4-cyfrowym kodem"}
+          {enabled ? t("pin.onDesc", "Apka jest chroniona kodem PIN") : t("pin.offDesc", "Zabezpiecz apkę 4-cyfrowym kodem")}
         </div>
       </div>
       <button
@@ -419,7 +420,7 @@ function PinSettings() {
           fontFamily: "'Space Grotesk', sans-serif",
         }}
       >
-        {enabled ? "Wyłącz" : "Włącz PIN"}
+        {enabled ? t("pin.turnOff", "Wyłącz") : t("pin.turnOn", "Włącz PIN")}
       </button>
     </div>
   );

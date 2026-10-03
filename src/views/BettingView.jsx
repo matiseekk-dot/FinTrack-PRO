@@ -12,7 +12,7 @@ import { getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "..
 import { canAddTransaction } from "../lib/tier.js";
 import { rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import {
-  BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel,
+  BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel, marketBookmakers,
   potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats,
 } from "../lib/betting.js";
 
@@ -82,13 +82,13 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
       if (seen.length >= 6) break;
     }
     // Dopełnij do 5 popularnymi (polscy dla PL, międzynarodowi dla reszty)
-    const fill = BOOKMAKERS.filter(b => (lang === "pl") === !!b.pl && !seen.includes(b.id)).map(b => b.id);
+    const fill = marketBookmakers(lang).filter(id => !seen.includes(id));
     return [...seen, ...fill].slice(0, Math.max(5, seen.length));
   }, [all, lang]);
 
   const openNew = () => {
     const bookmaker = recentBookmakers[0] || "";
-    const pl = isPolishBookmaker(bookmaker);
+    const pl = lang === "pl" && isPolishBookmaker(bookmaker);
     setForm({
       editingId: null, bookmaker, custom: !BOOKMAKERS.some(b => b.id === bookmaker) && !!bookmaker,
       event: "", sport: "football", odds: "", stake: "", taxed: pl,
@@ -130,7 +130,7 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
   });
 
   const pickBookmaker = (id) => {
-    const pl = isPolishBookmaker(id);
+    const pl = lang === "pl" && isPolishBookmaker(id);
     // Polscy bukmacherzy grają w PLN z podatkiem; pozostali — w walucie głównej
     setF({ bookmaker: id, custom: false, taxed: pl, currency: pl ? "PLN" : getDisplayCurrency() });
   };
@@ -357,11 +357,11 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
           ) : (
             <Select value={form.bookmaker} onChange={e => pickBookmaker(e.target.value)}>
               <option value="">{t("bet.pickBookmaker", "Wybierz z listy…")}</option>
-              <optgroup label={t("bet.group.pl", "Polska")}>
-                {BOOKMAKERS.filter(b => b.pl).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <optgroup label={t("bet.group.local", "Popularni u Ciebie")}>
+                {marketBookmakers(lang).map(id => <option key={id} value={id}>{bookmakerName(id)}</option>)}
               </optgroup>
-              <optgroup label={t("bet.group.intl", "Międzynarodowi")}>
-                {BOOKMAKERS.filter(b => !b.pl).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <optgroup label={t("bet.group.all", "Wszyscy")}>
+                {BOOKMAKERS.filter(b => !marketBookmakers(lang).includes(b.id)).sort((a, b) => a.name.localeCompare(b.name)).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </optgroup>
             </Select>
           )}
@@ -383,7 +383,7 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
             </div>
           </div>
 
-          {(form.taxed || isPolishBookmaker(form.bookmaker) || form.currency === "PLN") && (
+          {(form.taxed || (lang === "pl" && isPolishBookmaker(form.bookmaker)) || form.currency === "PLN") && (
             <button type="button" role="checkbox" aria-checked={form.taxed} onClick={() => setF({ taxed: !form.taxed })} style={{
               width: "100%", display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14, padding: "10px 12px",
               background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, cursor: "pointer", textAlign: "left",

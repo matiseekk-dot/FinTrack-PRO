@@ -28,7 +28,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
 import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
-import { getDisplayCurrency, setDisplayCurrency } from "./lib/fx.js";
+import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.js";
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
 
@@ -525,17 +525,18 @@ export default function App() {
     const hasData = transactions.length > 0 || hobbies.length > 0 || trips.length > 0;
     return (
       <SidegigSetup
-        initialCurrency={hasData || modules !== null ? getDisplayCurrency() : "EUR"}
+        initialCurrency={hasData || modules !== null ? getDisplayCurrency() : guessCurrency()}
         initialModules={modules || inferEnabledModules({ transactions, hobbies, trips, portfolio, payments })}
         isReturningUser={modules === null && hasData}
         canCancel={modules !== null}
         onCancel={() => setSetupOpen(false)}
         onDone={({ currency, modules: mods }) => {
           setDisplayCurrency(currency);
-          // Nowy użytkownik: konto startowe od razu w walucie głównej (saldo 0, brak wpisów)
-          if (!hasData && currency !== "PLN") {
+          // Nowy użytkownik: konto startowe w walucie głównej i z nazwą w jego języku (saldo 0, brak wpisów).
+          // migrateData nadaje kontom currency "PLN", więc "PLN" też traktujemy jako domyślne.
+          if (!hasData) {
             setAccounts(prev => prev.map(a =>
-              a.id === 1 && !a.currency && !a.balance ? { ...a, currency, name: getLang() === "pl" ? a.name : "Main account" } : a
+              a.id === 1 && (!a.currency || a.currency === "PLN") && !a.balance ? { ...a, currency, name: t("acc.main", "Konto główne") } : a
             ));
           }
           setModules(mods);
@@ -569,19 +570,19 @@ export default function App() {
           {syncing && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#0a1e3a", border: "1px solid #1e40af44", borderRadius: 8, padding: "4px 8px" }}>
               <RefreshCw size={10} color="#60a5fa" style={{ animation: "spin 1s linear infinite" }}/>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#60a5fa" }}>Sync...</span>
+              <span title={t("app.syncing", "Synchronizuję…")} style={{ fontSize: 10, fontWeight: 700, color: "#60a5fa", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{t("app.syncing", "Synchronizuję…")}</span>
             </div>
           )}
-          {syncOk && !syncing && (
+          {syncOk && !syncing && !syncError && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#052e16", border: "1px solid #14532d", borderRadius: 8, padding: "4px 8px" }}>
               <Cloud size={10} color="#10b981"/>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#10b981" }}>{t("app.synced", "Zsync")}</span>
+              <span title={t("app.synced", "Zsync")} style={{ fontSize: 10, fontWeight: 700, color: "#10b981", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{t("app.synced", "Zsync")}</span>
             </div>
           )}
           {syncError && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 8, padding: "4px 8px" }}>
               <CloudOff size={10} color="#ef4444"/>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#ef4444" }}>{t("app.syncError", "Błąd sync")}</span>
+              <span title={t("app.syncError", "Błąd sync")} style={{ fontSize: 10, fontWeight: 700, color: "#ef4444", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{t("app.syncError", "Błąd sync")}</span>
             </div>
           )}
           <div style={{ position: "relative" }}>

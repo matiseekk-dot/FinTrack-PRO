@@ -14,365 +14,8 @@ import {
 import { getCat } from "../constants.js";
 import { t } from "../i18n.js";
 
-function HobbyView({ hobbies, setHobbies, transactions, allCats, month, cycleDay }) {
-  const [modalHobby, setModalHobby] = useState(null);
-  const [detailsId, setDetailsId] = useState(null);
-
-  const cyclePool = useMemo(() => cycleTxs(transactions || [], month, cycleDay),
-    [transactions, month, cycleDay]);
-
-  // Łączny przegląd wszystkich hobby - KPI suma w cyklu, roku i lifetime
-  // v1.3.2: dodano summary income i netto
-  const summary = useMemo(() => {
-    if (!Array.isArray(hobbies)) return {
-      cycleTotal: 0, yearTotal: 0, allTimeTotal: 0,
-      incomeCycle: 0, incomeYear: 0, incomeAllTime: 0,
-      nettoAllTime: 0, hasAnyIncome: false,
-    };
-    const active = hobbies.filter(h => !h.archived);
-    let cycleTotal = 0, yearTotal = 0, allTimeTotal = 0;
-    let incomeCycle = 0, incomeYear = 0, incomeAllTime = 0;
-    for (const h of active) {
-      const stats = getHobbyStats(transactions, h, { cycleTxs: cyclePool });
-      cycleTotal    += stats.thisCycle;
-      yearTotal     += stats.thisYear;
-      allTimeTotal  += stats.allTime;
-      incomeCycle   += stats.incomeThisCycle || 0;
-      incomeYear    += stats.incomeThisYear || 0;
-      incomeAllTime += stats.incomeAllTime || 0;
-    }
-    return {
-      cycleTotal:    Math.round(cycleTotal),
-      yearTotal:     Math.round(yearTotal),
-      allTimeTotal:  Math.round(allTimeTotal),
-      incomeCycle:   Math.round(incomeCycle),
-      incomeYear:    Math.round(incomeYear),
-      incomeAllTime: Math.round(incomeAllTime),
-      nettoAllTime:  Math.round(incomeAllTime - allTimeTotal),
-      hasAnyIncome:  incomeAllTime > 0,
-    };
-  }, [hobbies, transactions, cyclePool]);
-
-  const openNew = () => {
-    setModalHobby({
-      id: null,
-      name: "",
-      color: pickHobbyColor(hobbies || []),
-      categories: [],
-      keywords: [],
-      yearlyTarget: "",
-      archived: false,
-    });
-  };
-
-  const openEdit = (hobby) => {
-    // v1.3.4 fix: detailsId musi być wyczyszczone, inaczej `if (detailsId) return <HobbyDetails>`
-    // przerywa render zanim dojdzie do {modalHobby && <HobbyModal>} na końcu komponenta.
-    // Bez tego klik "Edit" w details widoku nic nie robi (modal renderuje się ale jest niewidoczny).
-    setDetailsId(null);
-    setModalHobby({
-      ...hobby,
-      yearlyTarget: hobby.yearlyTarget ? String(hobby.yearlyTarget) : "",
-    });
-  };
-
-  const saveHobby = () => {
-    if (!modalHobby) return;
-    if (!modalHobby.name.trim()) return;
-    const yt = parseFloat(String(modalHobby.yearlyTarget).replace(",", "."));
-    const payload = {
-      id: modalHobby.id || Date.now(),
-      name: modalHobby.name.trim(),
-      color: modalHobby.color,
-      categories: Array.isArray(modalHobby.categories) ? modalHobby.categories : [],
-      keywords: Array.isArray(modalHobby.keywords)
-        ? modalHobby.keywords.map(k => String(k).trim()).filter(Boolean)
-        : [],
-      yearlyTarget: Number.isFinite(yt) && yt > 0 ? yt : null,
-      archived: !!modalHobby.archived,
-      createdAt: modalHobby.createdAt || new Date().toISOString(),
-    };
-    if (modalHobby.id) {
-      setHobbies((hobbies || []).map(h => h.id === modalHobby.id ? payload : h));
-    } else {
-      setHobbies([...(hobbies || []), payload]);
-    }
-    setModalHobby(null);
-  };
-
-  const deleteHobby = (id) => {
-    if (!window.confirm(t("hobby.deleteConfirm"))) return;
-    setHobbies((hobbies || []).filter(h => h.id !== id));
-    if (detailsId === id) setDetailsId(null);
-  };
-
-  if (detailsId) {
-    const hobby = (hobbies || []).find(h => h.id === detailsId);
-    if (hobby) return (
-      <HobbyDetails
-        hobby={hobby}
-        transactions={transactions}
-        cyclePool={cyclePool}
-        allCats={allCats}
-        onBack={() => setDetailsId(null)}
-        onEdit={() => openEdit(hobby)}
-        onDelete={() => deleteHobby(hobby.id)}
-      />
-    );
-  }
-
-  const activeHobbies = (hobbies || []).filter(h => !h.archived);
-  const archivedHobbies = (hobbies || []).filter(h => h.archived);
-
-  return (
-    <div style={{ padding: "0 16px 100px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {t("hobby.dashboardTitle", "Hobby — gdzie schodzą pieniądze")}
-        </div>
-        <button onClick={openNew} style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "linear-gradient(135deg,#7c3aed,#ec4899)", border: "none",
-          borderRadius: 10, padding: "8px 14px", color: "white",
-          fontWeight: 700, fontSize: 13, cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>
-          <Plus size={14}/> {t("hobby.add")}
-        </button>
-      </div>
-
-      {/* KPI summary bar */}
-      {activeHobbies.length > 0 && (
-        <Card style={{ padding: "14px 16px", marginBottom: 14,
-          background: "linear-gradient(135deg,#1a0f2e,#0d1628)",
-          border: "1px solid #7c3aed33" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase",
-            letterSpacing: "0.08em", marginBottom: 6 }}>
-            {t("hobby.expensesLabel", "Wydatki")}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <Stat label={t("hobby.thisCycle")} value={fmt(summary.cycleTotal)} color="#ec4899"/>
-            <Stat label={t("hobby.thisYear")}  value={fmt(summary.yearTotal)}  color="#a855f7"/>
-            <Stat label={t("hobby.allTime")}   value={fmt(summary.allTimeTotal)} color="#8b5cf6"/>
-          </div>
-
-          {/* v1.3.2: Income strip - pokazujemy gdy któreś hobby coś sprzedaje */}
-          {summary.hasAnyIncome && (
-            <>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "#10b981", textTransform: "uppercase",
-                letterSpacing: "0.08em", marginTop: 12, marginBottom: 6 }}>
-                💰 {t("hobby.incomeLabel", "Sprzedaż / przychody")}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                <Stat label={t("hobby.thisCycle")} value={fmt(summary.incomeCycle)}   color="#10b981"/>
-                <Stat label={t("hobby.thisYear")}  value={fmt(summary.incomeYear)}    color="#10b981"/>
-                <Stat label={t("hobby.allTime")}   value={fmt(summary.incomeAllTime)} color="#10b981"/>
-              </div>
-
-              {/* Netto lifetime - czerwony minus, zielony plus */}
-              <div style={{ marginTop: 10, padding: "8px 12px",
-                background: summary.nettoAllTime >= 0 ? "#0a2818" : "#1a0808",
-                border: summary.nettoAllTime >= 0 ? "1px solid #10b98144" : "1px solid #7f1d1d44",
-                borderRadius: 8,
-                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  color: summary.nettoAllTime >= 0 ? "#10b981" : "#ef4444" }}>
-                  {t("hobby.nettoLifetime", "Netto (lifetime)")}
-                </span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 800,
-                  color: summary.nettoAllTime >= 0 ? "#10b981" : "#ef4444" }}>
-                  {summary.nettoAllTime >= 0 ? "+" : ""}{fmt(summary.nettoAllTime)}
-                </span>
-              </div>
-            </>
-          )}
-
-          {summary.cycleTotal > 0 && !summary.hasAnyIncome && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-              fontSize: 11, color: "#94a3b8", textAlign: "center" }}>
-              💡 {t("hobby.couldSave", "To są pieniądze które MÓGŁBYŚ przesunąć do oszczędności. Decyduj świadomie — apka tylko pokazuje fakty.")}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Aktywne hobby */}
-      {activeHobbies.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {activeHobbies.map(h => (
-            <HobbyCard
-              key={h.id}
-              hobby={h}
-              transactions={transactions}
-              cyclePool={cyclePool}
-              onClick={() => setDetailsId(h.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Archiwum */}
-      {archivedHobbies.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#475569",
-            textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-            Archiwum
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {archivedHobbies.map(h => (
-              <HobbyCard
-                key={h.id}
-                hobby={h}
-                transactions={transactions}
-                cyclePool={cyclePool}
-                onClick={() => setDetailsId(h.id)}
-                dimmed
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {(hobbies || []).length === 0 && (
-        <div style={{
-          textAlign: "center", padding: "40px 20px", marginTop: 20,
-          background: "#0a1120", borderRadius: 16, border: "1px dashed #1a2744",
-        }}>
-          <Heart size={36} color="#475569" style={{ marginBottom: 12 }}/>
-          <div style={{ fontSize: 14, color: "#cbd5e1", fontWeight: 700, marginBottom: 4 }}>
-            {t("hobby.empty")}
-          </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16, maxWidth: 320, margin: "0 auto 16px" }}>
-            {t("hobby.emptyDesc")}
-          </div>
-          <button onClick={openNew} style={{
-            background: "linear-gradient(135deg,#7c3aed,#ec4899)", border: "none",
-            borderRadius: 10, padding: "9px 16px", color: "white",
-            fontWeight: 700, fontSize: 13, cursor: "pointer",
-            fontFamily: "'Space Grotesk', sans-serif",
-            display: "inline-flex", alignItems: "center", gap: 6,
-          }}>
-            <Plus size={14}/> {t("hobby.add")}
-          </button>
-        </div>
-      )}
-
-      {/* Modal add/edit */}
-      {modalHobby && (
-        <HobbyModal
-          hobby={modalHobby}
-          setHobby={setModalHobby}
-          allCats={allCats}
-          onClose={() => setModalHobby(null)}
-          onSave={saveHobby}
-        />
-      )}
-    </div>
-  );
-}
-
-// ═══ COMPONENTS ═══
-// Stat, MiniStat, YoYBars, iconBtn, ColorPicker — patrz src/components/PlansShared.jsx
-// (wspólne z TripsView, jeden kanon).
-
-function HobbyCard({ hobby, transactions, cyclePool, onClick, dimmed = false }) {
-  const stats = useMemo(() => getHobbyStats(transactions, hobby, { cycleTxs: cyclePool }),
-    [transactions, hobby, cyclePool]);
-
-  const target = hobby.yearlyTarget;
-  const targetPct = target > 0 ? Math.min(100, (stats.thisYear / target) * 100) : 0;
-  const overTarget = target > 0 && stats.thisYear > target;
-  const nearTarget = target > 0 && targetPct >= 80 && !overTarget;
-
-  // v1.3.2: total tx count = expense count + income count
-  const totalCount = stats.count + (stats.incomeCount || 0);
-  const hasIncome = (stats.incomeAllTime || 0) > 0;
-
-  return (
-    <button onClick={onClick} style={{
-      width: "100%", textAlign: "left", cursor: "pointer",
-      background: dimmed ? "#0a1120" : "#0d1628",
-      border: `1px solid ${dimmed ? "#1a2744" : hobby.color + "44"}`,
-      borderRadius: 14, padding: "14px 16px",
-      fontFamily: "'Space Grotesk', sans-serif",
-      opacity: dimmed ? 0.7 : 1,
-      transition: "all 0.15s ease",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: hobby.color + "22", border: `1px solid ${hobby.color}66`,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <Sparkles size={16} color={hobby.color}/>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {hobby.name}
-              </div>
-              {hasIncome && (
-                <span style={{
-                  fontSize: 9, fontWeight: 800,
-                  padding: "2px 6px", borderRadius: 4,
-                  background: stats.nettoAllTime >= 0 ? "#10b98122" : "#1e3a5f",
-                  border: stats.nettoAllTime >= 0 ? "1px solid #10b98166" : "1px solid #2563eb44",
-                  color: stats.nettoAllTime >= 0 ? "#10b981" : "#60a5fa",
-                  fontFamily: "'DM Mono', monospace",
-                }}>
-                  {stats.nettoAllTime >= 0 ? "+" : ""}{fmtShort(stats.nettoAllTime)}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-              {totalCount} {totalCount === 1 ? t("hobby.tx", "transakcja") : t("hobby.txs", "transakcji")}
-              {hobby.categories.length > 0 && ` · ${hobby.categories.length} ${t("hobby.catsShort", "kat.")}`}
-            </div>
-          </div>
-        </div>
-        <ChevronRight size={16} color="#475569"/>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
-        <MiniStat label={t("hobby.cycle", "Cykl")}     value={fmtShort(stats.thisCycle)}   color="#ec4899"/>
-        <MiniStat label={t("hobby.month", "Mies.")}    value={fmtShort(stats.thisMonth)}   color="#f43f5e"/>
-        <MiniStat label={t("hobby.quarter", "Kwart.")} value={fmtShort(stats.thisQuarter)} color="#a855f7"/>
-        <MiniStat label={t("hobby.year", "Rok")}       value={fmtShort(stats.thisYear)}    color="#8b5cf6"/>
-      </div>
-
-      {target > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {t("hobby.yearlyLimit", "Roczny limit")}: {fmt(target)}
-            </span>
-            <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", fontWeight: 700,
-              color: overTarget ? "#ef4444" : nearTarget ? "#fbbf24" : "#10b981" }}>
-              {targetPct.toFixed(0)}%
-            </span>
-          </div>
-          <div style={{ background: "#060b14", borderRadius: 4, height: 4 }}>
-            <div style={{
-              width: targetPct + "%", height: "100%", borderRadius: 4,
-              background: overTarget ? "#ef4444" : nearTarget ? "#fbbf24" : hobby.color,
-            }}/>
-          </div>
-          {overTarget && (
-            <div style={{ marginTop: 6, fontSize: 10, color: "#ef4444",
-              display: "flex", alignItems: "center", gap: 4 }}>
-              <AlertCircle size={11}/> {t("hobby.exceededBy", "Przekroczono limit o")} {fmt(stats.thisYear - target)}
-            </div>
-          )}
-        </div>
-      )}
-    </button>
-  );
-}
+// Szczegóły wydatków kolekcji (zakładka „Wydatki” w ekranie Kolekcji) i formularz kolekcji.
+// Lista hobby z dawnych Planów została zastąpiona ekranem Kolekcji (v2.2.0).
 
 // embedded: osadzone w ekranie Kolekcji (v2.2.0) — bez własnego „Wstecz” i przycisków edycji
 function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit, onDelete, embedded = false }) {
@@ -440,7 +83,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.thisYear)} color="#8b5cf6"/>
-          <Stat label="Total"          value={fmt(stats.allTime)}     color="#64748b"/>
+          <Stat label={t("hobby.total", "Łącznie")}          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
 
         {/* v1.3.2: Przychody — pokazujemy tylko gdy hobby coś sprzedaje */}
@@ -453,7 +96,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
               <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.incomeThisCycle)} color="#10b981"/>
               <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.incomeThisYear)} color="#10b981"/>
-              <Stat label="Total"      value={fmt(stats.incomeAllTime)} color="#10b981"/>
+              <Stat label={t("hobby.total", "Łącznie")}      value={fmt(stats.incomeAllTime)} color="#10b981"/>
             </div>
 
             {/* Netto: czy hobby kosztuje czy zarabia */}
@@ -682,12 +325,12 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
   const keywordsStr = Array.isArray(hobby.keywords) ? hobby.keywords.join(", ") : "";
 
   return (
-    <Modal open={true} onClose={onClose} title={hobby.id ? t("hobby.editTitle", "Edytuj hobby") : t("hobby.add")}>
+    <Modal open={true} onClose={onClose} title={hobby.id ? t("coll.editCollection", "Edytuj kolekcję") : t("coll.newCollection", "Nowa kolekcja")}>
       <Input
         label={t("hobby.name")}
         value={hobby.name}
         onChange={e => setHobby({ ...hobby, name: e.target.value })}
-        placeholder="np. Winyle, F1, Bukmacherka"
+        placeholder={t("coll.namePh", "np. Winyle, Książki, Gry")}
       />
 
       {/* Color picker */}
@@ -783,7 +426,7 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
           onChange={e => setHobby({ ...hobby,
             keywords: e.target.value.split(",").map(s => s.trim()).filter(Boolean)
           })}
-          placeholder="np. winyl, ghost, trivium"
+          placeholder={t("coll.keywordsPh", "np. winyl, płyta, LP")}
           style={{
             width: "100%", padding: "10px 12px",
             background: "#060b14", border: "1px solid #1e3a5f",
@@ -807,7 +450,7 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
           inputMode="decimal"
           value={hobby.yearlyTarget}
           onChange={e => setHobby({ ...hobby, yearlyTarget: e.target.value })}
-          placeholder="np. 4000"
+          placeholder="4000"
           style={{
             width: "100%", padding: "10px 12px",
             background: "#060b14", border: "1px solid #1e3a5f",
@@ -840,4 +483,4 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
   );
 }
 
-export { HobbyView, HobbyDetails, HobbyModal };
+export { HobbyDetails, HobbyModal };

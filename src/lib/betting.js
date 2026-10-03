@@ -40,18 +40,48 @@ const BOOKMAKERS = [
   { id: "draftkings",  name: "DraftKings" },
   { id: "fanduel",     name: "FanDuel" },
   { id: "betmgm",      name: "BetMGM" },
+  // v2.4.0: lokalni bukmacherzy nowych rynków
+  { id: "tipico",      name: "Tipico" },
+  { id: "interwetten", name: "Interwetten" },
+  { id: "codere",      name: "Codere" },
+  { id: "winamax",     name: "Winamax" },
+  { id: "pmu",         name: "PMU" },
+  { id: "parionssport",name: "Parions Sport" },
+  { id: "sportingbet", name: "Sportingbet" },
+  { id: "estrelabet",  name: "Estrela Bet" },
+  { id: "sisal",       name: "Sisal" },
+  { id: "snai",        name: "Snai" },
+  { id: "eurobet",     name: "Eurobet" },
+  { id: "goldbet",     name: "Goldbet" },
+  { id: "toto",        name: "TOTO" },
+  { id: "betcity",     name: "BetCity" },
+  { id: "parimatch",   name: "Parimatch" },
+  { id: "favbet",      name: "Favbet" },
 ];
+
+// Najpopularniejsi na danym rynku (język apki) — pierwsze chipy w formularzu
+const MARKET_BOOKMAKERS = {
+  pl: ["sts", "fortuna", "betclic", "superbet", "lvbet", "totolotek"],
+  en: ["bet365", "williamhill", "paddypower", "skybet", "betfair", "draftkings", "fanduel"],
+  de: ["tipico", "bet365", "bwin", "interwetten", "betano"],
+  es: ["codere", "bet365", "betfair", "bwin", "winamax"],
+  fr: ["winamax", "betclic", "unibet", "pmu", "parionssport"],
+  pt: ["betano", "bet365", "sportingbet", "estrelabet", "superbet"],
+  it: ["sisal", "snai", "bet365", "eurobet", "goldbet"],
+  nl: ["toto", "unibet", "bet365", "betcity"],
+  uk: ["parimatch", "favbet", "bet365"],
+};
 const BOOKMAKER_BY_ID = Object.fromEntries(BOOKMAKERS.map(b => [b.id, b]));
 
 const SPORTS = [
-  { id: "football",   label: { en: "Football",   pl: "Piłka nożna" } },
-  { id: "tennis",     label: { en: "Tennis",     pl: "Tenis" } },
-  { id: "basketball", label: { en: "Basketball", pl: "Koszykówka" } },
-  { id: "hockey",     label: { en: "Hockey",     pl: "Hokej" } },
-  { id: "volleyball", label: { en: "Volleyball", pl: "Siatkówka" } },
-  { id: "esports",    label: { en: "Esports",    pl: "E-sport" } },
-  { id: "mma",        label: { en: "MMA / boxing", pl: "MMA / boks" } },
-  { id: "other",      label: { en: "Other",      pl: "Inne" } },
+  { id: "football",   label: { en: "Football", pl: "Piłka nożna", de: "Fußball", es: "Fútbol", fr: "Football", pt: "Futebol", it: "Calcio", nl: "Voetbal", uk: "Футбол" } },
+  { id: "tennis",     label: { en: "Tennis", pl: "Tenis", de: "Tennis", es: "Tenis", fr: "Tennis", pt: "Tênis", it: "Tennis", nl: "Tennis", uk: "Теніс" } },
+  { id: "basketball", label: { en: "Basketball", pl: "Koszykówka", de: "Basketball", es: "Baloncesto", fr: "Basket", pt: "Basquete", it: "Basket", nl: "Basketbal", uk: "Баскетбол" } },
+  { id: "hockey",     label: { en: "Hockey", pl: "Hokej", de: "Eishockey", es: "Hockey", fr: "Hockey", pt: "Hóquei", it: "Hockey", nl: "IJshockey", uk: "Хокей" } },
+  { id: "volleyball", label: { en: "Volleyball", pl: "Siatkówka", de: "Volleyball", es: "Voleibol", fr: "Volley", pt: "Vôlei", it: "Pallavolo", nl: "Volleybal", uk: "Волейбол" } },
+  { id: "esports",    label: { en: "Esports", pl: "E-sport", de: "E-Sport", es: "eSports", fr: "E-sport", pt: "eSports", it: "Esport", nl: "E-sports", uk: "Кіберспорт" } },
+  { id: "mma",        label: { en: "MMA / boxing", pl: "MMA / boks", de: "MMA / Boxen", es: "MMA / boxeo", fr: "MMA / boxe", pt: "MMA / boxe", it: "MMA / boxe", nl: "MMA / boksen", uk: "ММА / бокс" } },
+  { id: "other",      label: { en: "Other", pl: "Inne", de: "Sonstiges", es: "Otros", fr: "Autre", pt: "Outros", it: "Altro", nl: "Overig", uk: "Інше" } },
 ];
 
 const STATUSES = ["pending", "won", "lost", "void", "cashout"];
@@ -64,6 +94,10 @@ function bookmakerName(idOrName) {
 
 function isPolishBookmaker(idOrName) {
   return !!BOOKMAKER_BY_ID[idOrName]?.pl;
+}
+
+function marketBookmakers(lang) {
+  return MARKET_BOOKMAKERS[lang] || MARKET_BOOKMAKERS.en;
 }
 
 /** Dla starych wpisów: "Kupon STS" → "sts". */
@@ -195,7 +229,7 @@ function bettingStats(txs) {
 }
 
 export {
-  PL_TAX, BOOKMAKERS, SPORTS, STATUSES,
+  PL_TAX, BOOKMAKERS, SPORTS, STATUSES, marketBookmakers,
   bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel,
   potentialPayout, defaultPayout, usesPayout, betNet, buildBetTx, bettingStats,
 };

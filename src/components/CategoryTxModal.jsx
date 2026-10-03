@@ -1,3 +1,4 @@
+import { t } from "../i18n.js";
 // Drill-down kategorii: pokazuje listę transakcji z konkretnej kategorii
 // w przekazanej puli tx (np. cycleTxs lub trip tx). Używane w:
 //   - AnalyticsView "Ranking wydatków" → cała pula bieżącego cyklu
@@ -84,19 +85,19 @@ function CategoryTxModal({ open, onClose, categoryId, transactions = [], allCats
         {/* KPI: total / count / avg */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
           <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Łącznie</div>
+            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("catTx.total", "Łącznie")}</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: cat.color, marginTop: 4 }}>
               {fmtDisplay(total)}
             </div>
           </div>
           <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Transakcji</div>
+            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("catTx.count", "Wpisów")}</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginTop: 4 }}>
               {count}
             </div>
           </div>
           <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Średnio</div>
+            <div style={{ fontSize: 9, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("catTx.avg", "Średnio")}</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#94a3b8", marginTop: 4 }}>
               {fmtDisplay(avg)}
             </div>
@@ -146,7 +147,7 @@ function CategoryTxModal({ open, onClose, categoryId, transactions = [], allCats
         <div style={{ marginTop: 14, padding: "10px 12px",
           background: "#060b14", borderRadius: 10,
           fontSize: 11, color: "#475569", textAlign: "center", lineHeight: 1.5 }}>
-          💡 Edytować lub usunąć tx? Otwórz <strong style={{ color: "#94a3b8" }}>Transakcje</strong> i znajdź ją na liście.
+          💡 {t("catTx.hint", "Edycja i usuwanie — w zakładce Wpisy.")}
         </div>
       </div>
     </div>

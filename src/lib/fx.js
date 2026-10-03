@@ -38,12 +38,20 @@ const FALLBACK_RATES = {
   NOK: 0.36,
   DKK: 0.57,
   JPY: 0.025,
+  // v2.4.0: waluty nowych rynków (przybliżone kursy na wypadek braku sieci)
+  CAD: 2.85,
+  AUD: 2.55,
+  BRL: 0.70,
+  MXN: 0.21,
+  UAH: 0.094,
+  RON: 0.86,
+  TRY: 0.095,
 };
 const FALLBACK_DATE = "2026-05-01";
 
 // Lista walut z NBP Tabeli A które wspieramy w UI.
 // (Tabela A zawiera ich więcej, ale UI wystarczy 10 najpopularniejszych.)
-const SUPPORTED_CURRENCIES = ["EUR", "USD", "GBP", "CHF", "CZK", "HUF", "SEK", "NOK", "DKK", "JPY"];
+const SUPPORTED_CURRENCIES = ["EUR", "USD", "GBP", "CHF", "CZK", "HUF", "SEK", "NOK", "DKK", "JPY", "CAD", "AUD", "BRL", "MXN", "UAH", "RON", "TRY"];
 
 function getCachedRates() {
   try {
@@ -115,7 +123,9 @@ async function fetchFromNBP() {
  */
 function getCurrentRates() {
   const cached = getCachedRates();
-  const isStale = !cached || (Date.now() - cached.fetchedAt) > FX_TTL_MS;
+  // Cache sprzed dodania walut (np. bez BRL) też odświeżamy od razu
+  const isStale = !cached || (Date.now() - cached.fetchedAt) > FX_TTL_MS
+    || SUPPORTED_CURRENCIES.some(c => typeof cached.rates[c] !== "number");
 
   if (isStale) {
     // Background refresh, nie blokuj UI
@@ -123,7 +133,8 @@ function getCurrentRates() {
   }
 
   if (cached && cached.rates) {
-    return { rates: cached.rates, date: cached.date, source: "cache" };
+    // Brakujące waluty uzupełniamy kursem awaryjnym do czasu odświeżenia
+    return { rates: { ...FALLBACK_RATES, ...cached.rates }, date: cached.date, source: "cache" };
   }
   return { rates: FALLBACK_RATES, date: FALLBACK_DATE, source: "fallback" };
 }
@@ -206,7 +217,8 @@ async function refreshRates() {
  */
 function prefetchRates() {
   const cached = getCachedRates();
-  const isStale = !cached || (Date.now() - cached.fetchedAt) > FX_TTL_MS;
+  const isStale = !cached || (Date.now() - cached.fetchedAt) > FX_TTL_MS
+    || SUPPORTED_CURRENCIES.some(c => typeof cached.rates[c] !== "number");
   if (isStale) fetchFromNBP();
 }
 
@@ -330,6 +342,27 @@ function shiftDateISO(dateISO, deltaDays) {
 // prezentacji. Zmiana waluty NIE przelicza danych w bazie, tylko zmienia
 // jak są pokazywane.
 
+// Waluta główna dla nowego użytkownika — z regionu telefonu (en-US → USD, pt-BR → BRL),
+// a bez regionu: strefa euro → EUR, pl → PLN, uk → UAH; inaczej EUR.
+const REGION_CURRENCY = {
+  US: "USD", GB: "GBP", CH: "CHF", CZ: "CZK", HU: "HUF", SE: "SEK", NO: "NOK", DK: "DKK",
+  JP: "JPY", CA: "CAD", AU: "AUD", BR: "BRL", MX: "MXN", UA: "UAH", RO: "RON", TR: "TRY", PL: "PLN",
+};
+function guessCurrency() {
+  try {
+    const prefs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+    for (const p of prefs) {
+      const region = String(p).split("-")[1];
+      if (region && REGION_CURRENCY[region.toUpperCase()]) return REGION_CURRENCY[region.toUpperCase()];
+    }
+    const lang = String(prefs[0] || "").slice(0, 2).toLowerCase();
+    if (lang === "pl") return "PLN";
+    if (lang === "uk") return "UAH";
+    if (lang === "pt") return "BRL";
+  } catch (_) { /* brak navigatora */ }
+  return "EUR";
+}
+
 function getDisplayCurrency() {
   try {
     const stored = localStorage.getItem(DISPLAY_CURRENCY_KEY);
@@ -393,5 +426,6 @@ export {
   setDisplayCurrency,
   txAmountForDisplay,
   amountForDisplay,
+  guessCurrency,
   SUPPORTED_CURRENCIES,
 };

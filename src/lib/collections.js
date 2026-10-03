@@ -16,32 +16,62 @@ import { CATEGORIES } from "../constants.js";
 const KINDS = {
   vinyl: {
     icon: Disc3, resaleCategory: "vinyl",
-    formats: { en: ["LP", "2LP", "7\"", "12\"", "CD", "Cassette", "Box set"], pl: ["LP", "2LP", "7\"", "12\"", "CD", "Kaseta", "Box"] },
+    formats: {
+      en: ["LP","2LP","7\"","12\"","CD","Cassette","Box set"],
+      pl: ["LP","2LP","7\"","12\"","CD","Kaseta","Box"],
+      de: ["LP","2LP","7\"","12\"","CD","Kassette","Box-Set"],
+      es: ["LP","2LP","7\"","12\"","CD","Casete","Caja"],
+      fr: ["LP","2LP","7\"","12\"","CD","Cassette","Coffret"],
+      pt: ["LP","2LP","7\"","12\"","CD","Fita cassete","Box"],
+      it: ["LP","2LP","7\"","12\"","CD","Cassetta","Cofanetto"],
+      nl: ["LP","2LP","7\"","12\"","CD","Cassette","Box"],
+      uk: ["LP","2LP","7\"","12\"","CD","Касета","Бокс-сет"],
+    },
   },
   books: {
     icon: BookOpen, resaleCategory: "books",
-    formats: { en: ["Hardcover", "Paperback", "Comic", "E-book", "Audiobook"], pl: ["Twarda", "Miękka", "Komiks", "E-book", "Audiobook"] },
+    formats: {
+      en: ["Hardcover","Paperback","Comic","E-book","Audiobook"],
+      pl: ["Twarda","Miękka","Komiks","E-book","Audiobook"],
+      de: ["Hardcover","Taschenbuch","Comic","E-Book","Hörbuch"],
+      es: ["Tapa dura","Tapa blanda","Cómic","E-book","Audiolibro"],
+      fr: ["Relié","Broché","BD","E-book","Livre audio"],
+      pt: ["Capa dura","Brochura","HQ","E-book","Audiolivro"],
+      it: ["Copertina rigida","Brossura","Fumetto","E-book","Audiolibro"],
+      nl: ["Gebonden","Paperback","Strip","E-book","Luisterboek"],
+      uk: ["Тверда обкладинка","М'яка обкладинка","Комікс","Електронна","Аудіокнига"],
+    },
   },
   games: {
     icon: Gamepad2, resaleCategory: "games",
-    formats: { en: ["PS5", "PS4", "Xbox", "Switch", "PC", "Retro", "Board game"], pl: ["PS5", "PS4", "Xbox", "Switch", "PC", "Retro", "Planszówka"] },
+    formats: {
+      en: ["PS5","PS4","Xbox","Switch","PC","Retro","Board game"],
+      pl: ["PS5","PS4","Xbox","Switch","PC","Retro","Planszówka"],
+      de: ["PS5","PS4","Xbox","Switch","PC","Retro","Brettspiel"],
+      es: ["PS5","PS4","Xbox","Switch","PC","Retro","Juego de mesa"],
+      fr: ["PS5","PS4","Xbox","Switch","PC","Rétro","Jeu de société"],
+      pt: ["PS5","PS4","Xbox","Switch","PC","Retrô","Jogo de tabuleiro"],
+      it: ["PS5","PS4","Xbox","Switch","PC","Retro","Gioco da tavolo"],
+      nl: ["PS5","PS4","Xbox","Switch","PC","Retro","Bordspel"],
+      uk: ["PS5","PS4","Xbox","Switch","PC","Ретро","Настільна гра"],
+    },
   },
   other: { icon: Gem, resaleCategory: "collectibles", formats: { en: [], pl: [] } },
 };
 
 const CONDITIONS = [
-  { id: "new",  label: { en: "New / sealed", pl: "Nowy / w folii" } },
-  { id: "mint", label: { en: "Like new",     pl: "Jak nowy" } },
-  { id: "good", label: { en: "Good",         pl: "Dobry" } },
-  { id: "fair", label: { en: "Fair",         pl: "Używany" } },
+  { id: "new",  label: { en: "New / sealed", pl: "Nowy / w folii", de: "Neu / OVP", es: "Nuevo / precintado", fr: "Neuf / sous blister", pt: "Novo / lacrado", it: "Nuovo / sigillato", nl: "Nieuw / geseald", uk: "Новий / запакований" } },
+  { id: "mint", label: { en: "Like new", pl: "Jak nowy", de: "Wie neu", es: "Como nuevo", fr: "Comme neuf", pt: "Como novo", it: "Come nuovo", nl: "Zo goed als nieuw", uk: "Як новий" } },
+  { id: "good", label: { en: "Good", pl: "Dobry", de: "Gut", es: "Bueno", fr: "Bon état", pt: "Bom", it: "Buono", nl: "Goed", uk: "Добрий" } },
+  { id: "fair", label: { en: "Fair", pl: "Używany", de: "Gebraucht", es: "Usado", fr: "Usagé", pt: "Usado", it: "Usato", nl: "Gebruikt", uk: "Вживаний" } },
 ];
 
 /** Rodzaj kolekcji po nazwie i słowach kluczowych hobby (bez zmian w schemacie hobby). */
 function collectionKind(hobby) {
   const text = `${hobby?.name || ""} ${(hobby?.keywords || []).join(" ")}`.toLowerCase();
-  if (/winyl|vinyl|płyt|plyt|\blp\b|record|muzyk|music/.test(text)) return "vinyl";
-  if (/książ|ksiaz|book|komiks|comic|manga/.test(text)) return "books";
-  if (/\bgry\b|\bgra\b|game|ps5|ps4|xbox|switch|nintendo|konsol/.test(text)) return "games";
+  if (/winyl|vinyl|vinil|vinyle|platte|płyt|plyt|\blp\b|record|disque|disco|muzyk|music|musik|músic|musique|musica|muziek|вініл|платів|музик/.test(text)) return "vinyl";
+  if (/książ|ksiaz|book|buch|bücher|libro|livre|livro|boek|komiks|comic|cómic|manga|\bbd\b|fumett|strip|книг|комікс/.test(text)) return "books";
+  if (/\bgry\b|\bgra\b|game|spiel|juego|\bjeux?\b|jogo|gioch|videogio|ps5|ps4|xbox|switch|nintendo|konsol|consol|ігр|гри/.test(text)) return "games";
   return "other";
 }
 

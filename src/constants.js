@@ -1,9 +1,7 @@
 import {
   Wallet, TrendingUp, TrendingDown, ArrowUpRight, CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield, DollarSign, Bell, AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock
 } from "lucide-react";
-
-const MONTHS = ["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];
-const MONTH_NAMES = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
+import { t } from "./i18n.js";
 
 // group: "essential" = sta e/wa ne, "lifestyle" = dodatkowe, "income" = przychody
 const BASE_CATEGORIES = [
@@ -29,6 +27,13 @@ const BASE_CATEGORIES = [
   { id: "bukmacherka", label: "Wygrane (zakłady)",icon: TrendingUp, color: "#fb923c", group: "income" },
   { id: "zwrot",       label: "Zwroty (PIT/sklep)", icon: RefreshCw, color: "#0ea5e9", group: "income" },
 ];
+
+// Nazwy kategorii w języku apki (klucze cat.<id>); polska nazwa zostaje jako fallback.
+// Getter: etykieta liczy się przy renderze, gdy słownik języka jest już wczytany.
+for (const c of BASE_CATEGORIES) {
+  const pl = c.label;
+  Object.defineProperty(c, "label", { get: () => t(`cat.${c.id}`, pl), enumerable: true });
+}
 
 // Static CATEGORIES   custom ones merged at render time via allCats prop
 const ICON_MAP = {
@@ -74,14 +79,6 @@ const INITIAL_ACCOUNTS = [
 // type: "credit" | "bill" | "sub" | "savings"
 const INITIAL_PAYMENTS = [];
 
-const INITIAL_TEMPLATES = [
-  { id: 1, desc: "Sklep",        amount: 50,    cat: "zakupy",    acc: 1 },
-  { id: 2, desc: "Paliwo",       amount: 200,   cat: "transport", acc: 1 },
-  { id: 3, desc: "Restauracja",  amount: 80,    cat: "jedzenie",  acc: 1 },
-  { id: 4, desc: "Kawa",         amount: 15,    cat: "kawiarnia", acc: 1 },
-  { id: 5, desc: "Transport",    amount: 25,    cat: "transport", acc: 1 },
-];
-
 const INITIAL_PAID = {};
 
 
@@ -96,6 +93,6 @@ const INITIAL_BUDGETS = [];
 
 // Moduł inwestycyjny: dane wprowadzane przez użytkownika (stan w App)
 
-export { MONTHS, MONTH_NAMES, BASE_CATEGORIES, CATEGORIES, getCat, getAllCats,
-  INITIAL_ACCOUNTS, INITIAL_PAYMENTS, INITIAL_TEMPLATES, INITIAL_PAID,
+export { BASE_CATEGORIES, CATEGORIES, getCat, getAllCats,
+  INITIAL_ACCOUNTS, INITIAL_PAYMENTS, INITIAL_PAID,
   INITIAL_GOALS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS };

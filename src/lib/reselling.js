@@ -23,18 +23,41 @@ const PLATFORMS = [
   { id: "etsy",     name: "Etsy",            pct: 9.5,  fixed: 0.45 },
   { id: "discogs",  name: "Discogs",         pct: 12,   fixed: 0.30 },
   { id: "mercari",  name: "Mercari",         pct: 10,   fixed: 0.50 },
-  { id: "local",    name: { en: "In person", pl: "Osobiście" }, pct: 0, fixed: 0 },
+  // v2.4.0: lokalne serwisy nowych rynków — sprzedający prywatny zwykle bez prowizji
+  { id: "kleinanzeigen", name: "Kleinanzeigen",  pct: 0,    fixed: 0 },
+  { id: "leboncoin",     name: "Leboncoin",      pct: 0,    fixed: 0 },
+  { id: "subito",        name: "Subito",         pct: 0,    fixed: 0 },
+  { id: "marktplaats",   name: "Marktplaats",    pct: 0,    fixed: 0 },
+  { id: "mercadolivre",  name: "Mercado Livre",  pct: 12,   fixed: 0 },
+  { id: "local",    name: { en: "In person", pl: "Osobiście", de: "Persönlich", es: "En persona", fr: "En main propre", pt: "Pessoalmente", it: "Di persona", nl: "Persoonlijk", uk: "Особисто" }, pct: 0, fixed: 0 },
 ];
 const PLATFORM_BY_ID = Object.fromEntries(PLATFORMS.map(p => [p.id, p]));
 
+// Kolejność platform na danym rynku (język apki); reszta po nich
+const MARKET_PLATFORMS = {
+  pl: ["vinted", "allegro", "olx", "fbm", "ebay", "local"],
+  en: ["ebay", "vinted", "depop", "etsy", "mercari", "fbm", "local"],
+  de: ["vinted", "kleinanzeigen", "ebay", "local", "etsy"],
+  es: ["wallapop", "vinted", "ebay", "local"],
+  fr: ["vinted", "leboncoin", "ebay", "local", "etsy"],
+  pt: ["mercadolivre", "olx", "fbm", "local"],
+  it: ["vinted", "subito", "ebay", "wallapop", "local"],
+  nl: ["vinted", "marktplaats", "ebay", "local"],
+  uk: ["olx", "fbm", "local"],
+};
+function marketPlatforms(lang) {
+  const first = MARKET_PLATFORMS[lang] || MARKET_PLATFORMS.en;
+  return [...first, ...PLATFORMS.map(p => p.id).filter(id => !first.includes(id))];
+}
+
 const ITEM_CATEGORIES = [
-  { id: "vinyl",       icon: Disc3,      color: "#34d399", label: { en: "Vinyl & music",  pl: "Winyle i muzyka" } },
-  { id: "books",       icon: BookOpen,   color: "#f59e0b", label: { en: "Books",          pl: "Książki" } },
-  { id: "games",       icon: Gamepad2,   color: "#a78bfa", label: { en: "Games",          pl: "Gry" } },
-  { id: "clothes",     icon: Shirt,      color: "#ec4899", label: { en: "Clothes",        pl: "Ubrania" } },
-  { id: "electronics", icon: Smartphone, color: "#06b6d4", label: { en: "Electronics",    pl: "Elektronika" } },
-  { id: "collectibles",icon: Gem,        color: "#f43f5e", label: { en: "Collectibles",   pl: "Kolekcjonerskie" } },
-  { id: "other",       icon: Package,    color: "#64748b", label: { en: "Other",          pl: "Inne" } },
+  { id: "vinyl",       icon: Disc3,      color: "#34d399", label: { en: "Vinyl & music", pl: "Winyle i muzyka", de: "Vinyl & Musik", es: "Vinilos y música", fr: "Vinyles et musique", pt: "Vinis e música", it: "Vinili e musica", nl: "Vinyl en muziek", uk: "Вініл і музика" } },
+  { id: "books",       icon: BookOpen,   color: "#f59e0b", label: { en: "Books", pl: "Książki", de: "Bücher", es: "Libros", fr: "Livres", pt: "Livros", it: "Libri", nl: "Boeken", uk: "Книги" } },
+  { id: "games",       icon: Gamepad2,   color: "#a78bfa", label: { en: "Games", pl: "Gry", de: "Spiele", es: "Juegos", fr: "Jeux", pt: "Jogos", it: "Giochi", nl: "Games", uk: "Ігри" } },
+  { id: "clothes",     icon: Shirt,      color: "#ec4899", label: { en: "Clothes", pl: "Ubrania", de: "Kleidung", es: "Ropa", fr: "Vêtements", pt: "Roupas", it: "Abbigliamento", nl: "Kleding", uk: "Одяг" } },
+  { id: "electronics", icon: Smartphone, color: "#06b6d4", label: { en: "Electronics", pl: "Elektronika", de: "Elektronik", es: "Electrónica", fr: "Électronique", pt: "Eletrônicos", it: "Elettronica", nl: "Elektronica", uk: "Електроніка" } },
+  { id: "collectibles",icon: Gem,        color: "#f43f5e", label: { en: "Collectibles", pl: "Kolekcjonerskie", de: "Sammlerstücke", es: "Coleccionables", fr: "Objets de collection", pt: "Colecionáveis", it: "Da collezione", nl: "Verzamelobjecten", uk: "Колекційне" } },
+  { id: "other",       icon: Package,    color: "#64748b", label: { en: "Other", pl: "Inne", de: "Sonstiges", es: "Otros", fr: "Autre", pt: "Outros", it: "Altro", nl: "Overig", uk: "Інше" } },
 ];
 const CATEGORY_BY_ID = Object.fromEntries(ITEM_CATEGORIES.map(c => [c.id, c]));
 
@@ -174,7 +197,7 @@ function sanitizeItems(value) {
 }
 
 export {
-  PLATFORMS, ITEM_CATEGORIES,
+  PLATFORMS, ITEM_CATEGORIES, marketPlatforms,
   platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
   saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats, sanitizeItems,
 };

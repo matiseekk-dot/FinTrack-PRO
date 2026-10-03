@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { setupGlobalHandlers } from './lib/errorTracking.js'
 import { prefetchRates } from './lib/fx.js'
+import { loadLanguage } from './i18n.js'
 
 // Rejestruj globalne handlery dla unhandled errors + promise rejections.
 // Bez tego błędy w runtime znikają bez śladu (errorTracking nie działa).
@@ -12,8 +13,11 @@ setupGlobalHandlers();
 // transakcji w EUR/USD user już miał świeże dane bez czekania.
 prefetchRates();
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Słownik języka (de/es/fr/…) ładuje się osobno — render dopiero gdy jest gotowy
+loadLanguage().finally(() => {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+})

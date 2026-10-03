@@ -1,3 +1,4 @@
+import { t } from "../i18n.js";
 import { useState } from "react";
 import { Wallet, TrendingUp } from "lucide-react";
 import { AccountsView } from "./AccountsView.jsx";
@@ -24,8 +25,8 @@ function PortfolioCombinedView({
         gap: 8,
       }}>
         {[
-          { id: "accounts",    label: "Konta",       Icon: Wallet },
-          { id: "investments", label: "Inwestycje",  Icon: TrendingUp },
+          { id: "accounts",    label: t("more.accounts", "Konta"),        Icon: Wallet },
+          { id: "investments", label: t("inv.investments", "Inwestycje"), Icon: TrendingUp },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}

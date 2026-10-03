@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, Wallet, SlidersHorizontal, AlertCircle } from "lucide-react";
-import { fmtDisplay, todayLocal } from "../utils.js";
+import { fmtDisplay, todayLocal, monthName } from "../utils.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
 import { groupTrips, getTripSpending } from "../lib/trips.js";
 import { txAmountForDisplay, amountForDisplay, getDisplayCurrency } from "../lib/fx.js";
@@ -8,11 +8,10 @@ import { bettingStats } from "../lib/betting.js";
 import { daysBetween } from "../lib/reselling.js";
 import { collectionStats } from "../lib/collections.js";
 import { isOverdue } from "../lib/freelance.js";
+import { positionValues } from "../lib/accountTypes.js";
 import { t, getLang } from "../i18n.js";
 
 const BRAND = "linear-gradient(135deg,#059669,#10b981)";
-const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const MONTHS_PL = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
 
 const ymKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
 const shiftMonth = ({ y, m }, delta) => {
@@ -27,7 +26,6 @@ const shiftMonth = ({ y, m }, delta) => {
  */
 function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
   const lang = getLang();
-  const monthNames = lang === "pl" ? MONTHS_PL : MONTHS_EN;
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
   const [period, setPeriod] = useState(current);
@@ -75,7 +73,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
   // Last 6 months of net side income for the mini chart
   const bars = Array.from({ length: 6 }, (_, i) => {
     const p = shiftMonth(period, i - 5);
-    return { key: ymKey(p.y, p.m), label: monthNames[p.m].slice(0, 3), net: netFor(ymKey(p.y, p.m)) };
+    return { key: ymKey(p.y, p.m), label: monthName(p.m, "short").replace(".", ""), net: netFor(ymKey(p.y, p.m)) };
   });
   const maxAbs = Math.max(1, ...bars.map(b => Math.abs(b.net)));
 
@@ -137,7 +135,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <button onClick={() => setPeriod(p => shiftMonth(p, -1))} aria-label={t("home.prevMonth", "Poprzedni miesiąc")} style={navBtn}><ChevronLeft size={14}/></button>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{monthNames[period.m]} {period.y}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{monthName(period.m)} {period.y}</span>
           <button onClick={() => !isCurrent && setPeriod(p => shiftMonth(p, 1))} disabled={isCurrent} aria-label={t("home.nextMonth", "Następny miesiąc")} style={{ ...navBtn, opacity: isCurrent ? 0.3 : 1, cursor: isCurrent ? "default" : "pointer" }}><ChevronRight size={14}/></button>
         </div>
         <div style={lbl}>{t("home.netTitle", "Dochód poboczny netto")}</div>
@@ -213,7 +211,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         // Inwestycje: wpłaty to nie strata. Pokazujemy je neutralnie, a po prawej wynik portfela.
         let right = s.count === 0 ? null : s.net;
         if (id === "investments") {
-          const pnl = portfolio.reduce((sum, p) => sum + (Number(p.pnlPLN) || 0), 0);
+          const pnl = portfolio.reduce((sum, p) => sum + positionValues(p).pnlPLN, 0);
           const parts = [];
           if (s.invested > 0) parts.push(`${t("home.invested", "wpłacono")} ${fmtDisplay(s.invested)}`);
           else if (s.invested < 0) parts.push(`${t("home.withdrawn", "wypłacono")} ${fmtDisplay(-s.invested)}`);

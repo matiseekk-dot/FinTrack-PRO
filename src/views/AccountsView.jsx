@@ -11,7 +11,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { fmt, fmtDisplay, fmtCurrency } from "../utils.js";
 import { SUPPORTED_CURRENCIES, getDisplayCurrency } from "../lib/fx.js";
-import { t } from "../i18n.js";
+import { t, getLang } from "../i18n.js";
 function AccountsView({ accounts, setAccounts }) {
   const { toast, showToast } = useToast();
   const [modal, setModal] = useState(false);
@@ -20,17 +20,17 @@ function AccountsView({ accounts, setAccounts }) {
 
   const ACC_COLORS = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316"];
   const nextColor = () => ACC_COLORS[accounts.length % ACC_COLORS.length];
-  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor(), currency: "PLN", annualContribution: "", employerContribution: "" }); setModal(true); };
+  const openAdd  = () => { setEditAcc(null); setForm({ name: "", bank: "", balance: "", type: "checking", color: nextColor(), currency: getDisplayCurrency(), annualContribution: "", employerContribution: "" }); setModal(true); };
   const openEdit = (acc) => { setEditAcc(acc); setForm({ name: acc.name, bank: acc.bank, balance: String(acc.balance), type: acc.type, color: acc.color, currency: acc.currency || "PLN", annualContribution: acc.annualContribution ? String(acc.annualContribution) : "", employerContribution: acc.employerContribution ? String(acc.employerContribution) : "" }); setModal(true); };
 
   const saveAccount = () => {
     if (!form.name || form.balance === "") return;
     if (editAcc) {
       setAccounts(a => a.map(x => x.id === editAcc.id ? { ...x, ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, currency: form.currency || "PLN", annualContribution: form.annualContribution ? parseFloat(String(form.annualContribution).replace(",", ".")) || 0 : 0, employerContribution: form.employerContribution ? parseFloat(String(form.employerContribution).replace(",", ".")) || 0 : 0 } : x));
-      showToast("Konto zaktualizowane ✓");
+      showToast(t("acc.toast.updated", "Konto zaktualizowane ✓"));
     } else {
       setAccounts(a => [...a, { id: Date.now(), ...form, balance: isFinite(parseFloat(String(form.balance).replace(",", "."))) ? parseFloat(String(form.balance).replace(",", ".")) : 0, iban: "", currency: form.currency || "PLN", annualContribution: form.annualContribution ? parseFloat(String(form.annualContribution).replace(",", ".")) || 0 : 0, employerContribution: form.employerContribution ? parseFloat(String(form.employerContribution).replace(",", ".")) || 0 : 0 }]);
-      showToast("Konto dodane ✓");
+      showToast(t("acc.toast.added", "Konto dodane ✓"));
     }
     setModal(false);
     setEditAcc(null);
@@ -99,7 +99,7 @@ function AccountsView({ accounts, setAccounts }) {
             )}
             <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{pct}% {t("acc.ofWealth", "majątku")}</div>
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
-              <button onClick={() => openEdit(acc)} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#60a5fa", fontSize: 11 }}>Edytuj</button>
+              <button onClick={() => openEdit(acc)} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#60a5fa", fontSize: 11 }}>{t("common.edit", "Edytuj")}</button>
               <button onClick={() => deleteAcc(acc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#334155" }}><Trash2 size={11}/></button>
             </div>
           </div>
@@ -127,9 +127,9 @@ function AccountsView({ accounts, setAccounts }) {
 
       {/* Header z przyciskiem dodawania */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>Moje konta</div>
-        <button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          <PlusCircle size={14}/> Nowe konto
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>{t("acc.myAccounts", "Moje konta")}</div>
+        <button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
+          <PlusCircle size={14}/> {t("acc.new", "Nowe konto")}
         </button>
       </div>
 
@@ -189,61 +189,28 @@ function AccountsView({ accounts, setAccounts }) {
             <option value="invest">{t("acc.type.invest", "Inwestycje (brokerage)")}</option>
           </optgroup>
           <optgroup label={t("acc.group.retirement", "Emerytura długoterminowa")}>
-            <option value="ppk">PPK — {t("acc.type.ppk", "Pracownicze Plany Kapitałowe")}</option>
-            <option value="ike">IKE — {t("acc.type.ike", "Indywidualne Konto Emerytalne")}</option>
-            <option value="ikze">IKZE — {t("acc.type.ikze", "Indywidualne Konto Zabezp. Emerytalnego")}</option>
+            <option value="retirement">{t("acc.type.retirement", "Konto emerytalne")}</option>
+            {(getLang() === "pl" || ["ppk", "ike", "ikze"].includes(form.type)) && <>
+              <option value="ppk">PPK — Pracownicze Plany Kapitałowe</option>
+              <option value="ike">IKE — Indywidualne Konto Emerytalne</option>
+              <option value="ikze">IKZE — Indywidualne Konto Zabezp. Emerytalnego</option>
+            </>}
           </optgroup>
           <optgroup label={t("acc.group.longterm", "Majątek długoterminowy")}>
             <option value="bonds">{t("acc.type.bonds", "Obligacje skarbowe")}</option>
           </optgroup>
         </Select>
 
-        {/* Dodatkowe pola dla kont emerytalnych */}
-        {["ike", "ikze", "ppk"].includes(form.type) && (
-          <div style={{
-            background: "#0a1a2e",
-            border: "1px solid #1e3a5f44",
-            borderRadius: 10,
-            padding: "12px 14px",
-            marginBottom: 16,
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#06b6d4", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-              💡 {t("acc.calcData", "Dane dla kalkulatora")} {form.type.toUpperCase()}
-            </div>
-            <Input
-              label={t("acc.annualContribution", "Wpłata roczna") + " (" + t("common.currencyPLN", "zł") + ")"}
-              type="number"
-              value={form.annualContribution}
-              onChange={e => setForm(f => ({...f, annualContribution: e.target.value}))}
-              placeholder={form.type === "ikze" ? "np. 7500" : form.type === "ike" ? "np. 15000" : "np. 2400"}
-            />
-            {form.type === "ppk" && (
-              <Input
-                label={t("acc.employerContribution", "Dopłata pracodawcy rocznie") + " (" + t("common.currencyPLN", "zł") + ")"}
-                type="number"
-                value={form.employerContribution}
-                onChange={e => setForm(f => ({...f, employerContribution: e.target.value}))}
-                placeholder="np. 1800"
-              />
-            )}
-            <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.4, marginTop: 6 }}>
-              {form.type === "ikze" && t("acc.ikzeLimitInfo", "Limit 2026: 10 407 zł (15 611 zł dla samozatrudnionych)")}
-              {form.type === "ike" && t("acc.ikeLimitInfo", "Limit 2026: 26 019 zł")}
-              {form.type === "ppk" && t("acc.ppkInfo", "Typowo 2% Twojej pensji + 1.5% od pracodawcy + 240 zł/rok od państwa")}
-            </div>
-          </div>
-        )}
-
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>Kolor</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("common.color", "Kolor")}</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899"].map(c => (
               <div key={c} onClick={() => setForm(f => ({...f, color: c}))} style={{ width: 28, height: 28, borderRadius: 8, background: c, cursor: "pointer", border: form.color === c ? "2px solid white" : "2px solid transparent" }}/>
             ))}
           </div>
         </div>
-        <button onClick={saveAccount} style={{ width: "100%", background: "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {editAcc ? "Zapisz zmiany" : "Dodaj konto"}
+        <button onClick={saveAccount} style={{ width: "100%", background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
+          {editAcc ? t("tx.saveChanges", "Zapisz zmiany") : t("acc.addBtn", "Dodaj konto")}
         </button>
       </Modal>
     </div>

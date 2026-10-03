@@ -1,24 +1,63 @@
-// Lekkie tłumaczenia — bez biblioteki, prosty pattern
+// Lekkie tłumaczenia — bez biblioteki.
+// pl i en są w tym pliku (en = fallback dla wszystkich języków), pozostałe języki
+// ładują się na żądanie z ./locales/<kod>.js przed pierwszym renderem (main.jsx).
 const LANG_KEY = "ft_lang";
 
+const LANGUAGES = [
+  { code: "en", name: "English",            flag: "🇬🇧", locale: "en-US" },
+  { code: "pl", name: "Polski",             flag: "🇵🇱", locale: "pl-PL" },
+  { code: "de", name: "Deutsch",            flag: "🇩🇪", locale: "de-DE" },
+  { code: "es", name: "Español",            flag: "🇪🇸", locale: "es-ES" },
+  { code: "fr", name: "Français",           flag: "🇫🇷", locale: "fr-FR" },
+  { code: "pt", name: "Português (Brasil)", flag: "🇧🇷", locale: "pt-BR" },
+  { code: "it", name: "Italiano",           flag: "🇮🇹", locale: "it-IT" },
+  { code: "nl", name: "Nederlands",         flag: "🇳🇱", locale: "nl-NL" },
+  { code: "uk", name: "Українська",         flag: "🇺🇦", locale: "uk-UA" },
+];
+const CODES = LANGUAGES.map(l => l.code);
+
 function detectLang() {
-  const stored = localStorage.getItem(LANG_KEY);
-  if (stored === "pl" || stored === "en") return stored;
-  // Sidegig jest globalny: angielski domyślnie, polski dla polskiej przeglądarki
-  const browser = (navigator.language || "en").toLowerCase();
-  return browser.startsWith("pl") ? "pl" : "en";
+  try {
+    const stored = localStorage.getItem(LANG_KEY);
+    if (CODES.includes(stored)) return stored;
+  } catch (_) { /* brak dostępu do storage */ }
+  // Pierwszy język telefonu, który obsługujemy; inaczej angielski
+  const prefs = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"]);
+  for (const p of prefs) {
+    const code = String(p).toLowerCase().split("-")[0];
+    if (CODES.includes(code)) return code;
+  }
+  return "en";
 }
 
 let currentLang = detectLang();
+if (typeof document !== "undefined") document.documentElement.lang = currentLang;
 
 function setLang(lang) {
+  if (!CODES.includes(lang)) return;
   currentLang = lang;
   localStorage.setItem(LANG_KEY, lang);
-  // Force reload żeby wszystkie komponenty dostały nowy język
+  // Reload: main.jsx wczyta słownik języka przed renderem
   window.location.reload();
 }
 
 function getLang() { return currentLang; }
+
+/** Lokalizacja dla Intl (kwoty, daty, nazwy walut). */
+function getLocale() {
+  return (LANGUAGES.find(l => l.code === currentLang) || LANGUAGES[0]).locale;
+}
+
+/** Wczytuje słownik bieżącego języka (pl/en są wbudowane). Wywoływane raz w main.jsx. */
+async function loadLanguage(lang = currentLang) {
+  if (lang === "pl" || lang === "en" || TRANSLATIONS[lang]) return;
+  try {
+    const mod = await import(`./locales/${lang}.js`);
+    TRANSLATIONS[lang] = mod.default;
+  } catch (e) {
+    console.warn("[i18n] nie udało się wczytać języka", lang, e);
+  }
+}
 
 // Dictionary — kluczowe stringi. Rozbudowywane etapami.
 const TRANSLATIONS = {
@@ -156,90 +195,31 @@ const TRANSLATIONS = {
     "tx.addNew": "+ Dodaj",
   },
   en: {
-    "nav.start": "Home",
-    "nav.transactions": "Transactions",
-    "nav.payments": "Bills",
-    "nav.goals": "Goals",
-    "nav.plans": "Plans",
-    "nav.hobby": "Hobby",
-    "nav.analytics": "Insights",
     "nav.accounts": "Accounts",
     "nav.add": "Add",
 
-    "dash.todayBalance": "Today's balance",
-    "dash.totalWealth": "Total Wealth",
-    "dash.savings": "Savings",
-    "dash.investments": "Investments",
-    "dash.cycleBalance": "Cycle balance",
-    "dash.income": "Income",
-    "dash.expenses": "Expenses",
-    "dash.balance": "Balance",
-    "dash.canStillSpend": "You can still spend",
-    "dash.dailyAvg": "Daily average",
-    "dash.dailyBudget": "Daily budget",
-    "dash.forecast": "End of month forecast",
-    "dash.estSpending": "Est. spending",
-    "dash.recentTx": "Recent transactions",
-    "dash.noTxToday": "No transactions",
-    "dash.budgetExceeded": "Budget exceeded",
-    "dash.budgetWarning": "Approaching limit",
-    "dash.daysUntilEnd": "days until cycle end",
 
     "tx.search": "Search by description, category…",
     "tx.all": "All",
     "tx.income": "Income",
     "tx.expense": "Expenses",
-    "tx.add": "+ Add transaction",
-    "tx.noResults": "No results",
-    "tx.noTx": "No transactions",
+    "tx.add": "+ Add entry",
     "tx.foundCount": "Found",
-    "tx.new": "New transaction",
-    "tx.edit": "Edit transaction",
     "tx.date": "Date",
     "tx.amount": "Amount",
-    "tx.description": "Description",
     "tx.category": "Category",
     "tx.account": "Account",
     "tx.save": "Save",
-    "tx.delete": "Delete",
 
     "common.cancel": "Cancel",
-    "common.confirm": "Confirm",
-    "common.yes": "Yes",
-    "common.no": "No",
     "common.save": "Save",
-    "common.loading": "Loading…",
-    "common.error": "Error",
-    "common.success": "Success",
 
-    "day.0": "Sunday",
-    "day.1": "Monday",
-    "day.2": "Tuesday",
-    "day.3": "Wednesday",
-    "day.4": "Thursday",
-    "day.5": "Friday",
-    "day.6": "Saturday",
 
     // Additional
-    "dash.spent": "Spent",
-    "dash.todayDate": "Today",
-    "dash.daysLeft": "DAYS UNTIL CYCLE END",
-    "dash.todayStatus": "AS OF TODAY",
-    "dash.budgetExhausted": "Budget exhausted",
-    "dash.monthElapsed": "of month elapsed",
-    "dash.transactionsCount": "transactions",
-    "dash.noTransactions": "No transactions",
-    "tx.addNew": "+ Add",
 
     // Plans tabs (v1.3.1)
-    "plans.tab.goals": "Goals",
-    "plans.tab.limits": "Limits",
-    "plans.tab.trips": "Trips",
-    "plans.tab.hobby": "Hobby",
 
     // Analytics tabs (v1.3.1)
-    "analytics.tab.current": "Current",
-    "analytics.tab.periods": "Periods",
 
     // Trips view (v1.3.1)
     "trips.empty": "No trips yet",
@@ -257,33 +237,22 @@ const TRANSLATIONS = {
     "trips.notes": "Notes",
     "trips.color": "Color",
     "trips.archive": "Archive",
-    "trips.unarchive": "Restore from archive",
-    "trips.delete": "Delete trip",
-    "trips.deleteConfirm": "Delete trip? Linked transactions stay, only lose the tag.",
-    "trips.yearTotal": "Yearly total",
+    "trips.deleteConfirm": "Delete this trip? Linked entries stay; they just lose the trip tag.",
     "trips.byCategory": "By category",
-    "trips.txCount": "transactions",
+    "trips.txCount": "entries",
 
     // Hobby view (v1.3.1)
-    "hobby.empty": "No hobbies yet",
-    "hobby.emptyDesc": "Add a hobby (e.g. Vinyl, F1) to see how much you spend on it.",
-    "hobby.add": "New hobby",
-    "hobby.name": "Hobby name",
+    "hobby.name": "Collection name",
     "hobby.categories": "Categories",
-    "hobby.categoriesHelp": "Which categories count towards this hobby",
+    "hobby.categoriesHelp": "Which categories count towards this collection",
     "hobby.cats.expense": "Expense",
     "hobby.cats.income": "Income (sales / refunds)",
     "hobby.keywords": "Keywords (optional)",
-    "hobby.keywordsHelp": "Extra words to find in tx description (e.g. 'vinyl', 'ghost')",
+    "hobby.keywordsHelp": "Words to look for in entry descriptions (e.g. \"vinyl\", \"LP\")",
     "hobby.target": "Yearly limit (optional)",
     "hobby.targetHelp": "Soft cap — app will warn when you approach it",
     "hobby.thisCycle": "This cycle",
-    "hobby.thisYear": "This year",
-    "hobby.allTime": "All time",
-    "hobby.dashboardTitle": "Hobby — where the money goes",
-    "hobby.noMatch": "No transactions matching this hobby",
-    "hobby.delete": "Delete hobby",
-    "hobby.deleteConfirm": "Delete this hobby? Transactions stay untouched.",
+    "hobby.noMatch": "No entries match this collection",
 
     // Errors (v1.3.1)
     "error.title": "Oops, something went wrong",
@@ -293,9 +262,8 @@ const TRANSLATIONS = {
     "error.details": "Details (dev)",
     "err.login.failed": "Sign in failed. Please try again.",
     "err.sync.realtime": "Real-time sync error.",
-    "err.sync.tooBig": "Document too large. Delete old transactions or export to file.",
+    "err.sync.tooBig": "Your data is too large to sync. Export a backup and delete old entries.",
     "err.sync.network": "Sync error. Check your connection.",
-    "err.notLoggedIn": "Not signed in",
 
     // Login screen (v1.3.1)
     "login.tagline": "All your side income in one place.",
@@ -318,62 +286,16 @@ const TRANSLATIONS = {
     "pin.unlock": "Enter PIN to unlock",
 
     // Onboarding (v1.3.1)
-    "onb.s1.title": "Welcome to FinTrack PRO!",
-    "onb.s1.desc": "Personal finance tracker. Cloud sync, your data secure. 50 transactions per month free, more in PRO.",
-    "onb.s2.title": "Add transactions",
-    "onb.s2.desc": "Enter amount, description and category. You can use templates for repeating expenses (e.g. Fuel 200 PLN, Coffee 30 PLN) — one tap and done.",
-    "onb.s3.title": "What's a billing cycle?",
-    "onb.s3.desc": "By default cycle = calendar month (1-31). But you can set it to your payday — e.g. 27th of each month to 26th of the next. Set it in Settings.",
-    "onb.s4.title": "Categories and custom categories",
-    "onb.s4.desc": "You get 20 categories (food, transport, bills, salary…) but you can add your own (e.g. Mortgage, Daycare, Vinted). Each category = different color on charts.",
-    "onb.s5.title": "Budgets and alerts",
-    "onb.s5.desc": "Set a monthly limit for a category (e.g. Entertainment = 500 PLN). The app warns at 85% and alerts when you exceed. Tabs → Plans → Limits.",
-    "onb.s6.title": "Savings goals",
-    "onb.s6.desc": "Set a goal (e.g. Vacation 5000 PLN by end of {YEAR}) and link it to a savings account. The app calculates how much is left and how much to save monthly.",
-    "onb.s7.title": "Security",
-    "onb.s7.desc": "Enable PIN lock in Settings — the app locks automatically when you leave. Only you have access.",
-    "onb.s8.title": "Ready to start!",
-    "onb.s8.desc": "Start by adding your first transaction or load demo data to see the app in action.",
-    "onb.skip": "Skip",
     "onb.back": "Back",
     "onb.next": "Next →",
-    "onb.start": "Let's go!",
-    "onb.loadDemo": "Load demo data",
 
     // Account defaults (v1.3.1)
-    "acc.defaultSavings": "Savings",
     "acc.ofWealth": "of wealth",
 
     // Limits (v1.3.1)
-    "limits.title": "Monthly limits",
-    "limits.subtitle": "Set max amount per category",
-    "limits.add": "Limit",
-    "limits.empty": "No limits",
-    "limits.emptyDesc": "Set a monthly limit for the category you want to control.",
-    "limits.addFirst": "Add limit",
-    "limits.exceededBy": "Exceeded by",
-    "limits.onlyLeft": "Only left",
-    "limits.left": "Left",
-    "limits.modalTitle": "New monthly limit",
-    "limits.monthlyLimit": "Monthly limit (PLN)",
-    "limits.placeholder": "e.g. 200",
-    "limits.spentInCycle": "Spent in this cycle",
-    "limits.save": "Save limit",
-    "common.category": "Category",
     "common.add": "Add",
-    "common.skip": "Skip",
     "common.delete": "Delete",
     "common.currencyPLN": "PLN",
-    "shared.todayPayment": "Today's payment",
-    "templates.addLabel": "Add template",
-    "templates.addBtn": "Add template",
-    "notif.paymentTomorrow": "💳 Payment tomorrow!",
-    "notif.paymentToday": "⚡ Payment today!",
-    "daily.streak": "Streak",
-    "daily.day": "day",
-    "daily.days": "days",
-    "daily.addToday": "add today!",
-    "daily.great": "great!",
     "feedback.button": "Report a problem",
     "feedback.title": "Report a problem",
     "feedback.body.message": "Message:",
@@ -390,28 +312,15 @@ const TRANSLATIONS = {
     "feedback.recipient": "Message will go to",
 
     // Setup (v1.3.1)
-    "setup.defaultAcc": "Main account",
-    "setup.bankOther": "Other",
-    "setup.addBank": "Add your bank",
-    "setup.addBankDesc": "Start with your main account. You can add more anytime.",
-    "setup.balanceTitle": "Account balance",
-    "setup.balanceDesc": "Enter current balance in",
-    "setup.balanceDesc2": "It will be your starting point.",
-    "setup.accName": "Account name",
-    "setup.accNamePh": "e.g. Personal, Joint, Business",
-    "setup.currentBalance": "Current balance",
-    "setup.done": "Done",
-    "setup.changeBank": "Change bank",
 
     // Trips (v1.3.1)
     "trips.legacyDetected": "Detected old data from previous version",
-    "trips.legacyPrompt": "We found 1 trip from a previous version of the app. Import it?",
+    "trips.legacyPrompt": "We found trips from an older version of the app. Import them?",
     "trips.import": "Import",
-    "trips.legacyArchive": "Archive before v1.1.2 (preview only)",
-    "trips.assignHint": "Add a new one or in Transactions view use \"Assign to trip\".",
+    "trips.assignHint": "Pick this trip when you add an entry in the Ledger.",
 
     // Upgrade Modal (v1.3.1)
-    "upgrade.feat.txLimit": "Monthly transaction limit",
+    "upgrade.feat.txLimit": "Monthly entry limit",
     "upgrade.feat.unlimited": "Unlimited",
     "upgrade.feat.support": "Support the author",
     "upgrade.feat.earlyAccess": "Early access to new features",
@@ -420,8 +329,8 @@ const TRANSLATIONS = {
     "upgrade.openPlay": "Open in Google Play",
     "upgrade.disclaimer1": "Payment via Google Play · Yearly subscription or lifetime access",
     "upgrade.disclaimer2": "You can cancel anytime in Google Play settings",
-    "upgrade.trigger.limit": "Reached limit of 50 transactions per month",
-    "upgrade.trigger.import": "Bank import is a PRO feature",
+    "upgrade.trigger.limit": "You've reached 50 entries this month",
+    "upgrade.trigger.import": "Importing is a PRO feature",
     "upgrade.trigger.sync": "Sync between devices is a PRO feature",
     "upgrade.trigger.account": "Unlimited bank accounts",
     "upgrade.trigger.budget": "Unlimited budgets",
@@ -435,9 +344,9 @@ const TRANSLATIONS = {
     "upgrade.lifetime.badge": "Early bird",
 
     // Transactions (v1.3.1)
-    "tx.tier.txInMonth": "transactions this month",
+    "tx.tier.txInMonth": "entries this month",
     "tx.tier.limitReached": "Limit",
-    "tx.tier.txReached": "transactions reached",
+    "tx.tier.txReached": "entries reached",
     "tx.type.expense": "Expense",
     "tx.type.income": "Income",
     "tx.type.transfer": "Transfer",
@@ -449,130 +358,40 @@ const TRANSLATIONS = {
     "tx.copy": "Copy",
     "tx.transfer.out": "Transfer",
     "tx.transfer.in": "Transfer",
-    "tx.rateNote": "Approximate rate · amount will save in PLN",
 
     // Hobby additional (v1.3.1)
     "hobby.topMerchants": "Top merchants / sources (lifetime)",
-    "hobby.txList": "Transactions",
-    "hobby.olderTx": "older transactions",
-    "hobby.noMatchHint": "Check if you selected the right categories or add keywords.",
+    "hobby.txList": "Entries",
+    "hobby.olderTx": "older entries",
+    "hobby.noMatchHint": "Check the categories or add keywords.",
 
     // Payments (v1.3.1)
-    "pay.fmt.weekly": "Weekly",
-    "pay.fmt.eachMonth": "of each month",
-    "pay.shared": "shared",
-    "pay.empty": "No payments this month",
-    "pay.bimonthlySkip": "Bimonthly (not this month)",
-    "pay.type.credit": "Loan",
-    "pay.type.bill": "Bill",
-    "pay.type.sub": "Subscription",
-    "pay.type.savings": "Savings",
-    "pay.ph.credit": "e.g. Mortgage",
-    "pay.ph.sub": "e.g. Netflix",
-    "pay.ph.bill": "e.g. Electricity",
-    "pay.bimonthlyHint": "then every 2 months",
-    "pay.sharedWith": "Shared with",
-    "pay.sharedDesc": "Counts toward settlement with",
-    "pay.name": "Name",
 
     // Dashboard (v1.3.1)
-    "dash.empty.title": "Start tracking your finances",
-    "dash.empty.desc": "Add your first transaction to see analytics, charts and reports.",
-    "dash.empty.addFirst": "Add first transaction",
-    "dash.feat.tx.title": "Transactions",
-    "dash.feat.tx.desc": "Log expenses and income in seconds",
-    "dash.feat.tx.btn": "Add transaction",
-    "dash.feat.pay.title": "Recurring payments",
-    "dash.feat.pay.desc": "Rent, bills, subscriptions — never miss a due date",
-    "dash.feat.goals.title": "Savings goals",
-    "dash.feat.goals.desc": "Save for vacation, new phone or a financial cushion",
-    "dash.pull.refreshing": "Refreshing…",
-    "dash.pull.release": "Release to refresh",
-    "dash.pull.pullDown": "Pull down",
-    "dash.income": "Received",
-    "dash.cashAvailable": "Cash available",
-    "dash.cashDesc": "liquid, available immediately",
-    "dash.totalWealth": "Total wealth",
-    "dash.cash": "Cash",
-    "dash.longterm": "Long-term",
-    "dash.statusToday": "As of today",
-    "dash.daysToEnd": "days to cycle end",
-    "dash.cycleWord": "of cycle",
-    "dash.monthWord": "of month",
-    "dash.elapsed": "elapsed",
-    "dash.untilEnd": "until end",
 
     // Analytics (v1.3.1)
-    "analytics.monthCompare": "Month comparison",
-    "analytics.compareWith": "Compare with",
-    "analytics.empty": "Add some transactions to see charts, rankings and expense trends.",
-    "analytics.period.month": "Month",
-    "analytics.period.quarter": "Quarter",
-    "analytics.period.half": "Half-year",
-    "analytics.period.year": "Year",
-    "analytics.income.title": "Income",
-    "analytics.income.cats": "Categories",
-    "analytics.income.sources": "Sources",
-    "analytics.income.empty": "No income in selected period",
-    "analytics.showTop": "Show only top",
-    "analytics.showAllDays": "Show all days",
-    "analytics.moreLeft": "more",
 
     // Score / FinancialScore (v1.3.1)
-    "score.spendOver": "You spend more than you earn",
-    "score.savingsLow": "You save only",
-    "score.target15": "target is min. 15%",
-    "score.expGrowing": "Expenses growing — by",
-    "score.vsPrevMonths": "vs previous months",
-    "score.bigSwings": "Large day-to-day expense swings",
-    "score.spentOf": "Spent",
-    "score.aboveNorm": "of income — above norm",
-    "score.healthy": "Finances under control",
-    "stat.savings": "Savings",
-    "stat.expTrend": "Expense trend",
-    "stat.noData": "no data",
-    "stat.vsAvg": "vs avg.",
 
     // Income widget (v1.3.1)
-    "income.structure": "Income structure",
-    "income.prevMonth": "Previous month",
-    "income.backToCurrent": "Back to current cycle",
-    "income.nextMonth": "Next month",
-    "income.today": "Today",
-    "income.empty": "No income in",
-    "income.salarySources": "Salary sources",
-    "income.more": "more",
 
     // Expense types (v1.3.1)
     "exptype.fixed": "Fixed",
-    "exptype.norms": "Norms: Fixed <50% · Variable <30% · Lifestyle <20%",
-    "exptype.clickToExpand": "click section to expand",
-    "invest.note": "Not counted as expense — it's capital transfer, not consumption.",
 
     // Recommendations (v1.3.1)
-    "rec.noInvest": "No investments this cycle. Consider an automatic transfer on payday.",
-    "rec.onTrack": "On track. Keep the pace — monthly goal achievable.",
 
     // Settings (v1.3.1)
     "settings.defaultAcc.title": "Default transaction account",
-    "settings.defaultAcc.help": "Account auto-filled when adding a transaction.",
-    "settings.defaultAcc.empty": "No personal account. Add a \"Checking\" account in the Wallet tab.",
-    "settings.cycle.title": "Billing cycle",
-    "settings.cycle.help": "Set the day of month your cycle starts. Day 1 = standard calendar month. E.g. day 25 → \"April\" cycle is Mar 25 – Apr 24.",
-    "settings.cycle.label": "My month starts on",
+    "settings.defaultAcc.help": "Account filled in automatically when you add an entry.",
+    "settings.defaultAcc.empty": "No account yet. Add one in the Accounts tab.",
     "settings.cats.title": "My categories",
     "settings.cats.help": "Add your own expense or income categories.",
-    "settings.diag.title": "PRO Diagnostics",
     "settings.export.title": "Export data",
-    "settings.export.help": "Download all your data as Excel (.xlsx) with 7 sheets: Transactions, Accounts, Budgets, Payments, Summary, Goals + full JSON backup.",
+    "settings.export.help": "Download all your data as an Excel file (.xlsx) — entries, accounts and modules — plus a full backup you can restore.",
     "settings.import.title": "Import data",
     "settings.import.loading": "Loading file…",
-    "settings.import.loadingCsv": "Loading CSV…",
     "settings.import.error": "Error loading file. Make sure it's a .xlsx exported from Sidegig or FinTrack.",
-    "settings.reminders.title": "Reminders",
-    "settings.templates.title": "Transaction templates",
     "settings.security.title": "Security",
-    "settings.partner.title": "Partner name",
     "settings.default": "Default",
 
     // Settings v1.3.3 — pełne tłumaczenia EN
@@ -585,15 +404,6 @@ const TRANSLATIONS = {
     "settings.upgrade.buy": "Buy",
 
     // Cycle
-    "settings.cycle.changeNote": "Changing the value creates a new entry from the 1st day of the current month. Earlier months keep their previous value — your reports stay consistent.",
-    "settings.cycle.standard": "Standard calendar month",
-    "settings.cycle.historyHelp": "Old months use values from when they applied — yearly reports stay consistent.",
-    "settings.cycle.beforeLogging": "Beginning (before you started logging)",
-    "settings.cycle.deleteEntryConfirm1": "Delete this entry?",
-    "settings.cycle.deleteEntryConfirm2": "Months from",
-    "settings.cycle.deleteEntryConfirm3": "will use the value from the previous entry.",
-    "settings.cycle.deleteEntry": "Delete this entry",
-    "settings.cycle.editTip": "You can edit the day of any entry or delete it. Useful if historical values are wrong after migration.",
 
     // Categories editor
     "settings.cats.editing": "Edit category",
@@ -611,20 +421,10 @@ const TRANSLATIONS = {
     "settings.cats.addBtn": "Add category",
 
     // Diagnostyka PRO
-    "settings.diag.source": "source",
-    "settings.diag.syncOk": "✅ PRO status sent to Firestore.\n\nOn the other device:\n1. Hard refresh\n2. After 1-2s you'll see PRO",
-    "settings.diag.syncFail": "❌ Sync failed: ",
-    "settings.diag.unknownError": "unknown error",
-    "settings.diag.forceSync": "Force sync PRO status to Firestore",
-    "settings.diag.noProHint1": "No active PRO subscription. If you bought it on another device and it's not syncing:",
-    "settings.diag.noProHint2": "On the other device: Settings → PRO Diagnostics → \"Force sync\"",
-    "settings.diag.noProHint4": "After 1-2s the subscription should appear",
 
     // Stats labels
-    "settings.stats.tx": "Transactions",
+    "settings.stats.tx": "Entries",
     "settings.stats.accounts": "Accounts",
-    "settings.stats.payments": "Payments",
-    "settings.stats.goals": "Goals",
     "settings.stats.budgets": "Budgets",
 
     // Export / Import
@@ -633,51 +433,31 @@ const TRANSLATIONS = {
     "settings.import.replaced": "replaced",
     "settings.import.help2": " — make a backup before importing if you want to keep a copy.",
     "settings.import.btnXlsx": "Choose .xlsx backup file",
-    "settings.import.btnCsv": "Import bank CSV (PKO BP / mBank / ING / Revolut)",
-    "settings.import.targetAcc": "Transactions will go to",
-    "settings.import.changeAcc": "change default account above",
     "settings.import.statusOk": "Import complete!",
     "settings.import.statusErr": "Import error",
     "settings.import.statusLoading": "Loading…",
 
     // Reminders / Templates / Partner
-    "settings.reminders.help": "When you open the app, a yellow banner will appear automatically with a list of payments due today, tomorrow or in 3 days. Works without any permissions — just close the banner with ×.",
-    "settings.templates.help": "Quick add — visible above transactions list.",
-    "settings.partner.help": "Displayed in the shared accounts module.",
 
     // Reset section
     "settings.reset.title": "Reset data",
     "settings.reset.help": "Delete all data from this device and the cloud.",
-    "settings.reset.loadDemo": "Load demo data",
     "settings.reset.wipe": "Wipe all data",
     "settings.privacy": "Privacy policy",
     "settings.wipe.title": "Wipe all data?",
-    "settings.wipe.desc": "This action cannot be undone. All transactions, accounts, goals and payments will be deleted.",
+    "settings.wipe.desc": "This can't be undone. All your entries, accounts and module data will be deleted.",
     "settings.wipe.confirm": "Delete everything",
-    "settings.demo.title": "Load demo data?",
-    "settings.demo.desc": "Your current data will be replaced with sample transactions and payments.",
-    "settings.demo.confirm": "Load demo",
 
     // Hobby income (v1.3.2)
     "hobby.expensesLabel": "Expenses",
     "hobby.incomeLabel": "Sales / income",
     "hobby.netto": "Net balance (lifetime)",
-    "hobby.nettoLifetime": "Net (lifetime)",
-    "hobby.nettoPositive": "Hobby pays for itself — sales cover expenses.",
-    "hobby.nettoNegative": "Real cost of the hobby after subtracting sales.",
-    "hobby.couldSave": "This is money you could move to savings. Decide consciously — the app just shows facts.",
+    "hobby.nettoPositive": "The collection pays for itself — sales cover spending.",
+    "hobby.nettoNegative": "Real cost of the collection after subtracting sales.",
     "hobby.topBuyers": "Top buyers / sales sources",
     "hobby.yearlyLimit": "Yearly limit",
     "hobby.used": "used",
-    "hobby.exceededBy": "Exceeded limit by",
     "hobby.back": "Back",
-    "hobby.tx": "transaction",
-    "hobby.txs": "transactions",
-    "hobby.catsShort": "cats",
-    "hobby.cycle": "Cycle",
-    "hobby.month": "Month",
-    "hobby.quarter": "Qtr.",
-    "hobby.year": "Year",
     "hobby.yoy": "Year-over-year (expenses)",
     "common.edit": "Edit",
 
@@ -725,19 +505,178 @@ const TRANSLATIONS = {
     "more.money": "Money",
     "more.accounts": "Accounts",
     "more.accountsDesc": "Balances, account currencies, investments",
-    "more.bills": "Bills",
-    "more.billsDesc": "Recurring payments",
-    "more.insights": "Insights",
-    "more.insightsDesc": "Spending ranking, trends, comparisons",
     "more.app": "App",
     "more.modules": "Modules",
     "more.modulesDesc": "Choose what you track and your home currency",
     "more.settings": "Settings",
     "more.settingsDesc": "Export, import, PIN, exchange rates",
-    "plans.tab.collections": "Collections",
-    "plans.empty": "Turn on Trips, Collections or Personal budget in More → Modules.",
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
+    // Sidegig v2.4.0 — języki
+    "trips.title": "Trips",
+    "trips.countLabel": "Trips: {n}",
+    "exptype.variable": "Variable",
+    "exptype.lifestyle": "Lifestyle",
+    "settings.import.columns": "Required columns (sheet “Transakcje”)",
+    "settings.import.colDate": "YYYY-MM-DD",
+    "settings.import.colText": "text",
+    "settings.import.colNumber": "+/- number",
+    "settings.import.colCategory": "e.g. jedzenie",
+    "acc.deleted": "Account deleted",
+    "acc.new": "New account",
+    "acc.edit": "Edit account",
+    "acc.name": "Account name",
+    "acc.namePlaceholder": "e.g. Main account",
+    "acc.bank": "Bank",
+    "acc.bankPlaceholder": "e.g. Revolut",
+    "acc.currency": "Currency",
+    "acc.balance": "Balance",
+    "acc.type": "Account type",
+    "acc.type.invest": "Investments (brokerage)",
+    "hobby.keywordsOnly": "Keywords only",
+    "hobby.thisMonth": "This month",
+    "hobby.thisQuarter": "This quarter",
+    "hobby.thisYearShort": "This year",
+    "trips.restore": "Restore",
+    "trips.removeTag": "Remove tag",
+    "trips.noTx": "No entries linked to this trip yet.",
+    "trips.editTitle": "Edit trip",
+    "settings.title": "Settings",
+    "settings.cats.namePh": "Category name",
+    "common.color": "Colour",
+    "settings.terms": "Terms",
+    "report.title": "Monthly report",
+    "report.income": "Income",
+    "report.expenses": "Expenses",
+    "report.balance": "Balance",
+    "report.category": "Category",
+    "report.amount": "Amount",
+    "report.generated": "Generated",
+    "settings.report.btn": "Print this month's report (PDF)",
+    "settings.currency.title": "Home currency",
+    "settings.currency.help": "Totals and balances are shown in it. Every entry keeps its own currency — we convert at the rate from the entry's date.",
+    "settings.currency.drift": "We convert with NBP mid rates. Between two foreign currencies (e.g. EUR↔USD) the difference can be about 0.1%.",
+    "settings.fx.title": "Exchange rates",
+    "settings.fx.table": "NBP Table A from {date}",
+    "settings.fx.offline": "Offline — rates from {date}",
+    "settings.fx.source": "Source: NBP (National Bank of Poland)",
+    "settings.fx.refreshing": "Refreshing…",
+    "settings.fx.refresh": "Refresh",
+    "settings.fx.ok": "Fresh rates downloaded",
+    "settings.fx.err": "No connection — using the last downloaded rates",
+    "settings.fx.note": "NBP mid rates (Table A), refreshed once a day. Your bank uses its own rate and spread — Sidegig is a tracker, not accounting software.",
+    "settings.language": "Language",
+    "settings.import.restored": "Backup restored: entries {tx}, accounts {acc}, trips {trips}, collections {hobbies}, items {items}, catalogue items {catalog}, gigs {gigs}",
+    "inv.acc.regular": "Standard",
+    "inv.title": "Investment portfolio",
+    "inv.noPositions": "No positions",
+    "inv.haveAccounts": "You have investment accounts",
+    "inv.found": "Investment accounts found:",
+    "inv.addAsPositions": "Add them as portfolio positions?",
+    "inv.addFromAccounts": "Add from accounts",
+    "inv.addManually": "Add manually",
+    "inv.emptyTitle": "Add your investments",
+    "inv.emptyDesc": "ETFs, stocks, crypto — in one place. Track profit and allocation.",
+    "inv.addFirst": "Add your first position",
+    "inv.allocation": "Allocation",
+    "inv.pcs": "pcs",
+    "inv.avg": "avg",
+    "inv.importTitle": "Add from accounts",
+    "inv.importDesc": "Pick the accounts to add. The value comes from the account balance — you can edit ticker and quantity later.",
+    "inv.investments": "Investments",
+    "inv.added": "added to portfolio ✓",
+    "common.done": "Done",
+    "inv.editTitle": "Edit position",
+    "inv.newTitle": "New position",
+    "inv.ticker": "Ticker / symbol (e.g. IWDA, NVDA)",
+    "inv.name": "Name (optional)",
+    "inv.qty": "Quantity",
+    "inv.avgPrice": "Avg purchase price",
+    "inv.curPrice": "Current price",
+    "inv.accountType": "Account type",
+    "inv.preview": "Preview",
+    "inv.addPosition": "Add position",
+    "acc.type.checking": "Current account",
+    "acc.type.savings": "Savings",
+    "acc.type.investShort": "Investments",
+    "acc.type.bonds": "Bonds",
+    "acc.type.retirement": "Retirement account",
+    "acc.group.cash": "Cash",
+    "acc.groupSub.cash": "Available right away",
+    "acc.group.invest": "Investments",
+    "acc.groupSub.invest": "Liquid, but not instantly",
+    "acc.group.retirement": "Retirement",
+    "acc.groupSub.retirement": "Locked until retirement",
+    "acc.group.longterm": "Long-term assets",
+    "acc.groupSub.longterm": "Bonds, property",
+    "acc.toast.updated": "Account updated ✓",
+    "acc.toast.added": "Account added ✓",
+    "acc.myAccounts": "My accounts",
+    "acc.addBtn": "Add account",
+    "cat.rząd": "Taxes",
+    "cat.rachunki": "Bills",
+    "cat.inwestycje": "Investments",
+    "cat.jedzenie": "Food",
+    "cat.transport": "Transport",
+    "cat.zdrowie": "Health",
+    "cat.zakupy": "Shopping",
+    "cat.kawiarnia": "Café",
+    "cat.rozrywka": "Entertainment",
+    "cat.muzyka": "Music",
+    "cat.ubrania": "Clothes",
+    "cat.prezenty": "Gifts",
+    "cat.alkohol": "Alcohol",
+    "cat.bukmacher": "Bets",
+    "cat.inne": "Other",
+    "cat.przychód": "Salary",
+    "cat.sprzedaż": "Sales",
+    "cat.partner": "From partner",
+    "cat.dodatkowe": "Freelance / side work",
+    "cat.bukmacherka": "Winnings (bets)",
+    "cat.zwrot": "Refunds",
+    "pin.lockedTitle": "Too many failed attempts",
+    "pin.lockedDesc": "Wait before trying again. The lock protects against PIN guessing.",
+    "pin.enterToUnlock": "Enter your PIN to unlock",
+    "pin.wrongLockSoon": "Wrong PIN · locked after {n} more tries",
+    "pin.wrongAttempt": "Wrong PIN · attempt {n}",
+    "pin.setTitle": "Set PIN",
+    "pin.setSub": "Enter a 4-digit PIN",
+    "pin.confirmTitle": "Confirm PIN",
+    "pin.confirmSub": "Enter the PIN again",
+    "pin.enterTitle": "Enter PIN",
+    "pin.disableSub": "Enter your current PIN to turn it off",
+    "pin.onTitle": "PIN lock is on",
+    "pin.offTitle": "PIN lock",
+    "pin.onDesc": "The app is protected with a PIN",
+    "pin.offDesc": "Protect the app with a 4-digit code",
+    "pin.turnOff": "Turn off",
+    "pin.turnOn": "Turn on PIN",
+    "catTx.total": "Total",
+    "catTx.count": "Entries",
+    "catTx.avg": "Average",
+    "catTx.hint": "To edit or delete, open the Ledger tab.",
+    "trips.byCurrency": "Spending by currency",
+    "trips.totalConverted": "Total (converted)",
+    "trips.entries": "Entries",
+    "trips.namePh": "e.g. Lisbon with friends",
+    "trips.defaultCurrency": "Trip's default currency",
+    "trips.defaultCurrencyHint": "Entries added during the trip get this currency automatically.",
+    "trips.notesPh": "e.g. hotel, sights, who pays for what",
+    "tx.rateLimit": "Too many entries at once. Try again in {s}s.",
+    "tx.deleted": "Deleted: {desc}",
+    "tx.suggestionsHint": "Suggestions · Esc or X to hide",
+    "hobby.total": "Total",
+    "coll.editCollection": "Edit collection",
+    "coll.namePh": "e.g. Vinyl, Books, Games",
+    "coll.keywordsPh": "e.g. vinyl, record, LP",
+    "app.syncing": "Syncing…",
+    "license.invalidFormat": "Invalid key format. Check that no character is missing.",
+    "license.invalidSignature": "The key failed verification.",
+    "license.usedElsewhere": "This key has already been used on another account.",
+    "license.offline": "Couldn't verify the key online — check your connection.",
+    "acc.main": "Main account",
+    "bet.group.local": "Popular where you are",
+    "bet.group.all": "All bookmakers",
     // Sidegig v2.2.0 — Kolekcje i Freelance
     "coll.confirmDeleteWithItems": "Delete the collection “{name}” and its {n} catalogue items? Ledger entries stay.",
     "coll.confirmDelete": "Delete the collection “{name}”? Ledger entries stay.",
@@ -865,7 +804,6 @@ const TRANSLATIONS = {
     "home.invested": "invested",
     "home.withdrawn": "withdrawn",
     "home.portfolioResult": "portfolio result",
-    "dash.invested": "Invested",
     // Sidegig v2.1.0 — Zakłady i Sprzedaż
     "bet.status.pending": "Open",
     "bet.status.won": "Won",
@@ -911,8 +849,6 @@ const TRANSLATIONS = {
     "bet.otherBookmaker": "Other…",
     "bet.bookmakerName": "Bookmaker name",
     "bet.pickBookmaker": "Pick from the list…",
-    "bet.group.pl": "Poland",
-    "bet.group.intl": "International",
     "bet.event": "Event",
     "bet.eventPh": "e.g. Real – Barcelona, 3-fold acca",
     "bet.sport": "Sport",
@@ -1016,9 +952,18 @@ const TRANSLATIONS = {
 };
 
 // Główna funkcja tłumaczenia — używana w kodzie jako t("klucz")
+// Kolejność: bieżący język → (poza pl) angielski → fallback z kodu (po polsku) → klucz.
 function t(key, fallback) {
-  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.pl;
-  return dict[key] || fallback || TRANSLATIONS.pl[key] || key;
+  const dict = TRANSLATIONS[currentLang];
+  if (dict && dict[key]) return dict[key];
+  if (currentLang !== "pl" && TRANSLATIONS.en[key]) return TRANSLATIONS.en[key];
+  return fallback || TRANSLATIONS.pl[key] || key;
 }
 
-export { t, getLang, setLang };
+/** Etykieta z obiektu { en, pl, de, ... } w bieżącym języku (dane modułów, sporty itd.). */
+function tl(labels) {
+  if (!labels) return "";
+  return labels[currentLang] || labels.en || labels.pl || "";
+}
+
+export { t, tl, getLang, setLang, getLocale, loadLanguage, LANGUAGES };

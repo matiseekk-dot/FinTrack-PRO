@@ -6,7 +6,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input } from "../components/ui/Input.jsx";
 import { Stat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
-import { fmt, fmtDisplay, todayLocal } from "../utils.js";
+import { fmt, fmtDisplay, todayLocal, fmtCurrency } from "../utils.js";
 import {
   groupTrips, getTripSpending, getTripSpendingByCurrency,
   getYearlyTripsSummary, getTripsTrendYoY,
@@ -144,7 +144,7 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats }) 
       {/* Header z przyciskiem dodawania */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Wyjazdy
+          {t("trips.title", "Wyjazdy")}
         </div>
         <button onClick={openNew} style={{
           display: "flex", alignItems: "center", gap: 6,
@@ -203,7 +203,7 @@ function TripsView({ trips, setTrips, transactions, setTransactions, allCats }) 
               </button>
             </div>
             <div style={{ fontSize: 11, color: "#475569" }}>
-              {summary.trips.length} {summary.trips.length === 1 ? "wyjazd" : "wyjazdy"}
+              {t("trips.countLabel", "Wyjazdy: {n}").replace("{n}", summary.trips.length)}
             </div>
           </div>
 
@@ -401,7 +401,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
         cursor: "pointer", padding: "0 0 12px 0", display: "flex", alignItems: "center", gap: 4,
         fontFamily: "'Space Grotesk', sans-serif",
       }}>
-        <ChevronLeft size={14}/> Wstecz
+        <ChevronLeft size={14}/> {t("common.back", "Wstecz")}
       </button>
 
       <Card style={{ padding: "18px 20px", marginBottom: 14, borderColor: trip.color + "66" }}>
@@ -425,7 +425,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
             </div>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={onEdit} title="Edytuj" style={iconBtn}><Edit2 size={14}/></button>
+            <button onClick={onEdit} title={t("common.edit", "Edytuj")} style={iconBtn}><Edit2 size={14}/></button>
             <button onClick={onArchiveToggle} title={trip.archived ? t("trips.restore", "Przywróć") : t("trips.archive", "Archiwum")} style={iconBtn}>
               {trip.archived ? <RotateCcw size={14}/> : <ArchiveIcon size={14}/>}
             </button>
@@ -473,7 +473,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
           <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
               textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-              💱 Wydatki według waluty
+              💱 {t("trips.byCurrency", "Wydatki według waluty")}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {entries
@@ -490,7 +490,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                       {cur !== "PLN" && (
                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 1,
                           fontFamily: "'DM Mono', monospace" }}>
-                          {fmt(orig).replace(" zł", "")} {cur}
+                          {fmtCurrency(orig, cur)}
                         </div>
                       )}
                     </div>
@@ -505,7 +505,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
               display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8",
                 textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Łącznie (po przeliczeniu)
+                {t("trips.totalConverted", "Łącznie (po przeliczeniu)")}
               </span>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15,
                 fontWeight: 800, color: "#e2e8f0" }}>
@@ -565,7 +565,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
             textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10,
             display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>Transakcje</span>
+            <span>{t("trips.entries", "Wpisy")}</span>
             <span style={{ color: "#475569" }}>{tripTxs.length} {t("trips.txCount")}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -596,7 +596,7 @@ function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onE
                       {tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null && (
                         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9,
                           color: "#64748b", marginTop: 1 }}>
-                          {fmt(Math.abs(tx.origAmount)).replace(" zł", "")} {tx.origCurrency}
+                          {fmtCurrency(Math.abs(tx.origAmount), tx.origCurrency)}
                         </div>
                       )}
                     </div>
@@ -635,7 +635,7 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
         label={t("trips.name")}
         value={trip.name}
         onChange={e => setTrip({ ...trip, name: e.target.value })}
-        placeholder="np. Serbia z dzieckiem"
+        placeholder={t("trips.namePh", "np. Lizbona z przyjaciółmi")}
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <Input
@@ -665,10 +665,10 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
           textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-          Domyślna waluta wyjazdu
+          {t("trips.defaultCurrency", "Domyślna waluta wyjazdu")}
         </div>
         <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
-          Gdy dodajesz tx w trakcie wyjazdu, ta waluta zostanie auto-wybrana w modalu.
+          {t("trips.defaultCurrencyHint", "Wpisy dodawane w trakcie wyjazdu dostaną tę walutę automatycznie.")}
         </div>
         <select
           value={trip.defaultCurrency || "PLN"}
@@ -682,8 +682,7 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
             boxSizing: "border-box",
           }}
         >
-          <option value="PLN">🇵🇱 PLN (Polski złoty)</option>
-          {SUPPORTED_CURRENCIES.map(c => (
+          {["PLN", ...SUPPORTED_CURRENCIES].map(c => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
@@ -709,7 +708,7 @@ function TripModal({ trip, setTrip, onClose, onSave }) {
           value={trip.notes || ""}
           onChange={e => setTrip({ ...trip, notes: e.target.value })}
           rows={2}
-          placeholder="np. Belgrade, hotel + atrakcje"
+          placeholder={t("trips.notesPh", "np. hotel, atrakcje, kto płaci za co")}
           style={{
             width: "100%", padding: "10px 12px",
             background: "#060b14", border: "1px solid #1e3a5f",

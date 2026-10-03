@@ -127,12 +127,14 @@ async function validateLicense(rawKey, { db = null, uid = null } = {}) {
   };
 }
 
-// User-facing error messages (PL)
+import { t } from "../i18n.js";
+
+// Komunikaty dla użytkownika — w języku apki (gettery, bo słownik ładuje się po imporcie)
 const ERROR_MESSAGES = {
-  invalid_format: "Nieprawidłowy format klucza. Sprawdź czy nie pominąłeś znaku.",
-  invalid_signature: "Klucz nie przeszedł weryfikacji. Może być sfałszowany.",
-  key_used_by_another_account: "Ten klucz został już użyty na innym koncie.",
-  firestore_unavailable: "Nie udało się zweryfikować klucza online — sprawdź połączenie.",
+  get invalid_format() { return t("license.invalidFormat", "Nieprawidłowy format klucza. Sprawdź, czy nie brakuje znaku."); },
+  get invalid_signature() { return t("license.invalidSignature", "Klucz nie przeszedł weryfikacji."); },
+  get key_used_by_another_account() { return t("license.usedElsewhere", "Ten klucz został już użyty na innym koncie."); },
+  get firestore_unavailable() { return t("license.offline", "Nie udało się sprawdzić klucza online — sprawdź połączenie."); },
 };
 
 export {

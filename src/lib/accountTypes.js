@@ -14,22 +14,23 @@
  */
 
 import { convertToPLN, getRate } from "./fx.js";
+import { t } from "../i18n.js";
 
 const ACCOUNT_TYPES = {
   checking: {
-    label: "Konto osobiste",
+    get label() { return t("acc.type.checking", "Rachunek bieżący"); },
     group: "liquid",
     icon: "Wallet",
     color: "#3b82f6",
   },
   savings: {
-    label: "Oszczędności",
+    get label() { return t("acc.type.savings", "Oszczędności"); },
     group: "liquid",
     icon: "PiggyBank",
     color: "#10b981",
   },
   invest: {
-    label: "Inwestycje",
+    get label() { return t("acc.type.investShort", "Inwestycje"); },
     group: "invest",
     icon: "TrendingUp",
     color: "#8b5cf6",
@@ -56,39 +57,46 @@ const ACCOUNT_TYPES = {
     hint: "Indywidualne Konto Zabezpieczenia Emerytalnego",
   },
   bonds: {
-    label: "Obligacje skarbowe",
+    get label() { return t("acc.type.bonds", "Obligacje skarbowe"); },
     group: "longterm",
     icon: "Landmark",
     color: "#eab308",
     hint: "EDO, ROS, ROD, TOS, DOS",
   },
+  // v2.4.0: ogólne konto emerytalne (poza Polską IKE/IKZE/PPK nic nie mówią)
+  retirement: {
+    get label() { return t("acc.type.retirement", "Konto emerytalne"); },
+    group: "retirement",
+    icon: "Shield",
+    color: "#06b6d4",
+  },
 };
 
 const ACCOUNT_GROUPS = {
   liquid: {
-    label: "Gotówka dostępna",
-    subtitle: "Płynne, dostępne od ręki",
+    get label() { return t("acc.group.cash", "Gotówka dostępna"); },
+    get subtitle() { return t("acc.groupSub.cash", "Płynne, dostępne od ręki"); },
     icon: "Wallet",
     color: "#3b82f6",
     priority: 1,
   },
   invest: {
-    label: "Inwestycje",
-    subtitle: "Płynne, ale nie od ręki",
+    get label() { return t("acc.group.invest", "Inwestycje"); },
+    get subtitle() { return t("acc.groupSub.invest", "Płynne, ale nie od ręki"); },
     icon: "TrendingUp",
     color: "#8b5cf6",
     priority: 2,
   },
   retirement: {
-    label: "Emerytura długoterminowa",
-    subtitle: "Zamknięte do emerytury",
+    get label() { return t("acc.group.retirement", "Emerytura długoterminowa"); },
+    get subtitle() { return t("acc.groupSub.retirement", "Zamknięte do emerytury"); },
     icon: "Shield",
     color: "#06b6d4",
     priority: 3,
   },
   longterm: {
-    label: "Majątek długoterminowy",
-    subtitle: "Obligacje, nieruchomości",
+    get label() { return t("acc.group.longterm", "Majątek długoterminowy"); },
+    get subtitle() { return t("acc.groupSub.longterm", "Obligacje, nieruchomości"); },
     icon: "Landmark",
     color: "#eab308",
     priority: 4,
@@ -112,6 +120,23 @@ function groupAccountsByCategory(accounts) {
 }
 
 /**
+ * Wartość i wynik pozycji portfela w PLN (v2.4.0), liczone na bieżąco z ilości, cen
+ * i waluty pozycji. Wcześniej valuePLN = ilość × cena bez kursu, więc pozycja w USD
+ * była liczona jak w PLN. Dla pozycji bez ceny (stare dane) zostaje zapisane valuePLN.
+ */
+function positionValues(p) {
+  if (!p) return { valuePLN: 0, pnlPLN: 0 };
+  const qty = Number(p.qty) || 0;
+  const cur = Number(p.currentPrice);
+  if (!isFinite(cur) || qty === 0) return { valuePLN: Number(p.valuePLN) || 0, pnlPLN: Number(p.pnlPLN) || 0 };
+  const code = (p.currency || "PLN").toUpperCase();
+  const rate = code === "PLN" ? 1 : getRate(code);
+  const r = isFinite(rate) && rate > 0 ? rate : 1;
+  const avg = Number(p.avgPrice) || 0;
+  return { valuePLN: qty * cur * r, pnlPLN: qty * (cur - avg) * r };
+}
+
+/**
  * Saldo "efektywne" konta w JEGO walucie natywnej (v1.5.0):
  * - dla typów liquid/retirement/longterm = a.balance (źródło prawdy = transakcje)
  * - dla typu invest = suma valuePLN portfolio pozycji powiązanych z tym kontem,
@@ -128,7 +153,7 @@ function getEffectiveBalance(account, portfolio) {
   if (!Array.isArray(portfolio) || portfolio.length === 0) return baseBalance;
   const linked = portfolio.filter(p => p && p.linkedAccId === account.id);
   if (linked.length === 0) return baseBalance;
-  return linked.reduce((s, p) => s + (Number(p.valuePLN) || 0), 0);
+  return linked.reduce((s, p) => s + positionValues(p).valuePLN, 0);
 }
 
 /**
@@ -184,6 +209,7 @@ function sumByGroup(accounts, portfolio = null) {
 }
 
 export {
+  positionValues,
   ACCOUNT_TYPES, ACCOUNT_GROUPS,
   getAccountType,
   groupAccountsByCategory, sumByGroup,
