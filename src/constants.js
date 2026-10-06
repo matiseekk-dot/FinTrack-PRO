@@ -9,6 +9,12 @@ const BASE_CATEGORIES = [
   { id: "rachunki",    label: "Rachunki",       icon: Zap,        color: "#f59e0b", group: "essential" },
   { id: "inwestycje",  label: "Inwestycje",     icon: TrendingUp, color: "#8b5cf6", group: "essential" },
   { id: "noclegi",     label: "Noclegi",        icon: BedDouble,  color: "#14b8a6", group: "essential" }, // v2.6.0: Wyjazdy
+  // v2.8.0: Hobby i subskrypcje
+  { id: "subskrypcje", label: "Subskrypcje",     icon: Repeat,     color: "#f97316", group: "lifestyle" },
+  { id: "wydarzenia",  label: "Koncerty i wydarzenia", icon: Gift, color: "#e879f9", group: "lifestyle" },
+  { id: "kino",        label: "Kino i filmy",    icon: Bell,       color: "#ef4444", group: "lifestyle" },
+  { id: "gry",         label: "Gry",             icon: Gift,       color: "#3b82f6", group: "lifestyle" },
+  { id: "sport",       label: "Sport",           icon: Shield,     color: "#22c55e", group: "lifestyle" },
   { id: "jedzenie",    label: "Jedzenie",       icon: Utensils,   color: "#ef4444", group: "essential" },
   { id: "transport",   label: "Transport",      icon: Car,        color: "#f97316", group: "essential" },
   { id: "zdrowie",     label: "Zdrowie",        icon: Shield,     color: "#10b981", group: "essential" },

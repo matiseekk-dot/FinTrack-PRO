@@ -14,6 +14,7 @@ import { getRate, getCurrentRates, getRateForDate, getDisplayCurrency, txAmountF
 import { txAmountInAccountCurrency } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 import { MODULES, SIDE_MODULES, getModule, moduleLabel } from "../lib/modules.js";
+import { isRulesOnlyElsewhere } from "../lib/hobby.js";
 
 // Kategoria wpisu wynika z modułu i typu. Wybiera się ją tylko przy Wyjazdach —
 // tam dzieli budżet wyjazdu (noclegi, jedzenie, transport…).
@@ -25,16 +26,20 @@ const MODULE_DEFAULT_CAT = {
   investments: { expense: "inwestycje", income: "inwestycje" },
   rental:      { expense: "rachunki", income: "dodatkowe" },
   trips:       { expense: "jedzenie", income: "zwrot" },
+  hobby:       { expense: "rozrywka", income: "zwrot" },
 };
 // Moduły, w których częściej zapisuje się przychód
 const INCOME_FIRST = ["freelance", "reselling", "rental"];
 const TRIP_CATS = ["noclegi", "jedzenie", "transport", "rozrywka", "zakupy", "kawiarnia", "alkohol", "prezenty", "zdrowie"];
-const catFor = (module, type, tripCat) =>
-  module === "trips" && type === "expense" && TRIP_CATS.includes(tripCat)
-    ? tripCat
+// Hobby i subskrypcje: na co poszły pieniądze (subskrypcje cykliczne są w ekranie modułu)
+const HOBBY_CATS = ["wydarzenia", "kino", "gry", "subskrypcje", "sport", "muzyka", "rozrywka"];
+const CHIP_CATS = { trips: TRIP_CATS, hobby: HOBBY_CATS };
+const catFor = (module, type, pickedCat) =>
+  type === "expense" && CHIP_CATS[module] && CHIP_CATS[module].includes(pickedCat)
+    ? pickedCat
     : (MODULE_DEFAULT_CAT[module] && MODULE_DEFAULT_CAT[module][type]) || (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ transactions, setTransactions, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -54,6 +59,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const enabled = Array.isArray(modules) ? modules : [];
   const formModules = [
     ...SIDE_MODULES.filter(id => enabled.includes(id)),
+    ...(enabled.includes("hobby") ? ["hobby"] : []),
     ...(enabled.includes("trips") && selectableTrips.length > 0 ? ["trips"] : []),
   ];
   const filterModules = enabled.filter(id => id !== "personal" && MODULES[id]);
@@ -61,7 +67,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const [showSearch, setShowSearch] = useState(false);
   // Kolekcje, do których można przypisać wpis modułu Kolekcje — bez tego wpis
   // nie pojawia się w żadnej kolekcji (ani w jej wydatkach, ani w katalogu).
-  const activeCollections = (hobbies || []).filter(h => !h.archived);
+  const activeCollections = (hobbies || []).filter(h => !h.archived && !isRulesOnlyElsewhere(h));
   const defaultCollectionId = () => {
     const last = transactions.find(tx => tx.hobbyId != null && activeCollections.some(h => h.id === tx.hobbyId));
     return last ? last.hobbyId : (activeCollections[0]?.id ?? null);
@@ -84,8 +90,8 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
     };
   };
   const getEmptyForm = () => {
-    const module = formModules.includes(modFilter) ? modFilter : lastModule();
-    return { date: todayLocal(), desc: "", amount: "", acc: defaultAcc, tripCat: "jedzenie", currency: getDisplayCurrency(), ...moduleFields(module) };
+    const module = formModules.includes(presetModule) ? presetModule : formModules.includes(modFilter) ? modFilter : lastModule();
+    return { date: todayLocal(), desc: "", amount: "", acc: defaultAcc, tripCat: "jedzenie", hobbyCat: "wydarzenia", currency: getDisplayCurrency(), ...moduleFields(module) };
   };
   // Formularz z istniejącego wpisu (edycja albo kopia)
   const formFromTx = (tx, copy) => {
@@ -100,6 +106,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       currency: hasFx ? tx.origCurrency : "PLN",
       module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null,
       tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
+      hobbyCat: HOBBY_CATS.includes(tx.cat) ? tx.cat : "wydarzenia",
     };
   };
   const [form, setForm] = useState(getEmptyForm);
@@ -145,7 +152,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       showToast(t("tx.err.date", "Wprowadź poprawną datę"), "error");
       return;
     }
-    const finalCat = catFor(form.module, form.type, form.tripCat);
+    const finalCat = catFor(form.module, form.type, form.module === "hobby" ? form.hobbyCat : form.tripCat);
     // Multi-currency (v1.4.1): dla nie-PLN pobierz HISTORYCZNY kurs z dnia tx,
     // nie dzisiejszy. NBP /tables/A/{date} z fallbackiem do najbliższego dnia
     // roboczego wstecz; offline → dzisiejszy kurs jako last resort.
@@ -283,6 +290,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       const h = (hobbies || []).find(x => x.id === tx.hobbyId);
       if (h) parts.push(h.name);
     }
+    if (mod === "hobby" && tx.amount < 0) parts.push(getLocalCat(tx.cat).label);
     if (mod === "trips") {
       const trip = (trips || []).find(x => x.id === tx.tripId);
       if (trip) parts.push(trip.name);
@@ -403,7 +411,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
                 const nativeAmt = Math.abs(nativeCur === "PLN" ? tx.amount : tx.origAmount);
                 const mainAmt = nativeCur === dispCur ? fmtCurrency(nativeAmt, dispCur) : fmtDisplay(Math.abs(tx.amount));
                 // Wpis kuponu albo przedmiotu: edycja w ekranie modułu, żeby kurs/prowizja zgadzały się z kwotą
-                const linked = !!onOpenLinked && (!!tx.bet || tx.resaleItemId != null || tx.gigId != null || tx.collectionItemId != null);
+                const linked = !!onOpenLinked && (!!tx.bet || !!tx.betTransfer || tx.resaleItemId != null || tx.gigId != null || tx.collectionItemId != null || tx.subscriptionId != null);
                 return (
                   <div key={tx.id}
                     style={{
@@ -626,6 +634,18 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
             )}
           </>;
         })()}
+
+        {form.module === "hobby" && form.type === "expense" && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={labelStyle}>{t("tx.trip.category", "Na co")}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {HOBBY_CATS.map(id => {
+                const c = getLocalCat(id);
+                return <button key={id} type="button" aria-pressed={form.hobbyCat === id} onClick={() => setForm(f => ({ ...f, hobbyCat: id }))} style={chip(form.hobbyCat === id, c.color)}>{c.label}</button>;
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Description with autocomplete */}
         <div style={{ marginBottom: 14, position: "relative" }}>

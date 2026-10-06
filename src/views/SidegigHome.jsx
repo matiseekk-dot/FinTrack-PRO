@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, SlidersHorizontal, AlertCircle } from "lucide-react";
-import { fmtDisplay, todayLocal, monthName } from "../utils.js";
+import { fmtDisplay, fmtCurrency, todayLocal, monthName } from "../utils.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
 import { groupTrips, getTripSpending } from "../lib/trips.js";
 import { txAmountForDisplay, amountForDisplay, getDisplayCurrency } from "../lib/fx.js";
@@ -9,6 +9,7 @@ import { daysBetween, resellingStats } from "../lib/reselling.js";
 import { collectionStats } from "../lib/collections.js";
 import { isOverdue, freelanceStats } from "../lib/freelance.js";
 import { moneyForDisplay } from "../lib/prefs.js";
+import { subscriptionState, monthlyCost, daysUntil } from "../lib/subscriptions.js";
 import { AmountModal } from "../components/AmountModal.jsx";
 import { positionValues } from "../lib/accountTypes.js";
 import { t, getLang } from "../i18n.js";
@@ -26,7 +27,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
@@ -101,12 +102,23 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       const open = transactions.filter(tx => tx.bet && tx.bet.status === "pending");
       if (open.length) out.push({ id: "betting", tone: "#a78bfa", text: t("home.att.openBets", "Kupony do rozliczenia: {n}").replace("{n}", open.length) });
     }
+    if (modules.includes("hobby")) {
+      for (const sub of subscriptions) {
+        const st = subscriptionState(sub, today);
+        const price = fmtCurrency(sub.amount, sub.currency || "PLN");
+        if (st === "due") out.push({ id: "hobby", tone: "#f97316", text: t("home.att.subDue", "Do potwierdzenia: {name} {price}").replace("{name}", sub.name).replace("{price}", price) });
+        else if (st === "soon" && sub.trial) {
+          const d = daysUntil(sub.nextDate, today);
+          out.push({ id: "hobby", tone: "#fbbf24", text: t("home.att.trialEnds", "{name}: okres próbny kończy się za {n} dni — anuluj, jeśli nie chcesz płacić").replace("{name}", sub.name).replace("{n}", d) });
+        }
+      }
+    }
     if (modules.includes("reselling")) {
       const stale = resaleItems.filter(r => r.status !== "sold" && (daysBetween(r.buyDate || r.createdAt, today) || 0) > 30);
       if (stale.length) out.push({ id: "reselling", tone: "#ec4899", text: t("home.att.stale", "Na stanie dłużej niż 30 dni: {n}").replace("{n}", stale.length) });
     }
     return out;
-  }, [modules, gigs, transactions, resaleItems, today, resolved, prefs.betLossLimit, getDisplayCurrency()]);
+  }, [modules, gigs, transactions, resaleItems, today, resolved, prefs.betLossLimit, subscriptions, getDisplayCurrency()]);
 
   // Dodatkowa informacja w wierszu modułu (ROI, stan magazynu, wartość kolekcji, zaległe)
   const extras = useMemo(() => {
@@ -128,6 +140,14 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
     if (gigParts.length) x.freelance = gigParts.join(" · ");
     return x;
   }, [resolved, ym, resaleItems, collectionItems, gigs, today]);
+
+  // Hobby i subskrypcje: wydane w wybranym miesiącu + koszt subskrypcji na miesiąc
+  const hobbyCard = useMemo(() => {
+    if (!modules.includes("hobby")) return null;
+    const spent = resolved.reduce((s, r) => (r.ym === ym && r.mod === "hobby" && r.amt < 0) ? s - r.amt : s, 0);
+    const perMonth = subscriptions.filter(x => x.active).reduce((s, x) => s + monthlyCost(x), 0);
+    return { spent, perMonth };
+  }, [modules, resolved, ym, subscriptions]);
 
   // Trips card: active trip first, otherwise the next upcoming one
   const tripCard = useMemo(() => {
@@ -307,6 +327,27 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       )}
 
       {/* TRIPS — outside the side-income total */}
+      {hobbyCard && (
+        <>
+          <div style={{ ...sectionLbl, margin: "10px 4px 0" }}>{moduleLabel("hobby", lang)}</div>
+          <button onClick={() => onOpenModule && onOpenModule("hobby")} style={rowBtn}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: MODULES.hobby.color + "22", border: `1px solid ${MODULES.hobby.color}55`, display: "grid", placeItems: "center" }}>
+              <MODULES.hobby.icon size={17} color={MODULES.hobby.color}/>
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{t("home.hobbySpent", "Wydane na hobby")}</span>
+              <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                {t("home.hobbySubs", "subskrypcje {amount}/mies. · nie wlicza się do dochodu").replace("{amount}", fmtDisplay(hobbyCard.perMonth))}
+              </span>
+            </span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#f87171", flexShrink: 0 }}>
+              −{fmtDisplay(hobbyCard.spent)}
+            </span>
+            <Arrow size={14} color="#334155"/>
+          </button>
+        </>
+      )}
+
       {tripCard && (
         <>
           <div style={{ ...sectionLbl, margin: "10px 4px 0" }}>{t("home.trips", "Wyjazdy")}</div>

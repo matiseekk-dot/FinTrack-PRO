@@ -45,9 +45,34 @@ function pickHobbyColor(existingHobbies) {
  * v1.3.2: NIE filtruje po amount sign — caller decyduje przez wrappery
  * `getHobbyExpenses` / `getHobbyIncome`.
  */
+// Stare kategorie FinTracka, które należą do innych modułów (jak CAT_TO_MODULE w modules.js)
+const OTHER_MODULE_CATS = ["bukmacher", "bukmacherka", "sprzedaż", "dodatkowe", "inwestycje"];
+
+/**
+ * Wpis z innego modułu (kupon, sprzedaż przedmiotu, zlecenie, wyjazd, inwestycja)
+ * nigdy nie trafia do kolekcji — nawet gdy pasuje do jej starych reguł.
+ * Bez tego kupony pokazywały się w kolekcjach z regułą np. „rozrywka”.
+ */
+function belongsElsewhere(tx) {
+  if (tx.bet || tx.betTransfer || tx.resaleItemId != null || tx.gigId != null || tx.subscriptionId != null) return true;
+  if (tx.module) return tx.module !== "collections";
+  return tx.tripId != null || OTHER_MODULE_CATS.includes(tx.cat);
+}
+
+/**
+ * Stara kolekcja (hobby z FinTracka), której reguły łapią wyłącznie wpisy innych
+ * modułów — np. „Zakłady” z kategorią bukmacher. To nie jest kolekcja.
+ */
+function isRulesOnlyElsewhere(hobby) {
+  const cats = Array.isArray(hobby && hobby.categories) ? hobby.categories : [];
+  const kws = Array.isArray(hobby && hobby.keywords) ? hobby.keywords.filter(Boolean) : [];
+  return cats.length > 0 && kws.length === 0 && cats.every(c => OTHER_MODULE_CATS.includes(c));
+}
+
 function txMatchesHobby(tx, hobby) {
   if (!tx || !hobby) return false;
   if (tx.cat === "inne") return false;     // transfery zawsze pomijamy
+  if (belongsElsewhere(tx)) return false;
   // v2.2.0: zakup dodany z katalogu Kolekcji ma jawne hobbyId — liczy się tylko tam
   if (tx.hobbyId != null) return tx.hobbyId === hobby.id;
   const cats = Array.isArray(hobby.categories) ? hobby.categories : [];
@@ -224,7 +249,7 @@ function getHobbyStats(transactions, hobby, opts = {}) {
 
 export {
   DEFAULT_HOBBY_COLORS,
-  txMatchesHobby,
+  txMatchesHobby, isRulesOnlyElsewhere,
   pickHobbyColor,
   getAllHobbyTransactions,
   getHobbyExpenses,

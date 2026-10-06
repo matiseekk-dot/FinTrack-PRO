@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Plus, Check, X, RotateCcw, HandCoins, Trash2, Target } from "lucide-react";
+import { ArrowLeft, Plus, Check, X, RotateCcw, HandCoins, Trash2, Target, ArrowDownLeft, ArrowUpRight, Wallet } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -15,7 +15,7 @@ import { moneyForDisplay } from "../lib/prefs.js";
 import { AmountModal } from "../components/AmountModal.jsx";
 import {
   BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel, marketBookmakers,
-  potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats,
+  potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats, buildTransferTx, bankrollStats,
 } from "../lib/betting.js";
 
 const ACCENT = "#a78bfa";
@@ -28,6 +28,10 @@ const STATUS_META = {
   cashout: { color: "#06b6d4", label: () => t("bet.status.cashout", "Cash-out") },
 };
 
+const actionBtnStyle = (color) => ({
+  flex: 1, background: color + "18", border: `1px solid ${color}55`, color, borderRadius: 9, padding: "8px 4px", cursor: "pointer",
+  fontSize: 12, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+});
 const pct = (x, sign = false) => x == null ? "—" : `${sign && x > 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
 
 function Sparkline({ series }) {
@@ -61,6 +65,8 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
   const [saving, setSaving] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(15);
   const [limitOpen, setLimitOpen] = useState(false);
+  const [transfer, setTransfer] = useState(null);  // formularz wpłaty/wypłaty u bukmachera
+  const [afterWin, setAfterWin] = useState(null);  // „Co robisz z wygraną?” po rozliczeniu
 
   const all = useMemo(() => transactions
     .filter(tx => tx && tx.date && getModule(tx, hobbies) === "betting")
@@ -74,7 +80,8 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     [all, period, today, getDisplayCurrency()]
   );
   const pending = all.filter(tx => tx.bet?.status === "pending");
-  const monthLoss = Math.max(0, -all.filter(tx => tx.date.startsWith(today.slice(0, 7))).reduce((sum, tx) => sum + txAmountForDisplay(tx), 0));
+  const monthLoss = Math.max(0, -all.filter(tx => !tx.betTransfer && tx.date.startsWith(today.slice(0, 7))).reduce((sum, tx) => sum + txAmountForDisplay(tx), 0));
+  const bank = useMemo(() => bankrollStats(all), [all, getDisplayCurrency()]);
   const limitValue = moneyForDisplay(lossLimit);
   const limitRatio = limitValue > 0 ? monthLoss / limitValue : 0;
   // Ostatni kupon — do „jak ostatnio”
@@ -114,6 +121,53 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     });
   };
 
+  const openTransfer = (kind, patch = {}) => {
+    const bookmaker = patch.bookmaker ?? recentBookmakers[0] ?? "";
+    setTransfer({
+      editingId: null, kind, bookmaker, custom: !!bookmaker && !BOOKMAKERS.some(b => b.id === bookmaker),
+      amount: "", currency: lang === "pl" && isPolishBookmaker(bookmaker) ? "PLN" : getDisplayCurrency(), date: today, ...patch,
+    });
+  };
+  const editTransfer = (tx) => {
+    const tr = tx.betTransfer;
+    setTransfer({
+      editingId: tx.id, kind: tr.kind, bookmaker: tr.bookmaker, custom: !!tr.bookmaker && !BOOKMAKERS.some(b => b.id === tr.bookmaker),
+      amount: String(tr.amount), currency: tr.currency || "PLN", date: tx.date,
+    });
+  };
+  const saveTransfer = async () => {
+    const amount = num(transfer.amount);
+    if (!isFinite(amount) || amount <= 0) { showToast(t("bet.transfer.err", "Wpisz kwotę"), "error"); return; }
+    const oldTx = transfer.editingId != null ? transactions.find(x => x.id === transfer.editingId) : null;
+    setSaving(true);
+    try {
+      const rate = oldTx && oldTx.date === transfer.date && oldTx.fxRate && (oldTx.betTransfer?.currency === transfer.currency) ? oldTx.fxRate : await rateOnDate(transfer.currency, transfer.date);
+      const name = bookmakerName(transfer.bookmaker) || transfer.bookmaker.trim();
+      const tx = buildTransferTx({
+        kind: transfer.kind, bookmaker: transfer.bookmaker.trim(), amount, currency: transfer.currency,
+        date: transfer.date, acc: oldTx ? oldTx.acc : defaultAcc, rate, id: oldTx ? oldTx.id : undefined,
+        desc: `${transfer.kind === "deposit" ? t("bet.transfer.depositDesc", "Wpłata u bukmachera") : t("bet.transfer.withdrawDesc", "Wypłata od bukmachera")}${name ? ` · ${name}` : ""}`,
+      });
+      commitTxChanges({ setTransactions, setAccounts }, { add: [tx], remove: oldTx ? [oldTx] : [] });
+      showToast(transfer.kind === "deposit" ? t("bet.transfer.depositSaved", "Wpłata zapisana ✓") : t("bet.transfer.withdrawSaved", "Wypłata zapisana ✓"));
+      setTransfer(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const removeTransfer = () => {
+    const oldTx = transactions.find(x => x.id === transfer?.editingId);
+    if (!oldTx || !window.confirm(t("bet.transfer.confirmDelete", "Usunąć ten wpis?"))) return;
+    commitTxChanges({ setTransactions, setAccounts }, { remove: [oldTx] });
+    setTransfer(null);
+  };
+  // Po wygranej: grasz dalej czy wypłacasz? (można wyłączyć pytanie)
+  const askAfterWin = (bet, payout) => {
+    let ask = true;
+    try { ask = localStorage.getItem("ft_bet_ask_withdraw") !== "0"; } catch { /* domyślnie pytamy */ }
+    if (ask && Number(payout) > 0) setAfterWin({ bookmaker: bet.bookmaker || "", payout: Number(payout), currency: bet.currency || "PLN" });
+  };
+
   const openEdit = (tx) => {
     const b = tx.bet;
     setForm({
@@ -134,6 +188,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     if (focusTxId == null) return;
     const tx = transactions.find(x => x.id === focusTxId);
     if (tx && tx.bet) openEdit(tx);
+    else if (tx && tx.betTransfer) editTransfer(tx);
     if (onFocusHandled) onFocusHandled();
   }, [focusTxId]);
 
@@ -180,6 +235,9 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
       commitTxChanges({ setTransactions, setAccounts }, { add: [tx], remove: oldTx ? [oldTx] : [] });
       showToast(oldTx ? t("bet.toast.updated", "Kupon zaktualizowany ✓") : t("bet.toast.added", "Kupon dodany ✓"));
       setForm(null);
+      const nowWon = form.status === "won" || form.status === "cashout";
+      const wasWon = oldTx && (oldTx.bet?.status === "won" || oldTx.bet?.status === "cashout");
+      if (nowWon && !wasWon) askAfterWin({ bookmaker: form.bookmaker.trim(), currency: form.currency }, payout);
     } finally {
       setSaving(false);
     }
@@ -199,6 +257,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     commitTxChanges({ setTransactions, setAccounts }, { add: [next], remove: [tx] });
     showToast(`${STATUS_META[status].label()} ✓`);
     setSettle(null);
+    if (status === "won" || status === "cashout") askAfterWin(bet, payoutValue);
   };
 
   const startSettle = (tx, status) => {
@@ -285,6 +344,46 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
         </button>
       )}
 
+      {/* Portfel u bukmacherów */}
+      {all.length > 0 && (
+        <div style={{ ...card, padding: "12px 16px", marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Wallet size={14} color={ACCENT}/>
+            <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("bet.bank.title", "Portfel u bukmacherów")}</span>
+            {bank.rows.length > 0 && (
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700 }}>≈ {fmtDisplay(bank.balance)}</span>
+            )}
+          </div>
+          {bank.rows.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, marginTop: 8 }}>
+              {t("bet.bank.empty", "Zapisuj wpłaty i wypłaty, a zobaczysz saldo u każdego bukmachera i ile z wygranych naprawdę wypłacasz.")}
+            </div>
+          ) : <>
+            {bank.rows.map(r => (
+              <div key={r.key} style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8, fontSize: 12 }}>
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.key === "other" ? t("bet.otherEntries", "Inne wpisy") : bookmakerName(r.key)}</span>
+                <span style={{ color: "#64748b" }}>+{fmtDisplay(r.deposits)} / −{fmtDisplay(r.withdrawals)}</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, minWidth: 70, textAlign: "right", color: r.balance == null ? "#64748b" : r.balance < 0 ? "#f87171" : "#e2e8f0" }}>
+                  {r.balance == null ? "—" : fmtDisplay(r.balance)}
+                </span>
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 10, lineHeight: 1.5 }}>
+              {t("bet.bank.cash", "Na rękę (wypłaty − wpłaty): {amount}").replace("{amount}", fmtDisplay(bank.cashResult, { showSign: true }))}
+              {bank.withdrawnShare != null && <>
+                <br/>{bank.withdrawnShare >= 1
+                  ? t("bet.bank.shareAll", "Wypłaciłeś równowartość wszystkich wygranych.")
+                  : t("bet.bank.share", "Z wygranych wypłaciłeś {pct}% — reszta gra dalej.").replace("{pct}", Math.round(bank.withdrawnShare * 100))}
+              </>}
+            </div>
+          </>}
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <button onClick={() => openTransfer("deposit")} style={{ ...actionBtnStyle("#60a5fa") }}><ArrowUpRight size={12}/> {t("bet.bank.deposit", "Wpłać")}</button>
+            <button onClick={() => openTransfer("withdraw")} style={{ ...actionBtnStyle("#34d399") }}><ArrowDownLeft size={12}/> {t("bet.bank.withdraw", "Wypłać")}</button>
+          </div>
+        </div>
+      )}
+
       {/* Otwarte kupony */}
       {pending.length > 0 && <>
         <div style={sectionTitle}>{t("bet.open", "Otwarte kupony")}</div>
@@ -357,6 +456,23 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
         <div style={{ ...card, padding: "2px 14px" }}>
           {history.slice(0, historyLimit).map((tx, i) => {
             const b = tx.bet;
+            const tr = tx.betTransfer;
+            if (tr) {
+              return (
+                <button key={tx.id} onClick={() => editTransfer(tx)} style={{
+                  all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                  borderBottom: i < Math.min(history.length, historyLimit) - 1 ? "1px solid #0f1a2e" : "none",
+                }}>
+                  {tr.kind === "deposit" ? <ArrowUpRight size={12} color="#60a5fa"/> : <ArrowDownLeft size={12} color="#34d399"/>}
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{tr.kind === "deposit" ? t("bet.bank.depositRow", "Wpłata") : t("bet.bank.withdrawRow", "Wypłata na konto")}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>{[bookmakerName(tr.bookmaker) || tr.bookmaker, tx.date].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, flexShrink: 0, color: "#94a3b8" }}>{fmtBet(tr.amount, tr.currency)}</span>
+                </button>
+              );
+            }
             const meta = b ? STATUS_META[b.status] : null;
             return (
               <button key={tx.id} onClick={() => b && openEdit(tx)} disabled={!b} style={{
@@ -504,6 +620,62 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
             settleNow(settle.tx, settle.status, p);
           }} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
             {t("bet.settle", "Rozlicz")}
+          </button>
+        </>}
+      </Modal>
+
+      <Modal open={!!transfer} onClose={() => setTransfer(null)} title={transfer?.kind === "deposit" ? t("bet.transfer.depositTitle", "Wpłata u bukmachera") : t("bet.transfer.withdrawTitle", "Wypłata od bukmachera")}>
+        {transfer && <>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            <Chip on={transfer.kind === "deposit"} color="#60a5fa" onClick={() => setTransfer(x => ({ ...x, kind: "deposit" }))}>{t("bet.bank.deposit", "Wpłać")}</Chip>
+            <Chip on={transfer.kind === "withdraw"} color="#34d399" onClick={() => setTransfer(x => ({ ...x, kind: "withdraw" }))}>{t("bet.bank.withdraw", "Wypłać")}</Chip>
+          </div>
+          <div style={fieldLabel}>{t("bet.bookmaker", "Bukmacher")}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {recentBookmakers.map(id => (
+              <Chip key={id} on={!transfer.custom && transfer.bookmaker === id} color={ACCENT} onClick={() => setTransfer(x => ({ ...x, bookmaker: id, custom: false, currency: lang === "pl" && isPolishBookmaker(id) ? "PLN" : x.currency }))}>{bookmakerName(id)}</Chip>
+            ))}
+            <Chip on={transfer.custom} color={ACCENT} onClick={() => setTransfer(x => ({ ...x, custom: true, bookmaker: "" }))}>{t("bet.otherBookmaker", "Inny…")}</Chip>
+          </div>
+          {transfer.custom && <Input placeholder={t("bet.bookmakerName", "Nazwa bukmachera")} value={transfer.bookmaker} onChange={e => setTransfer(x => ({ ...x, bookmaker: e.target.value }))}/>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1.4 }}><Input label={t("bet.transfer.amount", "Kwota")} type="number" inputMode="decimal" step="0.01" value={transfer.amount} onChange={e => setTransfer(x => ({ ...x, amount: e.target.value }))}/></div>
+            <div style={{ flex: 1 }}>
+              <Select label={t("tx.currency", "Waluta")} value={transfer.currency} onChange={e => setTransfer(x => ({ ...x, currency: e.target.value }))}>
+                {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </div>
+          </div>
+          <Input label={t("tx.date", "Data")} type="date" value={transfer.date} onChange={e => setTransfer(x => ({ ...x, date: e.target.value }))}/>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, lineHeight: 1.45 }}>
+            {t("bet.transfer.hint", "Wpłaty i wypłaty nie zmieniają wyniku zakładów — to tylko przesunięcie pieniędzy między Tobą a bukmacherem.")}
+          </div>
+          <button onClick={saveTransfer} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+            {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}
+          </button>
+          {transfer.editingId != null && (
+            <button onClick={removeTransfer} style={{ width: "100%", marginTop: 8, background: "none", border: "1px solid #7f1d1d", borderRadius: 12, padding: 12, color: "#f87171", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Trash2 size={14}/> {t("common.delete", "Usuń")}
+            </button>
+          )}
+        </>}
+      </Modal>
+
+      <Modal open={!!afterWin} onClose={() => setAfterWin(null)} title={t("bet.afterWin.title", "Co robisz z wygraną?")}>
+        {afterWin && <>
+          <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 16 }}>
+            {t("bet.afterWin.text", "Wygrana {amount} czeka u bukmachera {bookmaker}.").replace("{amount}", fmtBet(afterWin.payout, afterWin.currency)).replace("{bookmaker}", bookmakerName(afterWin.bookmaker) || afterWin.bookmaker || "")}
+          </div>
+          <button onClick={() => { const w = afterWin; setAfterWin(null); openTransfer("withdraw", { bookmaker: w.bookmaker, amount: String(w.payout), currency: w.currency, custom: !!w.bookmaker && !BOOKMAKERS.some(b => b.id === w.bookmaker) }); }}
+            style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+            {t("bet.afterWin.withdraw", "Wypłacam")}
+          </button>
+          <button onClick={() => setAfterWin(null)} style={{ width: "100%", marginTop: 8, background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: 12, color: "#cbd5e1", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+            {t("bet.afterWin.keep", "Gram dalej")}
+          </button>
+          <button onClick={() => { try { localStorage.setItem("ft_bet_ask_withdraw", "0"); } catch { /* ignoruj */ } setAfterWin(null); }}
+            style={{ width: "100%", marginTop: 6, background: "none", border: "none", color: "#475569", fontSize: 12, cursor: "pointer", padding: 8, fontFamily: "inherit" }}>
+            {t("bet.afterWin.dontAsk", "Nie pytaj więcej")}
           </button>
         </>}
       </Modal>

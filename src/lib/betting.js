@@ -189,6 +189,7 @@ function bettingStats(txs) {
   const settledRows = [];
 
   for (const tx of txs) {
+    if (tx.betTransfer) continue; // wpłata/wypłata u bukmachera to przepływ pieniędzy, nie wynik
     const b = tx.bet;
     if (b) {
       const stake = amountForDisplay(b.stake, b.currency, tx.fxRate);
@@ -228,8 +229,59 @@ function bettingStats(txs) {
   };
 }
 
+/**
+ * Wpłata na konto u bukmachera (kind "deposit") albo wypłata z niego ("withdraw").
+ * Kategoria "inne" jak przelew: nie liczy się do wyniku, ROI ani dochodu na Starcie.
+ * Kwota ze znakiem z perspektywy Twojego konta: wpłata −, wypłata +.
+ */
+function buildTransferTx({ kind, bookmaker, amount, currency = "PLN", date, acc, rate = 1, id, desc }) {
+  const value = Math.abs(Number(amount) || 0);
+  return makeTx({
+    id, date, acc, rate, currency, desc,
+    amount: kind === "deposit" ? -value : value,
+    cat: "inne", module: "betting",
+    betTransfer: { kind: kind === "deposit" ? "deposit" : "withdraw", bookmaker: bookmaker || "", amount: round2(value), currency: (currency || "PLN").toUpperCase() },
+  });
+}
+
+/**
+ * Portfel u bukmacherów (cała historia): wpłaty, wypłaty, wynik kuponów i szacowane saldo
+ * na każdym koncie. Saldo liczymy tylko tam, gdzie zapisano choć jedną wpłatę — bez niej
+ * nie wiemy, od czego startowało. Do tego: ile wygranych wypłacono, a ile gra dalej.
+ */
+function bankrollStats(txs) {
+  const by = {};
+  const g = (key) => by[key] || (by[key] = { key, deposits: 0, withdrawals: 0, result: 0, hasDeposit: false });
+  let winnings = 0;
+  for (const tx of txs) {
+    if (tx.betTransfer) {
+      const v = Math.abs(txAmountForDisplay(tx));
+      const x = g(tx.betTransfer.bookmaker || "other");
+      if (tx.betTransfer.kind === "deposit") { x.deposits += v; x.hasDeposit = true; } else x.withdrawals += v;
+      continue;
+    }
+    const b = tx.bet;
+    if (!b) continue;
+    g(b.bookmaker || "other").result += txAmountForDisplay(tx);
+    if ((b.status === "won" || b.status === "cashout") && Number(b.payout) > 0) winnings += amountForDisplay(b.payout, b.currency, tx.fxRate);
+  }
+  const rows = Object.values(by)
+    .filter(x => x.hasDeposit || x.withdrawals > 0)
+    .map(x => ({ ...x, balance: x.hasDeposit ? x.deposits - x.withdrawals + x.result : null }))
+    .sort((a, b) => (b.deposits + b.withdrawals) - (a.deposits + a.withdrawals));
+  const sum = (k) => rows.reduce((s, r) => s + r[k], 0);
+  const deposits = sum("deposits"), withdrawals = sum("withdrawals");
+  return {
+    rows, deposits, withdrawals, winnings,
+    cashResult: withdrawals - deposits,                     // wynik „na rękę”
+    balance: rows.reduce((s, r) => s + (r.balance || 0), 0), // razem u bukmacherów
+    withdrawnShare: winnings > 0 ? Math.min(1, withdrawals / winnings) : null,
+  };
+}
+
 export {
   PL_TAX, BOOKMAKERS, SPORTS, STATUSES, marketBookmakers,
   bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel,
   potentialPayout, defaultPayout, usesPayout, betNet, buildBetTx, bettingStats,
+  buildTransferTx, bankrollStats,
 };

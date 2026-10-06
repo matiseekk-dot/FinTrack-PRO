@@ -50,11 +50,12 @@ const SYNC_KEYS = [
   "collectionItems",  // v2.2.0: katalog Kolekcji
   "gigs",             // v2.2.0: zlecenia Freelance
   "prefs",            // v2.7.0: cel miesięczny, limit strat w Zakładach
+  "subscriptions",    // v2.8.0: subskrypcje modułu Hobby
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
 const ARRAY_KEYS_WITH_ID = ["transactions", "accounts", "payments", "goals",
-  "portfolio", "customCats", "trips", "hobbies", "resaleItems", "collectionItems", "gigs"];
+  "portfolio", "customCats", "trips", "hobbies", "resaleItems", "collectionItems", "gigs", "subscriptions"];
 
 // Tombstones starsze niż 30 dni są auto-purgowane przy każdym merge.
 // 30 dni to bezpieczny próg - po tym czasie dane na drugim urządzeniu (które

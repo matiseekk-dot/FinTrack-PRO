@@ -13,7 +13,7 @@ import { fmtDisplay, fmtCurrency, todayLocal, cycleTxs } from "../utils.js";
 import { t, getLang } from "../i18n.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
-import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby } from "../lib/hobby.js";
+import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere } from "../lib/hobby.js";
 import { getModule } from "../lib/modules.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
@@ -41,8 +41,11 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   const [hobbyForm, setHobbyForm] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const active = hobbies.filter(h => !h.archived);
-  const archived = hobbies.filter(h => h.archived);
+  // Stare „hobby” z FinTracka, które łapały tylko kupony/sprzedaż, nie są kolekcjami — nie pokazujemy ich
+  // (zostają w danych). Kolekcja z pozycjami w katalogu zawsze zostaje widoczna.
+  const isCollection = (h) => !isRulesOnlyElsewhere(h) || items.some(it => it.hobbyId === h.id);
+  const active = hobbies.filter(h => !h.archived && isCollection(h));
+  const archived = hobbies.filter(h => h.archived && isCollection(h));
   const open = openId != null ? hobbies.find(h => h.id === openId) : null;
 
   const { by, total, resaleById } = useMemo(

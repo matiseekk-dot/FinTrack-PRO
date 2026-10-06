@@ -16,6 +16,8 @@ import { ResellingView } from "./views/ResellingView.jsx";
 import { sanitizeItems } from "./lib/reselling.js";
 import { CollectionsView } from "./views/CollectionsView.jsx";
 import { FreelanceView } from "./views/FreelanceView.jsx";
+import { HobbyCostsView } from "./views/HobbyCostsView.jsx";
+import { sanitizeSubscriptions } from "./lib/subscriptions.js";
 import { sanitizeCollectionItems } from "./lib/collections.js";
 import { sanitizeGigs } from "./lib/freelance.js";
 import { saveToStorage, loadFromStorage } from "./data/storage.js";
@@ -47,6 +49,7 @@ function applyData(d, s) {
   if (Array.isArray(d.resaleItems) && s.setResaleItems)        s.setResaleItems(sanitizeItems(d.resaleItems));
   if (Array.isArray(d.collectionItems) && s.setCollectionItems) s.setCollectionItems(sanitizeCollectionItems(d.collectionItems));
   if (Array.isArray(d.gigs) && s.setGigs)                      s.setGigs(sanitizeGigs(d.gigs));
+  if (Array.isArray(d.subscriptions) && s.setSubscriptions)    s.setSubscriptions(sanitizeSubscriptions(d.subscriptions));
   if (Array.isArray(d.customCats))                             s.setCustomCats(d.customCats.map(c => ({ ...c, label: c.label ? c.label.charAt(0).toUpperCase() + c.label.slice(1) : c.label })));
   if (d.defaultAcc != null)                                    s.setDefaultAcc(d.defaultAcc);
   // v1.2.4: NIE nadpisujemy month z remote/storage — auto-snap useEffect
@@ -112,7 +115,7 @@ function applyData(d, s) {
 }
 
 // Moduły z własnym ekranem; pozostałe otwierają przefiltrowane Wpisy
-const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance"];
+const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby"];
 
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
@@ -161,6 +164,9 @@ export default function App() {
   const [collectionItems, setCollectionItems] = useState([]); // v2.2.0: katalog Kolekcji
   const [gigs,         setGigs]         = useState([]); // v2.2.0: zlecenia Freelance
   const [prefs,        setPrefs]        = useState({}); // v2.7.0: cel miesięczny, limit strat
+  const [subscriptions, setSubscriptions] = useState([]); // v2.8.0: subskrypcje (Hobby)
+  // Szybkie dodawanie wpisu z gotowym modułem (np. „Jednorazowy wydatek” w Hobby)
+  const [quickAddModule, setQuickAddModule] = useState(null);
   // Skrót z ikony aplikacji / ?add= w adresie: wykonujemy, gdy apka jest gotowa (po PIN-ie)
   const [pendingAction, setPendingAction] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("add") || null; } catch { return null; }
@@ -210,7 +216,7 @@ export default function App() {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     cycleDayHistory,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
-    trips, hobbies, resaleItems, collectionItems, gigs, prefs,
+    trips, hobbies, resaleItems, collectionItems, gigs, prefs, subscriptions,
     tombstones,
     proStatus: getProStatusRaw(),       // v1.2.7: sync PRO status między urządzeniami
     displayCurrency: getDisplayCurrency(), // v1.5.1: sync waluty wyświetlania
@@ -263,6 +269,7 @@ export default function App() {
   const setResaleItemsTracked  = useMemo(() => wrapWithTombstoneTracking("resaleItems",  setResaleItems),  [wrapWithTombstoneTracking]);
   const setCollectionItemsTracked = useMemo(() => wrapWithTombstoneTracking("collectionItems", setCollectionItems), [wrapWithTombstoneTracking]);
   const setGigsTracked         = useMemo(() => wrapWithTombstoneTracking("gigs",         setGigs),         [wrapWithTombstoneTracking]);
+  const setSubscriptionsTracked = useMemo(() => wrapWithTombstoneTracking("subscriptions", setSubscriptions), [wrapWithTombstoneTracking]);
 
   // Wrapper setMonth: gdy user manualnie nawiguje (strzałki w Dashboard, etc.),
   // ustawiamy flag żeby auto-snap nie ingerował.
@@ -283,7 +290,7 @@ export default function App() {
     setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals,
     setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
     setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
-    setTrips, setHobbies, setResaleItems, setCollectionItems, setGigs, setTombstones, setModules, setPrefs,
+    setTrips, setHobbies, setResaleItems, setCollectionItems, setGigs, setTombstones, setModules, setPrefs, setSubscriptions,
   };
 
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
@@ -366,7 +373,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, tombstones, modules, fxEpoch]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, subscriptions, tombstones, modules, fxEpoch]);
 
   // Save to Firestore
   useEffect(() => {
@@ -381,7 +388,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, tombstones, modules, fxEpoch]);
+  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, subscriptions, tombstones, modules, fxEpoch]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -479,6 +486,7 @@ export default function App() {
     setCollectionItems([]);
     setGigs([]);
     setPrefs({});
+    setSubscriptions([]);
     setCustomCats([]);
     setPortfolio([]);
     setPartnerName("Partner");
@@ -554,10 +562,11 @@ export default function App() {
   };
   // Edycja wpisu kuponu/przedmiotu z Wpisów otwiera jego ekran modułu
   const openLinkedTx = (tx) => {
-    if (tx.bet) { setFocusBetTx(tx.id); setTab("betting"); }
+    if (tx.bet || tx.betTransfer) { setFocusBetTx(tx.id); setTab("betting"); }
     else if (tx.resaleItemId != null) { setFocusResaleItem(tx.resaleItemId); setTab("reselling"); }
     else if (tx.gigId != null) { setFocusGig(tx.gigId); setTab("freelance"); }
     else if (tx.collectionItemId != null) { setFocusCollectionItem(tx.collectionItemId); setTab("collections"); }
+    else if (tx.subscriptionId != null) { setTab("hobby"); }
   };
   const moduleScreen = MODULE_SCREENS.includes(tab);
 
@@ -672,13 +681,14 @@ export default function App() {
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
             onOpenTrips={() => setTab("trips")}
-            prefs={prefs} onPrefChange={setPref}
+            prefs={prefs} onPrefChange={setPref} subscriptions={subscriptions}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
         {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} navTabs={navTabs} onNavTabsChange={changeNavTabs} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
         {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} lossLimit={prefs.betLossLimit || null} onLossLimitChange={(m) => setPref("betLossLimit", m)} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
         {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} openAdd={addOnMount} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
         {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
-        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
+        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} collectionItems={collectionItems} setCollectionItems={setCollectionItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
+          {tab === "hobby"        && <ErrorBoundary><HobbyCostsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} modules={enabledModules} subscriptions={subscriptions} setSubscriptions={setSubscriptionsTracked} onBack={() => setTab("home")} onAddExpense={() => { setQuickAddModule("hobby"); setQuickAddOpen(true); }} addSignal={moduleAddSignal} openAdd={addOnMount}/></ErrorBoundary>}
           {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} allCats={allCategories}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} onBack={() => setTab("home")}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
@@ -706,7 +716,7 @@ export default function App() {
         user={user} onSignOut={signOutUser} onClearData={clearAllData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
-        prefs={prefs}
+        prefs={prefs} subscriptions={subscriptions}
       />
       </ErrorBoundary>
 
@@ -717,11 +727,11 @@ export default function App() {
       {quickAddOpen && (
         <TransactionsView
           transactions={transactions}
-          setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); }}
-          setAccounts={setAccountsTracked} allCats={allCategories}
+          setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); setQuickAddModule(null); }}
+          setAccounts={setAccountsTracked} allCats={allCategories} presetModule={quickAddModule}
           _forceOpenModal={true}
-          _onClose={() => setQuickAddOpen(false)}
-          _onModalClose={() => setQuickAddOpen(false)}
+          _onClose={() => { setQuickAddOpen(false); setQuickAddModule(null); }}
+          _onModalClose={() => { setQuickAddOpen(false); setQuickAddModule(null); }}
           defaultAcc={defaultAcc}
           trips={trips}
           modules={enabledModules} hobbies={hobbies}

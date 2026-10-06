@@ -10,7 +10,7 @@ const NAV_KEY = "ft_nav_tabs";
 const NAV_SLOTS = 3;
 
 // Module screens in the order they are offered as default shortcuts.
-const NAV_MODULE_SCREENS = ["reselling", "betting", "freelance", "collections", "trips"];
+const NAV_MODULE_SCREENS = ["reselling", "betting", "freelance", "collections", "hobby", "trips"];
 
 /** Destinations that may be pinned to the bar for the given enabled modules. */
 function navCandidates(modules = []) {
@@ -60,6 +60,7 @@ function setNavTabs(ids) {
 const SHORT_LABELS = {
   betting:     { en: "Bets", pl: "Zakłady", de: "Wetten", es: "Apuestas", fr: "Paris", pt: "Apostas", it: "Scommesse", nl: "Wedden", uk: "Ставки" },
   reselling:   { en: "Reselling", pl: "Sprzedaż", de: "Verkauf", es: "Reventa", fr: "Revente", pt: "Revenda", it: "Rivendita", nl: "Verkoop", uk: "Продаж" },
+  hobby:       { en: "Hobbies", pl: "Hobby", de: "Hobbys", es: "Hobbies", fr: "Loisirs", pt: "Hobbies", it: "Hobby", nl: "Hobby's", uk: "Хобі" },
   collections: { en: "Collection", pl: "Kolekcje", de: "Sammlung", es: "Colección", fr: "Collection", pt: "Coleções", it: "Collezione", nl: "Collectie", uk: "Колекції" },
 };
 

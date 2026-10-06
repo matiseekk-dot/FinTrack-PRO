@@ -27,6 +27,7 @@ const eur0 = (v) => { try { return new Intl.NumberFormat(getLocale(), { style: "
  * (moduł reselling), więc Start i saldo konta zgadzają się bez osobnego liczenia.
  */
 function ResellingView({ items = [], setItems, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
+  collectionItems = [], setCollectionItems,
   onBack, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
@@ -52,6 +53,15 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
     .sort((a, b) => (b.buyDate || b.createdAt || "").localeCompare(a.buyDate || a.createdAt || ""));
   const sold = items.filter(it => it.status === "sold" && inPeriod(it.sellDate))
     .sort((a, b) => (b.sellDate || "").localeCompare(a.sellDate || ""));
+  // Sprzedaże zapisane w Wpisach bez przedmiotu (np. stare „Sprzedaż Vinted”) — też są sprzedanymi rzeczami
+  const looseSales = moduleTxs.filter(tx => tx.resaleItemId == null && tx.amount > 0 && inPeriod(tx.date))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const soldRows = [
+    ...sold.map(it => ({ key: "i" + it.id, date: it.sellDate || "", item: it })),
+    ...looseSales.map(tx => ({ key: "t" + tx.id, date: tx.date || "", tx })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+  // Pozycje kolekcji, które można sprzedać (posiadane, jeszcze niepowiązane ze sprzedażą)
+  const sellableFromCollection = collectionItems.filter(ci => ci.status === "owned" && ci.resaleItemId == null);
 
   // Ostatnio używane platformy na początku listy chipów
   const platformOrder = useMemo(() => {
@@ -69,6 +79,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
     return {
       editingId: null, name: "", category: last?.category || "other", status: "stock",
       currency: last?.currency || getDisplayCurrency(), acc: defaultAcc, hours: "",
+      adoptTxId: null, fromCollectionItemId: null,
       buyPrice: "", buyDate: today, recordPurchase: true,
       platform, customPlatform: false, listPrice: "",
       sellPrice: "", sellDate: today, feePct: String(rule.pct), feeFixed: String(rule.fixed), shipping: "",
@@ -95,6 +106,35 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
   };
 
   // Licznik jest wspólny dla ekranów modułów — reagujemy tylko na kliknięcia po wejściu na ekran
+  // Uzupełnienie starej sprzedaży: wpis staje się sprzedażą przedmiotu (ten sam wpis, bez dublowania)
+  const guessPlatform = (desc) => {
+    const d = (desc || "").toLowerCase();
+    const p = PLATFORMS.find(x => d.includes(x.id) || (typeof x.name === "string" && d.includes(x.name.toLowerCase())));
+    return p ? p.id : (platformOrder[0] || "vinted");
+  };
+  const formFromLooseTx = (tx) => {
+    const fx = tx.origCurrency && tx.origAmount != null;
+    return blankForm({
+      name: tx.desc || "", status: "sold", platform: guessPlatform(tx.desc), customPlatform: false,
+      currency: fx ? tx.origCurrency : "PLN", acc: tx.acc ?? defaultAcc,
+      sellPrice: String(Math.abs(fx ? tx.origAmount : tx.amount)), sellDate: tx.date,
+      // Kwota wpisu była już „na konto” — bez prowizji, żeby się nie zmieniła
+      feePct: "0", feeFixed: "0", shipping: "", recordPurchase: false, buyDate: tx.date,
+      adoptTxId: tx.id,
+    });
+  };
+  const pickCollectionItem = (ci) => {
+    setForm(f => ({
+      ...f, fromCollectionItemId: ci ? ci.id : null,
+      ...(ci ? {
+        name: f.name || ci.title,
+        buyPrice: ci.buyPrice != null && (ci.currency || "PLN") === f.currency ? String(ci.buyPrice) : f.buyPrice,
+        buyDate: ci.buyDate || f.buyDate,
+        recordPurchase: false, // zakup jest już w Kolekcjach
+      } : {}),
+    }));
+  };
+
   // openAdd: ekran otwarty skrótem „Dodaj przedmiot” — formularz od razu
   const firstAddSignal = useRef(openAdd ? null : addSignal);
   useEffect(() => { if (addSignal !== firstAddSignal.current) setForm(blankForm()); }, [addSignal]);
@@ -141,11 +181,12 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
       fees: form.status === "sold" ? fee : null,
       shipping: form.status === "sold" ? (num(form.shipping) || 0) : null,
       hours: isFinite(num(form.hours)) && num(form.hours) > 0 ? num(form.hours) : null,
-      buyTxId: old?.buyTxId ?? null, sellTxId: old?.sellTxId ?? null,
+      buyTxId: old?.buyTxId ?? null, sellTxId: old?.sellTxId ?? (form.adoptTxId ?? null),
+      fromCollectionItemId: old?.fromCollectionItemId ?? (form.fromCollectionItemId ?? null),
       createdAt: old?.createdAt || today,
     };
 
-    const oldTxs = [old?.buyTxId, old?.sellTxId]
+    const oldTxs = [old?.buyTxId, old?.sellTxId, old ? null : form.adoptTxId]
       .filter(id => id != null)
       .map(id => transactions.find(tx => tx.id === id))
       .filter(Boolean);
@@ -167,6 +208,10 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
 
       commitTxChanges({ setTransactions, setAccounts }, { add: [buy, sell].filter(Boolean), remove: oldTxs });
       setItems(prev => old ? prev.map(x => x.id === item.id ? item : x) : [item, ...prev]);
+      // Rzecz z kolekcji: w Kolekcjach pokaże się jako wystawiona / sprzedana
+      if (!old && item.fromCollectionItemId != null && setCollectionItems) {
+        setCollectionItems(prev => prev.map(ci => ci.id === item.fromCollectionItemId ? { ...ci, resaleItemId: item.id } : ci));
+      }
       if (item.status === "sold" && item.platform) rememberFeeRule(item.platform, item.feePct, item.feeFixed);
       showToast(item.status === "sold" && old?.status !== "sold"
         ? `${t("resale.toast.sold", "Sprzedane")} · ${fmtCurrency(itemProfit(item), item.currency)} ${t("resale.profitWord", "zysku")}`
@@ -184,6 +229,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
     const linked = [old.buyTxId, old.sellTxId].filter(id => id != null).map(id => transactions.find(tx => tx.id === id)).filter(Boolean);
     commitTxChanges({ setTransactions, setAccounts }, { remove: linked });
     setItems(prev => prev.filter(x => x.id !== old.id));
+    if (setCollectionItems) setCollectionItems(prev => prev.map(ci => ci.resaleItemId === old.id ? { ...ci, resaleItemId: null } : ci));
     showToast(t("resale.toast.deleted", "Przedmiot usunięty"), "error");
     setForm(null);
   };
@@ -291,7 +337,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
       ) : <>
         <div style={{ display: "flex", gap: 6, margin: "18px 0 10px" }}>
           <Chip on={list === "stock"} color={ACCENT} onClick={() => setList("stock")}>{t("resale.tab.stock", "Na stanie")} · {stock.length}</Chip>
-          <Chip on={list === "sold"} color={ACCENT} onClick={() => setList("sold")}>{t("resale.tab.sold", "Sprzedane")} · {sold.length}</Chip>
+          <Chip on={list === "sold"} color={ACCENT} onClick={() => setList("sold")}>{t("resale.tab.sold", "Sprzedane")} · {soldRows.length}</Chip>
         </div>
 
         {list === "stock" && (stock.length === 0
@@ -337,16 +383,39 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
             </div>
         )}
 
-        {list === "sold" && (sold.length === 0
+        {list === "sold" && (soldRows.length === 0
           ? <div style={{ fontSize: 13, color: "#64748b", padding: "8px 2px" }}>{t("resale.soldEmpty", "Nic nie sprzedane w tym okresie.")}</div>
           : <div style={{ ...card, padding: "2px 14px" }}>
-              {sold.map((it, i) => {
+              {soldRows.map((row, i) => {
+                const last = i === soldRows.length - 1;
+                if (row.tx) {
+                  const tx = row.tx;
+                  const fx = tx.origCurrency && tx.origAmount != null;
+                  return (
+                    <button key={row.key} onClick={() => setForm(formFromLooseTx(tx))} style={{
+                      all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                      borderBottom: last ? "none" : "1px solid #0f1a2e",
+                    }}>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc || "—"}</span>
+                        <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                          {tx.date} · <span style={{ color: "#fbbf24" }}>{t("resale.loose.fill", "uzupełnij szczegóły")}</span>
+                        </span>
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, flexShrink: 0, color: "#94a3b8" }}>
+                        +{fx ? fmtCurrency(Math.abs(tx.origAmount), tx.origCurrency) : fmtCurrency(tx.amount, "PLN")}
+                      </span>
+                    </button>
+                  );
+                }
+                const it = row.item;
                 const profit = itemProfit(it);
                 return (
-                  <button key={it.id} onClick={() => setForm(formFromItem(it))} style={{
+                  <button key={row.key} onClick={() => setForm(formFromItem(it))} style={{
                     all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer",
                     display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
-                    borderBottom: i < sold.length - 1 ? "1px solid #0f1a2e" : "none",
+                    borderBottom: last ? "none" : "1px solid #0f1a2e",
                   }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</span>
@@ -384,6 +453,23 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
       {/* Formularz przedmiotu */}
       <Modal open={!!form} onClose={() => setForm(null)} title={form?.editingId != null ? t("resale.editTitle", "Przedmiot") : t("resale.newTitle", "Nowy przedmiot")}>
         {form && <>
+          {form.adoptTxId != null && (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12 }}>
+              {t("resale.loose.hint", "Ta sprzedaż jest już w Wpisach. Uzupełnij koszt zakupu i platformę, a policzymy zysk — wpis się nie zdubluje.")}
+            </div>
+          )}
+          {form.editingId == null && sellableFromCollection.length > 0 && (
+            <Select label={t("resale.fromCollection", "Z kolekcji (opcjonalnie)")} value={form.fromCollectionItemId ?? ""} onChange={e => {
+              const ci = sellableFromCollection.find(x => String(x.id) === e.target.value);
+              pickCollectionItem(ci || null);
+            }}>
+              <option value="">{t("resale.fromCollection.none", "— nie z kolekcji —")}</option>
+              {sellableFromCollection.map(ci => {
+                const h = hobbies.find(x => x.id === ci.hobbyId);
+                return <option key={ci.id} value={ci.id}>{ci.title}{h ? ` · ${h.name}` : ""}</option>;
+              })}
+            </Select>
+          )}
           <Input label={t("resale.name", "Nazwa")} placeholder={t("resale.namePh", "np. Pink Floyd – The Wall (LP)")} value={form.name} onChange={e => setF({ name: e.target.value })}/>
 
           <div style={fieldLabel}>{t("resale.category", "Kategoria")}</div>

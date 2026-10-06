@@ -20,6 +20,7 @@ function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onO
     ["betting",     t("more.bettingDesc", "Kupony, ROI, bukmacherzy")],
     ["freelance",   t("more.freelanceDesc", "Zlecenia, klienci, zaległe płatności")],
     ["collections", t("more.collectionsDesc", "Katalog, wartość, lista życzeń")],
+    ["hobby",       t("more.hobbyDesc", "Subskrypcje, koncerty, kino — koszty pasji")],
     ["trips",       moduleDesc("trips", lang)],
   ].filter(([id]) => modules.includes(id));
 
