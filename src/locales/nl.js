@@ -639,7 +639,6 @@ export default {
   "sub.trialEnds": "proef eindigt",
   "sub.next": "volgende betaling",
   "sub.inactive": "opgezegd",
-  "sub.monthSpent": "Hobby's deze maand",
   "sub.perMonth": "Abonnementen / mnd",
   "sub.perYear": "Abonnementen / jaar",
   "sub.count": "Actief",
@@ -685,4 +684,5 @@ export default {
   "home.hobbySpent": "Uitgegeven aan hobby's",
   "home.hobbySubs": "abonnementen {amount}/mnd · telt niet mee als inkomen",
   "bet.bank.shareAll": "Je hebt evenveel opgenomen als je hebt gewonnen.",
+  "home.backToNow": "Vandaag",
 };

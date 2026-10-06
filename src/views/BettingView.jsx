@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Check, X, RotateCcw, HandCoins, Trash2, Target, ArrowD
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, num } from "../components/ModuleUI.jsx";
+import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, PeriodChips, inPeriodFn, num } from "../components/ModuleUI.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
@@ -56,7 +56,7 @@ function Sparkline({ series }) {
  * więc rozliczenie kuponu od razu zmienia Start i saldo konta.
  */
 function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
-  onBack, addSignal = 0, openAdd = false, focusTxId = null, onFocusHandled, lossLimit = null, onLossLimitChange }) {
+  onBack, addSignal = 0, openAdd = false, month = null, onMonthChange, focusTxId = null, onFocusHandled, lossLimit = null, onLossLimitChange }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -74,10 +74,11 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
   [transactions, hobbies]);
 
   const today = todayLocal();
-  const inPeriod = (date) => period === "all" || (date || "").startsWith(period === "year" ? today.slice(0, 4) : today.slice(0, 7));
+  const viewMonth = month || today.slice(0, 7);
+  const inPeriod = inPeriodFn(period, viewMonth);
   const stats = useMemo(
     () => bettingStats(all.filter(tx => tx.bet?.status === "pending" || inPeriod(tx.date))),
-    [all, period, today, getDisplayCurrency()]
+    [all, period, viewMonth, getDisplayCurrency()]
   );
   const pending = all.filter(tx => tx.bet?.status === "pending");
   const monthLoss = Math.max(0, -all.filter(tx => !tx.betTransfer && tx.date.startsWith(today.slice(0, 7))).reduce((sum, tx) => sum + txAmountForDisplay(tx), 0));
@@ -285,11 +286,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
         </button>
       </div>
 
-      <div role="tablist" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {[["month", t("period.month", "Ten miesiąc")], ["year", t("period.year", "Ten rok")], ["all", t("period.all", "Wszystko")]].map(([id, label]) => (
-          <Chip key={id} on={period === id} onClick={() => setPeriod(id)}>{label}</Chip>
-        ))}
-      </div>
+      <PeriodChips value={period} onChange={setPeriod} month={viewMonth} onMonthChange={onMonthChange}/>
 
       {/* Wynik */}
       <div style={{ ...card, padding: 16, background: "linear-gradient(135deg,#0d1628,#111827)" }}>

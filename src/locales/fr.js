@@ -639,7 +639,6 @@ export default {
   "sub.trialEnds": "fin de l'essai",
   "sub.next": "prochain paiement",
   "sub.inactive": "résilié",
-  "sub.monthSpent": "Loisirs ce mois-ci",
   "sub.perMonth": "Abonnements / mois",
   "sub.perYear": "Abonnements / an",
   "sub.count": "Actifs",
@@ -685,4 +684,5 @@ export default {
   "home.hobbySpent": "Dépensé en loisirs",
   "home.hobbySubs": "abonnements {amount}/mois · hors revenus",
   "bet.bank.shareAll": "Vous avez retiré autant que vous avez gagné.",
+  "home.backToNow": "Aujourd'hui",
 };

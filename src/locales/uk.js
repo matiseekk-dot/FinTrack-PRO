@@ -639,7 +639,6 @@ export default {
   "sub.trialEnds": "пробний закінчується",
   "sub.next": "платіж",
   "sub.inactive": "скасовано",
-  "sub.monthSpent": "Хобі цього місяця",
   "sub.perMonth": "Підписки / міс.",
   "sub.perYear": "Підписки / рік",
   "sub.count": "Активні",
@@ -685,4 +684,5 @@ export default {
   "home.hobbySpent": "Витрачено на хобі",
   "home.hobbySubs": "підписки {amount}/міс. · не входить у дохід",
   "bet.bank.shareAll": "Ви вивели стільки, скільки виграли.",
+  "home.backToNow": "Сьогодні",
 };

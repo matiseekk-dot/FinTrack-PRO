@@ -639,7 +639,6 @@ export default {
   "sub.trialEnds": "Testphase endet",
   "sub.next": "nächste Zahlung",
   "sub.inactive": "gekündigt",
-  "sub.monthSpent": "Hobbys diesen Monat",
   "sub.perMonth": "Abos / Monat",
   "sub.perYear": "Abos / Jahr",
   "sub.count": "Aktiv",
@@ -685,4 +684,5 @@ export default {
   "home.hobbySpent": "Für Hobbys ausgegeben",
   "home.hobbySubs": "Abos {amount}/Monat · zählt nicht zum Einkommen",
   "bet.bank.shareAll": "Du hast so viel ausgezahlt, wie du gewonnen hast.",
+  "home.backToNow": "Heute",
 };

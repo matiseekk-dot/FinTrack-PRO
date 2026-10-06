@@ -4,7 +4,7 @@ import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
-import { card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, Chip, Stat, CheckRow, ModuleHeader, num } from "../components/ModuleUI.jsx";
+import { card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, Chip, Stat, CheckRow, ModuleHeader, PeriodChips, num } from "../components/ModuleUI.jsx";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
@@ -22,11 +22,11 @@ const ACCENT = MODULES.hobby.color;
  * o płatności (zapis po potwierdzeniu), jednorazowe wydatki to zwykłe wpisy modułu.
  */
 function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defaultAcc = 1, hobbies = [], modules = [],
-  subscriptions = [], setSubscriptions, onBack, onAddExpense, addSignal = 0, openAdd = false }) {
+  subscriptions = [], setSubscriptions, onBack, onAddExpense, addSignal = 0, openAdd = false, month = null, onMonthChange }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const today = todayLocal();
-  const ym = today.slice(0, 7);
+  const ym = month || today.slice(0, 7);
   const [chooser, setChooser] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -142,8 +142,10 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
     <div style={{ padding: "0 16px" }}>
       <ModuleHeader Icon={Ticket} color={ACCENT} title={moduleLabel("hobby", lang)} onBack={onBack} addLabel={t("common.add", "Dodaj")} onAdd={() => setChooser(true)}/>
 
+      <PeriodChips monthOnly month={ym} onMonthChange={onMonthChange}/>
+
       <div style={heroCard}>
-        <div style={heroLabel}>{t("sub.monthSpent", "Hobby w tym miesiącu")}</div>
+        <div style={heroLabel}>{t("home.hobbySpent", "Wydane na hobby")}</div>
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 30, fontWeight: 800, color: "#e2e8f0", marginTop: 4, letterSpacing: "-0.02em" }}>{fmtDisplay(spent)}</div>
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <Stat label={t("sub.perMonth", "Subskrypcje / mies.")} value={fmtDisplay(perMonth)}/>

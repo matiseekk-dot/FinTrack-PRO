@@ -27,11 +27,19 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], month = null, onMonthChange, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
-  const [period, setPeriod] = useState(current);
+  // Wybrany miesiąc trzyma App — zostaje po wejściu w moduł i powrocie, a moduły pokazują ten sam miesiąc
+  const period = useMemo(() => {
+    const [y, mm] = (month || ymKey(current.y, current.m)).split("-").map(Number);
+    return { y, m: mm - 1 };
+  }, [month]);
+  const setPeriod = (next) => {
+    const p = typeof next === "function" ? next(period) : next;
+    if (onMonthChange) onMonthChange(ymKey(p.y, p.m));
+  };
   const isCurrent = period.y === current.y && period.m === current.m;
   const [goalOpen, setGoalOpen] = useState(false);
 
@@ -168,7 +176,14 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <button onClick={() => setPeriod(p => shiftMonth(p, -1))} aria-label={t("home.prevMonth", "Poprzedni miesiąc")} style={navBtn}><ChevronLeft size={14}/></button>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{monthName(period.m)} {period.y}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{monthName(period.m)} {period.y}</span>
+            {!isCurrent && (
+              <button onClick={() => setPeriod(current)} style={{ background: "#10b98122", border: "1px solid #10b98155", borderRadius: 6, padding: "1px 7px", color: "#34d399", fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                {t("home.backToNow", "Dziś")}
+              </button>
+            )}
+          </span>
           <button onClick={() => !isCurrent && setPeriod(p => shiftMonth(p, 1))} disabled={isCurrent} aria-label={t("home.nextMonth", "Następny miesiąc")} style={{ ...navBtn, opacity: isCurrent ? 0.3 : 1, cursor: isCurrent ? "default" : "pointer" }}><ChevronRight size={14}/></button>
         </div>
         <div style={lbl}>{t("home.netTitle", "Dochód poboczny netto")}</div>

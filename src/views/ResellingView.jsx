@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Check, Trash2, ShoppingBag, Tag, HandCoins } from "luc
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
-import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, actionBtn, num } from "../components/ModuleUI.jsx";
+import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, actionBtn, PeriodChips, inPeriodFn, num } from "../components/ModuleUI.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang, getLocale } from "../i18n.js";
@@ -28,7 +28,7 @@ const eur0 = (v) => { try { return new Intl.NumberFormat(getLocale(), { style: "
  */
 function ResellingView({ items = [], setItems, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
   collectionItems = [], setCollectionItems,
-  onBack, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
+  onBack, addSignal = 0, openAdd = false, month = null, onMonthChange, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -37,7 +37,8 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
   const [saving, setSaving] = useState(false);
 
   const today = todayLocal();
-  const inPeriod = (date) => period === "all" || (date || "").startsWith(period === "year" ? today.slice(0, 4) : today.slice(0, 7));
+  const viewMonth = month || today.slice(0, 7);
+  const inPeriod = inPeriodFn(period, viewMonth);
 
   const moduleTxs = useMemo(
     () => transactions.filter(tx => tx && tx.date && getModule(tx, hobbies) === "reselling"),
@@ -45,7 +46,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
   );
   const stats = useMemo(
     () => resellingStats(items, moduleTxs, inPeriod),
-    [items, moduleTxs, period, today, getDisplayCurrency()]
+    [items, moduleTxs, period, viewMonth, getDisplayCurrency()]
   );
   const year = today.slice(0, 4);
   const dac7 = useMemo(() => dac7Stats(items, year), [items, year]);
@@ -251,11 +252,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {[["month", t("period.month", "Ten miesiąc")], ["year", t("period.year", "Ten rok")], ["all", t("period.all", "Wszystko")]].map(([id, label]) => (
-          <Chip key={id} on={period === id} onClick={() => setPeriod(id)}>{label}</Chip>
-        ))}
-      </div>
+      <PeriodChips value={period} onChange={setPeriod} month={viewMonth} onMonthChange={onMonthChange}/>
 
       {/* Zysk */}
       <div style={{ ...card, padding: 16, background: "linear-gradient(135deg,#0d1628,#111827)" }}>

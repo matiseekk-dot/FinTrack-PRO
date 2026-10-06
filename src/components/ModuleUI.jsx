@@ -1,5 +1,6 @@
-import { ArrowLeft, Check, Plus } from "lucide-react";
+import { ArrowLeft, Check, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { t } from "../i18n.js";
+import { monthName, todayLocal } from "../utils.js";
 
 // Wspólne klocki ekranów modułów (Zakłady, Sprzedaż, Kolekcje, Freelance).
 
@@ -80,19 +81,48 @@ function ModuleHeader({ Icon, color, title, onBack, addLabel, onAdd, extra }) {
   );
 }
 
-function PeriodChips({ value, onChange }) {
+/** "2026-10" przesunięte o delta miesięcy. */
+function shiftYm(ym, delta) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Okres ekranu modułu: wybrany miesiąc (ten sam co na Starcie, ze strzałkami), jego rok
+ * albo wszystko. month = "YYYY-MM"; bez onMonthChange — zawsze bieżący miesiąc.
+ * monthOnly: tylko miesiąc ze strzałkami (bez roku i „Wszystko”).
+ */
+function PeriodChips({ value, onChange, month, onMonthChange, monthOnly = false }) {
+  const cur = todayLocal().slice(0, 7);
+  const ym = month || cur;
+  const [y, m] = ym.split("-").map(Number);
+  const arrow = (dir, disabled) => (
+    <button type="button" disabled={disabled} onClick={() => onMonthChange && onMonthChange(shiftYm(ym, dir))}
+      aria-label={dir < 0 ? t("home.prevMonth", "Poprzedni miesiąc") : t("home.nextMonth", "Następny miesiąc")}
+      style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8, padding: "5px 6px", cursor: disabled ? "default" : "pointer", color: "#94a3b8", display: "grid", placeItems: "center", opacity: disabled ? 0.3 : 1 }}>
+      {dir < 0 ? <ChevronLeft size={13}/> : <ChevronRight size={13}/>}
+    </button>
+  );
+  const monthLabel = ym === cur ? t("period.month", "Ten miesiąc") : `${monthName(m - 1)} ${y}`;
+  const yearLabel = String(y) === cur.slice(0, 4) ? t("period.year", "Ten rok") : String(y);
+  const showArrows = !!onMonthChange && (monthOnly || value === "month");
   return (
-    <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-      {[["month", t("period.month", "Ten miesiąc")], ["year", t("period.year", "Ten rok")], ["all", t("period.all", "Wszystko")]].map(([id, label]) => (
-        <Chip key={id} on={value === id} onClick={() => onChange(id)}>{label}</Chip>
-      ))}
+    <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+      {showArrows && arrow(-1, false)}
+      <Chip on={monthOnly || value === "month"} onClick={() => onChange && onChange("month")}>{monthLabel}</Chip>
+      {showArrows && arrow(1, ym >= cur)}
+      {!monthOnly && <>
+        <Chip on={value === "year"} onClick={() => onChange("year")}>{yearLabel}</Chip>
+        <Chip on={value === "all"} onClick={() => onChange("all")}>{t("period.all", "Wszystko")}</Chip>
+      </>}
     </div>
   );
 }
 
-/** Czy data (YYYY-MM-DD) mieści się w okresie month | year | all względem dziś. */
-function inPeriodFn(period, today) {
-  return (date) => period === "all" || (date || "").startsWith(period === "year" ? today.slice(0, 4) : today.slice(0, 7));
+/** Czy data (YYYY-MM-DD) mieści się w okresie month | year | all; ref = data albo "YYYY-MM". */
+function inPeriodFn(period, ref) {
+  return (date) => period === "all" || (date || "").startsWith(period === "year" ? ref.slice(0, 4) : ref.slice(0, 7));
 }
 
 function EmptyCard({ title, desc, cta, onCta }) {

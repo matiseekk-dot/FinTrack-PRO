@@ -437,6 +437,7 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "home.backToNow": "Today",
     "bet.bank.shareAll": "You've cashed out as much as you've won.",
     "cat.subskrypcje": "Subscriptions",
     "cat.wydarzenia": "Concerts & events",
@@ -484,7 +485,6 @@ const TRANSLATIONS = {
     "sub.trialEnds": "trial ends",
     "sub.next": "next payment",
     "sub.inactive": "cancelled",
-    "sub.monthSpent": "Hobbies this month",
     "sub.perMonth": "Subscriptions / mo",
     "sub.perYear": "Subscriptions / year",
     "sub.count": "Active",

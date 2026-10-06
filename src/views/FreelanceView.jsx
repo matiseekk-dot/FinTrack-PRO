@@ -24,7 +24,7 @@ const ACCENT = "#06b6d4";
  * „Opłacone” tworzy przychód w Wpisach, więc Start pokazuje tylko realne wpływy.
  */
 function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
-  onBack, addSignal = 0, openAdd = false, focusGigId = null, onFocusHandled }) {
+  onBack, addSignal = 0, openAdd = false, month = null, onMonthChange, focusGigId = null, onFocusHandled }) {
   const { toast, showToast } = useToast();
   const today = todayLocal();
   const [period, setPeriod] = useState("month");
@@ -32,7 +32,8 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
   const [taxForm, setTaxForm] = useState(null);
   const [taxPct, setTaxPct] = useState(getTaxReservePct);
   const [saving, setSaving] = useState(false);
-  const inPeriod = inPeriodFn(period, today);
+  const viewMonth = month || today.slice(0, 7);
+  const inPeriod = inPeriodFn(period, viewMonth);
 
   const moduleTxs = useMemo(
     () => transactions.filter(tx => tx && tx.date && getModule(tx, hobbies) === "freelance"),
@@ -40,7 +41,7 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
   );
   const stats = useMemo(
     () => freelanceStats(gigs, moduleTxs, inPeriod, today),
-    [gigs, moduleTxs, period, today, getDisplayCurrency()]
+    [gigs, moduleTxs, period, viewMonth, today, getDisplayCurrency()]
   );
   const unpaid = gigs.filter(g => g.status === "unpaid")
     .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
@@ -150,7 +151,7 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
     <div style={{ padding: "0 16px" }}>
       <ModuleHeader Icon={Briefcase} color={ACCENT} title={t("gig.title", "Freelance")} onBack={onBack}
         addLabel={t("gig.add", "Zlecenie")} onAdd={() => setForm(blankForm())}/>
-      <PeriodChips value={period} onChange={setPeriod}/>
+      <PeriodChips value={period} onChange={setPeriod} month={viewMonth} onMonthChange={onMonthChange}/>
 
       <div style={heroCard}>
         <div style={heroLabel}>{t("gig.earned", "Zarobione (wpłynęło)")}</div>
