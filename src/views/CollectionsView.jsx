@@ -30,7 +30,7 @@ const STATE_COLORS = { owned: "#34d399", wishlist: "#f59e0b", selling: "#ec4899"
  */
 function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resaleItems = [], setResaleItems,
   transactions, setTransactions, setAccounts, defaultAcc = 1, allCats, month, cycleDay,
-  onBack, onOpenResale, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
+  onBack, onOpenResale, onMoveToHobby, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const today = todayLocal();
@@ -43,7 +43,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
 
   // Stare „hobby” z FinTracka, które łapały tylko kupony/sprzedaż, nie są kolekcjami — nie pokazujemy ich
   // (zostają w danych). Kolekcja z pozycjami w katalogu zawsze zostaje widoczna.
-  const isCollection = (h) => !isRulesOnlyElsewhere(h) || items.some(it => it.hobbyId === h.id);
+  const isCollection = (h) => (!isRulesOnlyElsewhere(h) && !h.movedToHobby) || items.some(it => it.hobbyId === h.id);
   const active = hobbies.filter(h => !h.archived && isCollection(h));
   const archived = hobbies.filter(h => h.archived && isCollection(h));
   const open = openId != null ? hobbies.find(h => h.id === openId) : null;
@@ -442,7 +442,12 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             </div>
           )}
 
-          <button onClick={() => deleteCollection(open)} style={{ ...dangerBtn, marginTop: 26, border: "none", color: "#64748b", fontSize: 12 }}>
+          {onMoveToHobby && (
+            <button onClick={() => onMoveToHobby(open.id)} style={{ width: "100%", marginTop: 26, background: "none", border: "1px solid #1a2744", borderRadius: 12, padding: 11, color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              {t("move.fromCollectionCta", "To nie kolekcja (subskrypcje, kino, koncerty)? Przenieś do Hobby")}
+            </button>
+          )}
+          <button onClick={() => deleteCollection(open)} style={{ ...dangerBtn, marginTop: 10, border: "none", color: "#64748b", fontSize: 12 }}>
             <Trash2 size={12}/> {t("coll.deleteCollection", "Usuń kolekcję")}
           </button>
         </>}

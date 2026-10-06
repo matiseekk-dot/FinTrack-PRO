@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, Trash2, Repeat, Ticket } from "lucide-react";
+import { Check, X, Trash2, Repeat, Ticket, Search, ArrowRightLeft } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -14,6 +14,11 @@ import { getCat } from "../constants.js";
 import {
   SUB_KINDS, subKind, subKindLabel, addCycle, monthlyCost, daysUntil, subscriptionState, buildSubscriptionTx,
 } from "../lib/subscriptions.js";
+import { moveCandidates } from "../lib/hobbyMove.js";
+import { txMatchesHobby } from "../lib/hobby.js";
+
+// Na co poszły pieniądze — te same kategorie co w formularzu wpisu
+const HOBBY_CATS = ["subskrypcje", "wydarzenia", "kino", "gry", "sport", "muzyka", "rozrywka"];
 
 const ACCENT = MODULES.hobby.color;
 
@@ -21,8 +26,9 @@ const ACCENT = MODULES.hobby.color;
  * Hobby i subskrypcje: ile kosztują pasje, które nie zarabiają. Subskrypcje przypominają
  * o płatności (zapis po potwierdzeniu), jednorazowe wydatki to zwykłe wpisy modułu.
  */
-function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defaultAcc = 1, hobbies = [], modules = [],
-  subscriptions = [], setSubscriptions, onBack, onAddExpense, addSignal = 0, openAdd = false, month = null, onMonthChange }) {
+function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defaultAcc = 1, hobbies = [], setHobbies, collectionItems = [], modules = [],
+  subscriptions = [], setSubscriptions, onBack, onAddExpense, addSignal = 0, openAdd = false, month = null, onMonthChange,
+  moveFor = null, onMoveHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const today = todayLocal();
@@ -31,6 +37,70 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+
+  // ── Przenoszenie starych wpisów ─────────────────────────────────────
+  const [move, setMove] = useState(null); // { hobbyId, picks: { [key]: { on, cat, makeSub } } }
+  const [moveQuery, setMoveQuery] = useState("");
+  // Zakupy podpięte pod pozycje katalogu Kolekcji to kolekcja, nie hobby — nie proponujemy ich
+  const catalogTxIds = useMemo(() => new Set(collectionItems.filter(i => i.buyTxId != null).map(i => i.buyTxId)), [collectionItems]);
+  const allCandidates = useMemo(() => moveCandidates(transactions, hobbies, today, null, catalogTxIds), [transactions, hobbies, today, catalogTxIds]);
+  const candidates = useMemo(() => move ? moveCandidates(transactions, hobbies, today, move.hobbyId, catalogTxIds) : [], [move?.hobbyId, transactions, hobbies, today, catalogTxIds]);
+  const suggested = allCandidates.filter(g => g.recurring || g.cat === "subskrypcje");
+  const openMove = (hobbyId = null) => {
+    const list = moveCandidates(transactions, hobbies, today, hobbyId, catalogTxIds);
+    const picks = {};
+    for (const g of list) {
+      // Z kolekcji „to nie kolekcja” — zaznaczamy wszystko; ogólnie — tylko oczywiste subskrypcje
+      const on = hobbyId != null || !!g.recurring || g.cat === "subskrypcje";
+      picks[g.key] = { on, cat: g.cat, makeSub: !!g.recurring && !subscriptions.some(x => x.name.toLowerCase() === g.label.toLowerCase()) };
+    }
+    setMoveQuery("");
+    setMove({ hobbyId, picks });
+  };
+  // Wejście z Kolekcji („Przenieś do Hobby”)
+  useEffect(() => {
+    if (moveFor == null) return;
+    openMove(moveFor === "all" ? null : moveFor);
+    if (onMoveHandled) onMoveHandled();
+  }, [moveFor]);
+  const setPick = (key, patch) => setMove(m => ({ ...m, picks: { ...m.picks, [key]: { ...m.picks[key], ...patch } } }));
+
+  const applyMove = () => {
+    const chosen = candidates.filter(g => move.picks[g.key]?.on);
+    const count = chosen.reduce((s, g) => s + g.count, 0);
+    if (!count) return;
+    if (!window.confirm(t("move.confirm", "Przenieść do modułu Hobby i subskrypcje wpisy: {n}?").replace("{n}", count))) return;
+    const info = new Map();
+    const newSubs = [];
+    for (const g of chosen) {
+      const p = move.picks[g.key];
+      // Subskrypcja o tej samej nazwie już jest — stare płatności dołączają do jej historii
+      const existing = subscriptions.find(x => x.name.trim().toLowerCase() === g.label.trim().toLowerCase());
+      let subId = existing ? existing.id : null;
+      if (!existing && p.makeSub && g.recurring) {
+        subId = newId();
+        newSubs.push({ id: subId, name: g.label, kind: g.kind, amount: g.recurring.amount, currency: g.recurring.currency, cycle: g.recurring.cycle, nextDate: g.recurring.nextDate, trial: false, active: true, createdAt: today });
+      }
+      for (const tx of g.txs) info.set(tx.id, { cat: p.cat, subId });
+    }
+    setTransactions(prev => prev.map(tx => {
+      const i = info.get(tx.id);
+      return i ? { ...tx, module: "hobby", cat: i.cat, ...(i.subId ? { subscriptionId: i.subId } : {}) } : tx;
+    }));
+    if (newSubs.length) setSubscriptions(prev => [...prev, ...newSubs]);
+    // Stara „kolekcja”, w której nic już nie zostało (ani wpisów, ani pozycji katalogu), znika z Kolekcji
+    const touched = new Set(chosen.flatMap(g => g.collectionIds));
+    if (touched.size && setHobbies) {
+      const empty = new Set([...touched].filter(id => {
+        const h = hobbies.find(x => x.id === id);
+        return h && !collectionItems.some(it => it.hobbyId === id) && !transactions.some(tx => !info.has(tx.id) && txMatchesHobby(tx, h));
+      }));
+      if (empty.size) setHobbies(prev => prev.map(h => empty.has(h.id) ? { ...h, movedToHobby: true } : h));
+    }
+    showToast(t("move.toast", "Przeniesione wpisy: {n}{subs}").replace("{n}", count)
+      .replace("{subs}", newSubs.length ? t("move.toastSubs", " · nowe subskrypcje: {n}").replace("{n}", newSubs.length) : ""));
+    setMove(null);
+  };
 
   // Przycisk + z paska / skrót: wybór „subskrypcja czy wydatek”
   const firstAddSignal = useRef(openAdd ? null : addSignal);
@@ -194,6 +264,19 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
       ) : (
         <div style={{ ...card, padding: "2px 14px" }}>{active.map(subRow)}</div>
       )}
+      {allCandidates.length > 0 && (
+        <button onClick={() => openMove(null)} style={{
+          all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "11px 14px", borderRadius: 12,
+          background: ACCENT + "12", border: `1px solid ${ACCENT}44`, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1", lineHeight: 1.45,
+        }}>
+          <ArrowRightLeft size={15} color={ACCENT} style={{ flexShrink: 0 }}/>
+          <span style={{ flex: 1 }}>
+            {suggested.length > 0
+              ? t("move.suggest", "Stare wpisy wyglądające na subskrypcje: {list}. Przenieś je tutaj.").replace("{list}", suggested.slice(0, 3).map(g => g.label).join(", "))
+              : t("move.cta", "Przenieś stare wpisy (np. dawne wydatki osobiste) do Hobby")}
+          </span>
+        </button>
+      )}
       {inactive.length > 0 && (
         <button onClick={() => setShowInactive(v => !v)} style={{ width: "100%", marginTop: 8, background: "none", border: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 6, fontFamily: "inherit" }}>
           {showInactive ? t("sub.hideInactive", "Ukryj anulowane") : t("sub.showInactive", "Anulowane: {n}").replace("{n}", inactive.length)}
@@ -290,6 +373,71 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
             <button onClick={deleteSub} style={dangerBtn}><Trash2 size={14}/> {t("sub.delete", "Usuń subskrypcję")}</button>
           )}
         </>}
+      </Modal>
+
+      <Modal open={!!move} onClose={() => setMove(null)} title={t("move.title", "Przenieś stare wpisy")}>
+        {move && (() => {
+          const q = moveQuery.trim().toLowerCase();
+          const shown = candidates.filter(g => !q || g.label.toLowerCase().includes(q)).slice(0, 80);
+          const selCount = candidates.filter(g => move.picks[g.key]?.on).reduce((s, g) => s + g.count, 0);
+          const fromColl = move.hobbyId != null ? hobbies.find(h => h.id === move.hobbyId) : null;
+          return <>
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12 }}>
+              {t("move.desc", "Zaznacz wydatki na hobby. Trafią do tego modułu i znikną z Kolekcji oraz ukrytych wydatków osobistych. Płatności, które się powtarzają, od razu zamienisz w subskrypcję.")}
+            </div>
+            {fromColl && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: "#cbd5e1" }}>
+                <span style={{ padding: "3px 9px", borderRadius: 8, background: fromColl.color + "22", border: `1px solid ${fromColl.color}55` }}>{t("move.fromCollection", "Kolekcja: {name}").replace("{name}", fromColl.name)}</span>
+                <button onClick={() => setMove(m => ({ ...m, hobbyId: null }))} style={{ background: "none", border: "none", color: "#64748b", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>{t("move.showAll", "pokaż wszystkie")}</button>
+              </div>
+            )}
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <Search size={14} color="#475569" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}/>
+              <input value={moveQuery} onChange={e => setMoveQuery(e.target.value)} placeholder={t("move.search", "Szukaj, np. Netflix, kino")}
+                style={{ width: "100%", boxSizing: "border-box", background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 12px 9px 34px", color: "#e2e8f0", fontSize: 15, outline: "none", fontFamily: "inherit" }}/>
+            </div>
+            {shown.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#64748b", padding: "10px 2px" }}>{t("move.empty", "Brak pasujących wpisów.")}</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "48vh", overflowY: "auto", marginBottom: 12 }}>
+                {shown.map(g => {
+                  const p = move.picks[g.key] || { on: false, cat: g.cat, makeSub: false };
+                  const source = g.personal ? t("move.srcPersonal", "wydatki osobiste") : g.collectionIds.map(id => (hobbies.find(h => h.id === id) || {}).name).filter(Boolean).join(", ");
+                  return (
+                    <div key={g.key} style={{ ...card, background: p.on ? ACCENT + "10" : "#060b14", borderColor: p.on ? ACCENT + "55" : "#1a2744", padding: "10px 12px" }}>
+                      <button type="button" role="checkbox" aria-checked={p.on} onClick={() => setPick(g.key, { on: !p.on })} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
+                        <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${p.on ? ACCENT : "#475569"}`, background: p.on ? ACCENT : "transparent", display: "grid", placeItems: "center" }}>
+                          {p.on && <Check size={12} color="white" strokeWidth={3}/>}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.label}</span>
+                          <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {g.count}× · {fmtDisplay(g.total)} · {g.lastDate}{source ? ` · ${source}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                      {p.on && <>
+                        <select value={p.cat} onChange={e => setPick(g.key, { cat: e.target.value })} style={{ marginTop: 8, width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8, padding: "7px 8px", color: "#e2e8f0", fontSize: 13, fontFamily: "inherit" }}>
+                          {HOBBY_CATS.map(c => <option key={c} value={c}>{getCat(c).label}</option>)}
+                        </select>
+                        {g.recurring && (
+                          <CheckRow checked={p.makeSub} onChange={(v) => setPick(g.key, { makeSub: v })} style={{ marginTop: 8, marginBottom: 0 }}>
+                            {t("move.makeSub", "Utwórz subskrypcję: {price} / {cycle}, następna płatność {date}")
+                              .replace("{price}", fmtCurrency(g.recurring.amount, g.recurring.currency))
+                              .replace("{cycle}", cycleLabel(g.recurring.cycle)).replace("{date}", g.recurring.nextDate)}
+                          </CheckRow>
+                        )}
+                      </>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={applyMove} disabled={!selCount} style={{ ...primaryBtn, opacity: selCount ? 1 : 0.5, cursor: selCount ? "pointer" : "not-allowed" }}>
+              {t("move.apply", "Przenieś ({n})").replace("{n}", selCount)}
+            </button>
+          </>;
+        })()}
       </Modal>
 
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>

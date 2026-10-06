@@ -66,7 +66,7 @@ function getModule(tx, hobbies = []) {
   if (tx.module && MODULES[tx.module]) return tx.module;
   if (tx.tripId != null) return "trips";
   if (CAT_TO_MODULE[tx.cat]) return CAT_TO_MODULE[tx.cat];
-  if (Array.isArray(hobbies) && hobbies.some(h => !h.archived && txMatchesHobby(tx, h))) return "collections";
+  if (Array.isArray(hobbies) && hobbies.some(h => !h.archived && !h.movedToHobby && txMatchesHobby(tx, h))) return "collections";
   return "personal";
 }
 

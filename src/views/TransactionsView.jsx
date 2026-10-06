@@ -67,7 +67,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const [showSearch, setShowSearch] = useState(false);
   // Kolekcje, do których można przypisać wpis modułu Kolekcje — bez tego wpis
   // nie pojawia się w żadnej kolekcji (ani w jej wydatkach, ani w katalogu).
-  const activeCollections = (hobbies || []).filter(h => !h.archived && !isRulesOnlyElsewhere(h));
+  const activeCollections = (hobbies || []).filter(h => !h.archived && !h.movedToHobby && !isRulesOnlyElsewhere(h));
   const defaultCollectionId = () => {
     const last = transactions.find(tx => tx.hobbyId != null && activeCollections.some(h => h.id === tx.hobbyId));
     return last ? last.hobbyId : (activeCollections[0]?.id ?? null);
