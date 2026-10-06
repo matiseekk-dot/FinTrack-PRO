@@ -16,6 +16,7 @@ import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere } from "../lib/hobby.js";
 import { getModule } from "../lib/modules.js";
 import { guessHobby } from "../lib/hobbyMove.js";
+import { DiscogsModal } from "../components/DiscogsModal.jsx";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
@@ -111,6 +112,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   const linkedTxIds = useMemo(() => new Set(items.filter(i => i.buyTxId != null).map(i => i.buyTxId)), [items]);
   // Zakupy z kolekcji spoza katalogu (np. dodane w Wpisach) — do szybkiego dopisania
   const [pickFromLedger, setPickFromLedger] = useState(false);
+  const [discogsOpen, setDiscogsOpen] = useState(false);
   const offCatalog = useMemo(() => open
     ? getHobbyExpenses(transactions, open).filter(tx => !linkedTxIds.has(tx.id))
     : [], [open, transactions, linkedTxIds]);
@@ -412,6 +414,24 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             );
           })()}
 
+          {collectionKind(open) === "vinyl" && (() => {
+            const fromDiscogs = items.filter(it => it.hobbyId === open.id && it.discogs).length;
+            return (
+              <button onClick={() => setDiscogsOpen(true)} style={{
+                all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
+                background: "#0d1628", border: "1px solid #1a2744", display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1",
+              }}>
+                <Disc3 size={15} color={ACCENT}/>
+                <span style={{ flex: 1 }}>
+                  {fromDiscogs > 0
+                    ? t("discogs.cardSynced", "Z Discogs: {n} · dociągnij nowe płyty i wyceny").replace("{n}", fromDiscogs)
+                    : t("discogs.card", "Masz kolekcję na Discogs? Zaimportuj ją razem z wycenami")}
+                </span>
+                <ChevronRight size={14} color="#334155"/>
+              </button>
+            );
+          })()}
+
           {offCatalog.length > 0 && (
             <button onClick={() => setPickFromLedger(true)} style={{
               all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
@@ -473,7 +493,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             </div>
           )}
 
-          {onMoveToHobby && (
+          {onMoveToHobby && !items.some(it => it.hobbyId === open.id) && (
             <button onClick={() => onMoveToHobby(open.id)} style={{ width: "100%", marginTop: 26, background: "none", border: "1px solid #1a2744", borderRadius: 12, padding: 11, color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               {t("move.fromCollectionCta", "To nie kolekcja (subskrypcje, kino, koncerty)? Przenieś do Hobby")}
             </button>
@@ -646,6 +666,10 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           ))}
         </div>
       </Modal>
+
+      {discogsOpen && open && (
+        <DiscogsModal hobby={open} items={items} setItems={setItems} today={today} onClose={() => setDiscogsOpen(false)}/>
+      )}
 
       {hobbyForm && (
         <HobbyModal hobby={hobbyForm} setHobby={setHobbyForm} allCats={allCats} onClose={() => setHobbyForm(null)} onSave={saveCollection}/>
