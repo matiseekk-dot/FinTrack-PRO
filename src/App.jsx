@@ -115,7 +115,7 @@ function applyData(d, s) {
 }
 
 // Moduły z własnym ekranem; pozostałe otwierają przefiltrowane Wpisy
-const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby"];
+const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby", "trips"];
 
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
@@ -136,6 +136,9 @@ export default function App() {
   const [focusResaleItem, setFocusResaleItem] = useState(null);
   const [focusCollectionItem, setFocusCollectionItem] = useState(null);
   const [focusGig,     setFocusGig]     = useState(null);
+  const [focusTrip,    setFocusTrip]    = useState(null);
+  // Szybkie dodawanie wydatku do konkretnego wyjazdu (z ekranu Wyjazdów)
+  const [quickAddTrip, setQuickAddTrip] = useState(null);
   const [onboarded,    setOnboarded]    = useState(false);
   const [month,        setMonth]        = useState(new Date().getMonth());
   const [customCats,   setCustomCats]   = useState([]);
@@ -571,6 +574,7 @@ export default function App() {
     else if (tx.gigId != null) { setFocusGig(tx.gigId); setTab("freelance"); }
     else if (tx.collectionItemId != null) { setFocusCollectionItem(tx.collectionItemId); setTab("collections"); }
     else if (tx.subscriptionId != null) { setTab("hobby"); }
+    else if (tx.tripSettle) { setFocusTrip(tx.tripId); setTab("trips"); }
   };
   const moduleScreen = MODULE_SCREENS.includes(tab);
 
@@ -694,7 +698,9 @@ export default function App() {
         {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} month={viewMonth} onMonthChange={setViewMonth} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
         {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} collectionItems={collectionItems} setCollectionItems={setCollectionItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} month={viewMonth} onMonthChange={setViewMonth} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
           {tab === "hobby"        && <ErrorBoundary><HobbyCostsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} modules={enabledModules} subscriptions={subscriptions} setSubscriptions={setSubscriptionsTracked} onBack={() => setTab("home")} onAddExpense={() => { setQuickAddModule("hobby"); setQuickAddOpen(true); }} addSignal={moduleAddSignal} openAdd={addOnMount} month={viewMonth} onMonthChange={setViewMonth} setHobbies={setHobbiesTracked} collectionItems={collectionItems} moveFor={hobbyMoveFor} onMoveHandled={() => setHobbyMoveFor(null)}/></ErrorBoundary>}
-          {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} allCats={allCategories}/></ErrorBoundary>}
+          {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc}
+            onBack={() => setTab("home")} onAddExpense={(trip) => { setQuickAddModule("trips"); setQuickAddTrip(trip.id); setQuickAddOpen(true); }}
+            addSignal={moduleAddSignal} openAdd={addOnMount} focusTripId={focusTrip} onFocusHandled={() => setFocusTrip(null)}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} onBack={() => setTab("home")}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
       </div>
@@ -732,11 +738,11 @@ export default function App() {
       {quickAddOpen && (
         <TransactionsView
           transactions={transactions}
-          setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); setQuickAddModule(null); }}
-          setAccounts={setAccountsTracked} allCats={allCategories} presetModule={quickAddModule}
+          setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); setQuickAddModule(null); setQuickAddTrip(null); }}
+          setAccounts={setAccountsTracked} allCats={allCategories} presetModule={quickAddModule} presetTripId={quickAddTrip}
           _forceOpenModal={true}
-          _onClose={() => { setQuickAddOpen(false); setQuickAddModule(null); }}
-          _onModalClose={() => { setQuickAddOpen(false); setQuickAddModule(null); }}
+          _onClose={() => { setQuickAddOpen(false); setQuickAddModule(null); setQuickAddTrip(null); }}
+          _onModalClose={() => { setQuickAddOpen(false); setQuickAddModule(null); setQuickAddTrip(null); }}
           defaultAcc={defaultAcc}
           trips={trips}
           modules={enabledModules} hobbies={hobbies}

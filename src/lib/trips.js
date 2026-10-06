@@ -34,6 +34,7 @@
  */
 
 import { dateToLocal, todayLocal } from "../utils.js";
+import { txAmountForDisplay, amountForDisplay } from "./fx.js";
 
 const TRIP_BUFFER_DAYS = 3;
 
@@ -279,7 +280,104 @@ function migrateLegacyVacations() {
   return result.length > 0 ? result : null;
 }
 
+// ═══ v2.10: koszt „Twój” i rozliczenia ze znajomymi ═══════════════════════════
+//
+// trip.participants: [{ id, name }] — współtowarzysze (Ty to zawsze "me").
+// Twój wydatek na wyjeździe (tx.tripId) może mieć tx.tripSplit: ["me", "p1", …] —
+// z kim go dzielisz po równo. Wydatki, za które zapłacił ktoś inny, są w
+// trip.friendPaid: [{ id, date, desc, amount, currency, fxRate, paidBy, split, cat }]
+// (nie ruszają Twojego konta). Rozliczenia to wpisy z tx.tripSettle: { with: id }
+// i kategorią "inne": + oddano Tobie, − oddałeś Ty.
+
+const isSettlement = (tx) => !!(tx && tx.tripSettle);
+
+/** Wpisy wyjazdu (bez rozliczeń). */
+function tripEntries(transactions, tripId) {
+  return (transactions || []).filter(tx => tx && tx.tripId === tripId && !isSettlement(tx) && tx.cat !== "inne");
+}
+
+/**
+ * Twój koszt wyjazdu w PLN-ekwiwalencie dla fmtDisplay: Twoja część wspólnych wydatków,
+ * całość tych, których nie dzielisz, Twoja część tego, za co zapłacili inni, minus zwroty.
+ */
+function tripCost(trip, transactions) {
+  const out = { myCost: 0, paid: 0, friendShare: 0, byCategory: {}, byDay: {}, byCurrency: {}, count: 0 };
+  if (!trip) return out;
+  const add = (map, key, v) => { map[key] = (map[key] || 0) + v; };
+  for (const tx of tripEntries(transactions, trip.id)) {
+    const v = txAmountForDisplay(tx);
+    out.count += 1;
+    if (v >= 0) { out.myCost -= v; continue; } // zwrot (np. z rezerwacji)
+    const full = -v;
+    const split = Array.isArray(tx.tripSplit) && tx.tripSplit.length ? tx.tripSplit : ["me"];
+    const mine = split.includes("me") ? full / split.length : 0;
+    out.paid += full;
+    out.myCost += mine;
+    add(out.byCategory, tx.cat || "inne", mine);
+    add(out.byDay, tx.date, mine);
+    const cur = tx.origCurrency && tx.origAmount != null ? tx.origCurrency : "PLN";
+    const orig = tx.origCurrency && tx.origAmount != null ? Math.abs(tx.origAmount) : Math.abs(tx.amount);
+    out.byCurrency[cur] = out.byCurrency[cur] || { orig: 0, value: 0 };
+    out.byCurrency[cur].orig += orig; out.byCurrency[cur].value += full;
+  }
+  for (const e of trip.friendPaid || []) {
+    const split = Array.isArray(e.split) && e.split.length ? e.split : [e.paidBy];
+    if (!split.includes("me")) continue;
+    const share = amountForDisplay(e.amount, e.currency, e.fxRate) / split.length;
+    out.count += 1;
+    out.friendShare += share;
+    out.myCost += share;
+    add(out.byCategory, e.cat || "jedzenie", share);
+    add(out.byDay, e.date, share);
+  }
+  return out;
+}
+
+/**
+ * Bilans z każdą osobą: >0 — ta osoba oddaje Tobie, <0 — Ty oddajesz jej.
+ * Liczymy tylko długi z Tobą (apka jest Twoja); długi między znajomymi pomijamy.
+ */
+function tripBalances(trip, transactions) {
+  const people = (trip && trip.participants) || [];
+  const bal = Object.fromEntries(people.map(p => [p.id, 0]));
+  for (const tx of (transactions || []).filter(x => x && x.tripId === trip.id)) {
+    if (isSettlement(tx)) {
+      const p = tx.tripSettle.with;
+      if (p in bal) bal[p] += -txAmountForDisplay(tx); // dostałeś (+) → mniej Ci winien; oddałeś (−) → mniej jesteś winien
+      continue;
+    }
+    if (tx.cat === "inne" || tx.amount >= 0 || !Array.isArray(tx.tripSplit)) continue;
+    const full = -txAmountForDisplay(tx);
+    for (const p of tx.tripSplit) if (p !== "me" && p in bal) bal[p] += full / tx.tripSplit.length;
+  }
+  for (const e of trip.friendPaid || []) {
+    const split = Array.isArray(e.split) && e.split.length ? e.split : [e.paidBy];
+    if (!(e.paidBy in bal) || !split.includes("me")) continue;
+    bal[e.paidBy] -= amountForDisplay(e.amount, e.currency, e.fxRate) / split.length;
+  }
+  return people.map(p => ({ ...p, balance: Math.round(bal[p.id] * 100) / 100 }));
+}
+
+/** Liczba dni wyjazdu, dzień bieżący i dni do końca (włącznie z dziś). */
+function tripDays(trip, today = todayLocal()) {
+  const day = (a, b) => Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000);
+  const total = Math.max(1, day(trip.dateFrom, trip.dateTo) + 1);
+  const status = today < trip.dateFrom ? "upcoming" : today > trip.dateTo ? "past" : "active";
+  return {
+    total, status,
+    current: status === "active" ? day(trip.dateFrom, today) + 1 : null,
+    left: status === "active" ? day(today, trip.dateTo) + 1 : status === "upcoming" ? total : 0,
+    until: status === "upcoming" ? day(today, trip.dateFrom) : null,
+  };
+}
+
+/** Budżet w PLN-ekwiwalencie (stare wyjazdy: budżet w PLN). */
+function tripBudget(trip) {
+  return amountForDisplay(Number(trip.budget) || 0, trip.budgetCurrency || "PLN");
+}
+
 export {
+  tripCost, tripBalances, tripDays, tripBudget, tripEntries,
   DEFAULT_TRIP_COLORS,
   getActiveTrips,
   getSelectableTrips,

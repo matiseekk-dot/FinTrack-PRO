@@ -83,4 +83,24 @@ async function setAppShortcuts(items) {
   }).catch(() => {});
 }
 
-export { isNative, sitePage, openExternal, linkProps, shareFile, initNative, setAppShortcuts };
+/**
+ * Udostępnia tekst (np. rozliczenie wyjazdu): arkusz udostępniania w aplikacji i w
+ * przeglądarkach, które go mają; w pozostałych kopiuje do schowka. Zwraca "shared" | "copied" | null.
+ */
+async function shareText(text, title) {
+  try {
+    if (isNative) {
+      const { Share } = await import("@capacitor/share");
+      await Share.share({ title, text, dialogTitle: title });
+      return "shared";
+    }
+    if (navigator.share) { await navigator.share({ title, text }); return "shared"; }
+    await navigator.clipboard.writeText(text);
+    return "copied";
+  } catch (e) {
+    if (/cancel|abort/i.test(String(e && (e.message || e.name)))) return null;
+    try { await navigator.clipboard.writeText(text); return "copied"; } catch { return null; }
+  }
+}
+
+export { isNative, sitePage, openExternal, linkProps, shareFile, initNative, setAppShortcuts, shareText };

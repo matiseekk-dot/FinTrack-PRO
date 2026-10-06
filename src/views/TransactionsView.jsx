@@ -39,7 +39,7 @@ const catFor = (module, type, pickedCat) =>
     ? pickedCat
     : (MODULE_DEFAULT_CAT[module] && MODULE_DEFAULT_CAT[module][type]) || (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -60,7 +60,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const formModules = [
     ...SIDE_MODULES.filter(id => enabled.includes(id)),
     ...(enabled.includes("hobby") ? ["hobby"] : []),
-    ...(enabled.includes("trips") && selectableTrips.length > 0 ? ["trips"] : []),
+    ...((enabled.includes("trips") && selectableTrips.length > 0) || presetTripId != null ? ["trips"] : []),
   ];
   const filterModules = enabled.filter(id => id !== "personal" && MODULES[id]);
   const [editingId, setEditingId] = useState(null);
@@ -82,6 +82,8 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const moduleFields = (module, f = {}) => {
     const trip = module === "trips" ? ((trips || []).find(x => x.id === f.tripId) || defaultTrip()) : null;
     return {
+      // Wyjazd ze znajomymi: domyślnie dzielony po równo na całą ekipę
+      tripSplit: trip && (trip.participants || []).length ? ["me", ...trip.participants.map(p => p.id)] : null,
       module,
       type: INCOME_FIRST.includes(module) ? "income" : "expense",
       hobbyId: module === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null,
@@ -91,7 +93,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   };
   const getEmptyForm = () => {
     const module = formModules.includes(presetModule) ? presetModule : formModules.includes(modFilter) ? modFilter : lastModule();
-    return { date: todayLocal(), desc: "", amount: "", acc: defaultAcc, tripCat: "jedzenie", hobbyCat: "wydarzenia", currency: getDisplayCurrency(), ...moduleFields(module) };
+    return { date: todayLocal(), desc: "", amount: "", acc: defaultAcc, tripCat: "jedzenie", hobbyCat: "wydarzenia", currency: getDisplayCurrency(), ...moduleFields(module, { tripId: presetTripId }) };
   };
   // Formularz z istniejącego wpisu (edycja albo kopia)
   const formFromTx = (tx, copy) => {
@@ -104,7 +106,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       acc: tx.acc ?? defaultAcc,
       type: tx.amount > 0 ? "income" : "expense",
       currency: hasFx ? tx.origCurrency : "PLN",
-      module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null,
+      module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null, tripSplit: Array.isArray(tx.tripSplit) ? tx.tripSplit : null,
       tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
       hobbyCat: HOBBY_CATS.includes(tx.cat) ? tx.cat : "wydarzenia",
     };
@@ -188,8 +190,11 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
     const amt    = form.type === "expense" ? -rawAmt : rawAmt;
     const txData = { date: form.date, desc: form.desc, amount: parseFloat(amt.toFixed(2)), cat: finalCat, acc: parseInt(form.acc) || defaultAcc, module: form.module };
     // Wyjazd i kolekcja tylko w swoich modułach (edycja czyści stare przypisanie)
-    if (form.module === "trips" && form.tripId != null) txData.tripId = form.tripId;
-    else if (editingId) txData.tripId = null;
+    if (form.module === "trips" && form.tripId != null) {
+      txData.tripId = form.tripId;
+      const split = Array.isArray(form.tripSplit) ? form.tripSplit : null;
+      txData.tripSplit = split && (split.length > 1 || (split.length === 1 && split[0] !== "me")) ? split : null;
+    } else if (editingId) { txData.tripId = null; txData.tripSplit = null; }
     if (form.module === "collections" && form.hobbyId != null) txData.hobbyId = form.hobbyId;
     else if (editingId) txData.hobbyId = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
@@ -411,7 +416,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
                 const nativeAmt = Math.abs(nativeCur === "PLN" ? tx.amount : tx.origAmount);
                 const mainAmt = nativeCur === dispCur ? fmtCurrency(nativeAmt, dispCur) : fmtDisplay(Math.abs(tx.amount));
                 // Wpis kuponu albo przedmiotu: edycja w ekranie modułu, żeby kurs/prowizja zgadzały się z kwotą
-                const linked = !!onOpenLinked && (!!tx.bet || !!tx.betTransfer || tx.resaleItemId != null || tx.gigId != null || tx.collectionItemId != null || tx.subscriptionId != null);
+                const linked = !!onOpenLinked && (!!tx.bet || !!tx.betTransfer || !!tx.tripSettle || tx.resaleItemId != null || tx.gigId != null || tx.collectionItemId != null || tx.subscriptionId != null);
                 return (
                   <div key={tx.id}
                     style={{
@@ -621,6 +626,26 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
                 ))}
               </div>
             </div>
+            {form.type === "expense" && (() => {
+              const trip = (trips || []).find(x => x.id === form.tripId);
+              const people = (trip && trip.participants) || [];
+              if (!people.length) return null;
+              const split = Array.isArray(form.tripSplit) ? form.tripSplit : ["me"];
+              const toggle = (id) => setForm(f => {
+                const cur = Array.isArray(f.tripSplit) ? f.tripSplit : ["me"];
+                return { ...f, tripSplit: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+              });
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={labelStyle}>{t("trips.splitWith", "Podziel po równo z")}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[{ id: "me", name: t("trips.me", "Ja") }, ...people].map(p => (
+                      <button key={p.id} type="button" aria-pressed={split.includes(p.id)} onClick={() => toggle(p.id)} style={chip(split.includes(p.id), trip.color || "#3b82f6")}>{p.name}</button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {form.type === "expense" && (
               <div style={{ marginBottom: 14 }}>
                 <div style={labelStyle}>{t("tx.trip.category", "Na co")}</div>

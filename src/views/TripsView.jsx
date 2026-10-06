@@ -1,742 +1,601 @@
-import { useState, useMemo } from "react";
-import {
-  Plane, Plus, X, Calendar, ChevronRight, ChevronLeft, Trash2, Edit2, Archive as ArchiveIcon, RotateCcw, Tag
-} from "lucide-react";
-import { Card } from "../components/ui/Card.jsx";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plane, Plus, Pencil, Trash2, Archive, RotateCcw, UserPlus, Share2, Check, ChevronRight, ChevronLeft, X, Users } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
-import { Input } from "../components/ui/Input.jsx";
-import { Stat, iconBtn, YoYBars, ColorPicker } from "../components/PlansShared.jsx";
-import { fmt, fmtDisplay, todayLocal, fmtCurrency } from "../utils.js";
-import {
-  groupTrips, getTripSpending, getTripSpendingByCurrency,
-  getYearlyTripsSummary, getTripsTrendYoY,
-  pickTripColor, DEFAULT_TRIP_COLORS, migrateLegacyVacations,
-} from "../lib/trips.js";
+import { Input, Select } from "../components/ui/Input.jsx";
+import { Toast } from "../components/ui/Toast.jsx";
+import { useToast } from "../hooks/useToast.js";
+import { card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, Chip, Stat, ModuleHeader, EmptyCard, CheckRow, num } from "../components/ModuleUI.jsx";
+import { ColorPicker } from "../components/PlansShared.jsx";
+import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
+import { t, getLang } from "../i18n.js";
+import { MODULES, moduleLabel } from "../lib/modules.js";
+import { getDisplayCurrency, getRate, convert, SUPPORTED_CURRENCIES, txAmountForDisplay } from "../lib/fx.js";
+import { newId, rateOnDate, makeTx, commitTxChanges } from "../lib/ledger.js";
 import { getCat } from "../constants.js";
-import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { CategoryTxModal } from "../components/CategoryTxModal.jsx";
-import { t } from "../i18n.js";
+import { shareText } from "../lib/native.js";
+import {
+  groupTrips, pickTripColor, DEFAULT_TRIP_COLORS, migrateLegacyVacations,
+  tripCost, tripBalances, tripDays, tripBudget,
+} from "../lib/trips.js";
 
-function TripsView({ trips, setTrips, transactions, setTransactions, allCats }) {
-  const [modalTrip, setModalTrip] = useState(null);  // null | {} (edit/new)
+const ACCENT = MODULES.trips.color;
+const TRIP_CATS = ["noclegi", "jedzenie", "transport", "rozrywka", "zakupy", "kawiarnia", "alkohol", "prezenty", "zdrowie"];
+const ME = "me";
+
+const progressColor = (ratio) => ratio >= 1 ? "#f87171" : ratio >= 0.85 ? "#fbbf24" : ACCENT;
+
+/**
+ * Wyjazdy: budżet dzienny w trakcie, szybkie dodawanie wydatku w walucie wyjazdu
+ * i rozliczenie ze znajomymi (kto komu oddaje). Wydatki to zwykłe wpisy z tripId.
+ */
+function TripsView({ trips = [], setTrips, transactions = [], setTransactions, setAccounts, defaultAcc = 1,
+  onBack, onAddExpense, addSignal = 0, openAdd = false, focusTripId = null, onFocusHandled }) {
+  const today = todayLocal();
+  const { toast, showToast } = useToast();
   const [detailsId, setDetailsId] = useState(null);
-  const [year, setYear] = useState(new Date().getFullYear());
-  // v1.5.1: drill-down kategorii w TripDetails. Trzymamy { tripId, catId } żeby
-  // modal wiedział z którego wyjazdu filtrować tx.
-  const [drilldown, setDrilldown] = useState(null); // null | { tripId, catId }
+  const [modalTrip, setModalTrip] = useState(null);
+  const [pastYear, setPastYear] = useState(null);
 
-  // One-shot migracja: jeśli trips puste a stare vacation/vacationArchive są - zaproponuj
-  const migrationCandidate = useMemo(() => {
-    if (Array.isArray(trips) && trips.length > 0) return null;
-    return migrateLegacyVacations();
-  }, [trips]);
+  const migrationCandidate = useMemo(() => (trips.length > 0 ? null : migrateLegacyVacations()), [trips]);
+  const grouped = useMemo(() => groupTrips(trips, today), [trips, today]);
+  const costs = useMemo(() => Object.fromEntries(trips.map(tr => [tr.id, tripCost(tr, transactions)])), [trips, transactions, getDisplayCurrency()]);
 
-  const grouped = useMemo(() => groupTrips(trips || [], todayLocal()), [trips]);
-  const summary = useMemo(() => getYearlyTripsSummary(trips || [], transactions || [], year), [trips, transactions, year]);
-  const yoyTrend = useMemo(() => getTripsTrendYoY(trips || [], transactions || []), [trips, transactions]);
+  useEffect(() => {
+    if (focusTripId == null) return;
+    if (trips.some(x => x.id === focusTripId)) setDetailsId(focusTripId);
+    if (onFocusHandled) onFocusHandled();
+  }, [focusTripId]);
 
-  const openNew = () => {
-    setModalTrip({
-      id: null,
-      name: "", dateFrom: todayLocal(), dateTo: todayLocal(),
-      budget: "", color: pickTripColor(trips || []),
-      notes: "", archived: false,
-      defaultCurrency: "PLN",
-    });
-  };
+  const openNew = () => setModalTrip({
+    id: null, name: "", dateFrom: today, dateTo: today, budget: "", budgetCurrency: getDisplayCurrency(),
+    color: pickTripColor(trips), notes: "", archived: false, defaultCurrency: getDisplayCurrency(),
+  });
+  const openEdit = (trip) => setModalTrip({ ...trip, budget: trip.budget ? String(trip.budget) : "", budgetCurrency: trip.budgetCurrency || "PLN", defaultCurrency: trip.defaultCurrency || "PLN" });
 
-  const openEdit = (trip) => {
-    setModalTrip({
-      ...trip,
-      budget: String(trip.budget || ""),
-      defaultCurrency: trip.defaultCurrency || "PLN",
-    });
-  };
+  // Przycisk + z paska: wydatek do otwartego / trwającego wyjazdu, inaczej nowy wyjazd
+  const firstAddSignal = useRef(openAdd ? null : addSignal);
+  useEffect(() => {
+    if (addSignal === firstAddSignal.current) return;
+    const target = trips.find(x => x.id === detailsId) || grouped.active[0];
+    if (target && onAddExpense) onAddExpense(target); else openNew();
+  }, [addSignal]);
 
   const saveTrip = () => {
-    if (!modalTrip) return;
-    if (!modalTrip.name.trim()) return;
+    const m = modalTrip;
+    if (!m || !m.name.trim()) return;
+    if (m.dateTo < m.dateFrom) { showToast(t("trips.err.dates", "Koniec nie może być przed początkiem"), "error"); return; }
     const payload = {
-      id: modalTrip.id || Date.now(),
-      name: modalTrip.name.trim(),
-      dateFrom: modalTrip.dateFrom,
-      dateTo: modalTrip.dateTo,
-      budget: parseFloat(String(modalTrip.budget).replace(",", ".")) || 0,
-      color: modalTrip.color,
-      notes: modalTrip.notes || "",
-      archived: !!modalTrip.archived,
-      defaultCurrency: modalTrip.defaultCurrency || "PLN",
-      createdAt: modalTrip.createdAt || new Date().toISOString(),
+      ...(trips.find(x => x.id === m.id) || {}),
+      id: m.id || Date.now(), name: m.name.trim(), dateFrom: m.dateFrom, dateTo: m.dateTo,
+      budget: num(m.budget) > 0 ? num(m.budget) : 0, budgetCurrency: m.budgetCurrency || "PLN",
+      color: m.color, notes: m.notes || "", archived: !!m.archived,
+      defaultCurrency: m.defaultCurrency || "PLN", createdAt: m.createdAt || new Date().toISOString(),
     };
-    if (modalTrip.id) {
-      setTrips(trips.map(t => t.id === modalTrip.id ? payload : t));
-    } else {
-      setTrips([...(trips || []), payload]);
-    }
+    setTrips(m.id ? trips.map(x => x.id === m.id ? payload : x) : [...trips, payload]);
     setModalTrip(null);
+    if (!m.id) setDetailsId(payload.id);
   };
-
-  const deleteTrip = (id) => {
+  const deleteTrip = (trip) => {
     if (!window.confirm(t("trips.deleteConfirm"))) return;
-    // Usuń trip + wyczyść tripId z tx (zachowując same tx)
-    setTrips(trips.filter(t => t.id !== id));
-    if (Array.isArray(transactions) && setTransactions) {
-      setTransactions(transactions.map(t =>
-        t.tripId === id ? { ...t, tripId: null } : t
-      ));
-    }
-    if (detailsId === id) setDetailsId(null);
+    setTrips(trips.filter(x => x.id !== trip.id));
+    setTransactions(prev => prev.map(tx => tx.tripId === trip.id ? { ...tx, tripId: null } : tx));
+    setModalTrip(null);
+    setDetailsId(null);
   };
+  const updateTrip = (id, patch) => setTrips(prev => prev.map(x => x.id === id ? { ...x, ...(typeof patch === "function" ? patch(x) : patch) } : x));
 
-  const toggleArchive = (id) => {
-    setTrips(trips.map(t => t.id === id ? { ...t, archived: !t.archived } : t));
-  };
-
-  const performMigration = () => {
-    if (!migrationCandidate) return;
-    setTrips(migrationCandidate);
-  };
-
-  // v1.2.10 fix: Modal MUSI renderować się niezależnie od detailsId, bo openEdit
-  // jest wywołane z TripDetails i ustawia modalTrip w stanie głównego TripsView.
-  // Wcześniej był early return przed Modal → modalTrip ustawiony, ale Modal nigdy
-  // nie renderowany → "edycja nie działa".
   const modalNode = modalTrip && (
-    <TripModal
-      trip={modalTrip}
-      setTrip={setModalTrip}
-      onClose={() => setModalTrip(null)}
-      onSave={saveTrip}
-    />
+    <TripModal trip={modalTrip} setTrip={setModalTrip} onClose={() => setModalTrip(null)} onSave={saveTrip}
+      onDelete={modalTrip.id ? () => deleteTrip(modalTrip) : null}
+      onArchive={modalTrip.id ? () => { updateTrip(modalTrip.id, { archived: !modalTrip.archived }); setModalTrip(null); } : null}/>
   );
 
-  if (detailsId) {
-    const trip = (trips || []).find(t => t.id === detailsId);
-    if (trip) return (
-      <>
-        <TripDetails
-          trip={trip}
-          transactions={transactions}
-          setTransactions={setTransactions}
-          allCats={allCats}
-          onBack={() => setDetailsId(null)}
-          onEdit={() => openEdit(trip)}
-          onDelete={() => { deleteTrip(trip.id); }}
-          onArchiveToggle={() => toggleArchive(trip.id)}
-          onDrilldownCategory={(catId) => setDrilldown({ tripId: trip.id, catId })}
-        />
-        {modalNode}
-        {/* v1.5.1: drill-down modal filtrowany do tx tego wyjazdu */}
-        <CategoryTxModal
-          open={drilldown !== null && drilldown.tripId === trip.id}
-          onClose={() => setDrilldown(null)}
-          categoryId={drilldown?.catId}
-          transactions={(transactions || []).filter(t => t.tripId === trip.id)}
-          allCats={allCats}
-          title={`Wyjazd: ${trip.name}`}
-        />
-      </>
-    );
-  }
+  const open = detailsId != null ? trips.find(x => x.id === detailsId) : null;
+  if (open) return (
+    <>
+      <TripDetails trip={open} cost={costs[open.id]} transactions={transactions} setTransactions={setTransactions} setAccounts={setAccounts}
+        defaultAcc={defaultAcc} today={today} updateTrip={(p) => updateTrip(open.id, p)} showToast={showToast}
+        onBack={() => setDetailsId(null)} onEdit={() => openEdit(open)} onAddExpense={() => onAddExpense && onAddExpense(open)}/>
+      {modalNode}
+      <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
+    </>
+  );
+
+  // Lata zakończonych wyjazdów (filtr listy)
+  const pastYears = [...new Set(grouped.past.map(x => (x.dateFrom || "").slice(0, 4)))].filter(Boolean).sort().reverse();
+  const yearShown = pastYear || pastYears[0];
+  const pastList = grouped.past.filter(x => (x.dateFrom || "").startsWith(yearShown || ""));
+  const yearCost = pastList.reduce((s, x) => s + (costs[x.id]?.myCost || 0), 0);
+  const yearDays = pastList.reduce((s, x) => s + tripDays(x, today).total, 0);
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
-      {/* Header z przyciskiem dodawania */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {t("trips.title", "Wyjazdy")}
-        </div>
-        <button onClick={openNew} style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
-          borderRadius: 10, padding: "8px 14px", color: "white",
-          fontWeight: 700, fontSize: 13, cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>
-          <Plus size={14}/> {t("trips.add")}
-        </button>
-      </div>
+      <ModuleHeader Icon={Plane} color={ACCENT} title={moduleLabel("trips")} onBack={onBack} addLabel={t("trips.addShort", "Wyjazd")} onAdd={openNew}/>
 
-      {/* Migracja sugestia */}
-      {migrationCandidate && (!trips || trips.length === 0) && (
-        <div style={{
-          background: "#0d1f35", border: "1px solid #2563eb44",
-          borderRadius: 12, padding: "12px 14px", marginBottom: 14,
-          fontSize: 12, color: "#cbd5e1", lineHeight: 1.5,
-        }}>
-          <div style={{ fontWeight: 700, color: "#60a5fa", marginBottom: 6 }}>
-            🛫 {t("trips.legacyDetected", "Wykryto stare dane z poprzedniej wersji")}
-          </div>
-          {t("trips.legacyPrompt", "Znaleźliśmy 1 wyjazd z poprzedniej wersji apki. Czy go zaimportować?")}
-          <button onClick={performMigration} style={{
-            marginTop: 10, background: "#1e3a5f", border: "1px solid #2563eb",
-            borderRadius: 8, padding: "6px 12px", color: "#60a5fa",
-            fontSize: 12, fontWeight: 700, cursor: "pointer",
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}>
-            {t("trips.import", "Importuj")}
-          </button>
+      {migrationCandidate && (
+        <div style={{ ...card, padding: 14, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 10 }}>{t("trips.legacyPrompt", "Znaleźliśmy 1 wyjazd z poprzedniej wersji apki. Czy go zaimportować?")}</div>
+          <button onClick={() => setTrips(migrationCandidate)} style={primaryBtn}>{t("trips.import", "Importuj")}</button>
         </div>
       )}
 
-      {/* YoY summary i year nav */}
-      {(trips || []).length > 0 && (
-        <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setYear(y => y - 1)} style={{
-                background: "#0a1120", border: "1px solid #1a2744", borderRadius: 8,
-                padding: "5px 8px", cursor: "pointer", color: "#64748b",
-                display: "flex", alignItems: "center",
-              }}>
-                <ChevronLeft size={14}/>
-              </button>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", minWidth: 50, textAlign: "center" }}>
-                {year}
-              </div>
-              <button onClick={() => setYear(y => y + 1)} style={{
-                background: "#0a1120", border: "1px solid #1a2744", borderRadius: 8,
-                padding: "5px 8px", cursor: "pointer", color: "#64748b",
-                display: "flex", alignItems: "center",
-              }}>
-                <ChevronRight size={14}/>
-              </button>
-            </div>
-            <div style={{ fontSize: 11, color: "#475569" }}>
-              {t("trips.countLabel", "Wyjazdy: {n}").replace("{n}", summary.trips.length)}
-            </div>
-          </div>
+      {grouped.active.map(trip => (
+        <ActiveTripCard key={trip.id} trip={trip} cost={costs[trip.id]} today={today} onOpen={() => setDetailsId(trip.id)} onAdd={() => onAddExpense && onAddExpense(trip)}/>
+      ))}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <Stat label={t("trips.spent")} value={fmtDisplay(summary.totalSpent)} color="#ef4444"/>
-            <Stat label={t("trips.budget")} value={summary.totalBudget > 0 ? fmtDisplay(summary.totalBudget) : "—"} color="#3b82f6"/>
-            <Stat
-              label={t("trips.remaining")}
-              value={summary.totalBudget > 0 ? fmtDisplay(summary.totalBudget - summary.totalSpent) : "—"}
-              color={summary.totalBudget - summary.totalSpent >= 0 ? "#10b981" : "#ef4444"}
-            />
-          </div>
-
-          {/* Mini YoY chart */}
-          {yoyTrend.length >= 2 && (
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #1a2744" }}>
-              <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-                Trend rok-do-roku
-              </div>
-              <YoYBars data={yoyTrend}/>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Aktywne */}
-      {grouped.active.length > 0 && (
-        <SectionTitle label={"🟢 " + t("trips.active")}>
-          {grouped.active.map(trip => (
-            <TripCard key={trip.id} trip={trip} transactions={transactions}
-              onClick={() => setDetailsId(trip.id)}/>
-          ))}
-        </SectionTitle>
-      )}
-
-      {/* Nadchodzące */}
-      {grouped.upcoming.length > 0 && (
-        <SectionTitle label={"📅 " + t("trips.upcoming")}>
-          {grouped.upcoming.map(trip => (
-            <TripCard key={trip.id} trip={trip} transactions={transactions}
-              onClick={() => setDetailsId(trip.id)}/>
-          ))}
-        </SectionTitle>
-      )}
-
-      {/* Archiwum */}
-      {grouped.past.length > 0 && (
-        <SectionTitle label={"📦 " + t("trips.past")}>
-          {grouped.past.map(trip => (
-            <TripCard key={trip.id} trip={trip} transactions={transactions}
-              onClick={() => setDetailsId(trip.id)} dimmed/>
-          ))}
-        </SectionTitle>
-      )}
-
-      {/* Empty state */}
-      {(trips || []).length === 0 && !migrationCandidate && (
-        <div style={{
-          textAlign: "center", padding: "40px 20px", marginTop: 20,
-          background: "#0a1120", borderRadius: 16, border: "1px dashed #1a2744",
-        }}>
-          <Plane size={36} color="#475569" style={{ marginBottom: 12 }}/>
-          <div style={{ fontSize: 14, color: "#cbd5e1", fontWeight: 700, marginBottom: 4 }}>
-            {t("trips.empty")}
-          </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-            {t("trips.emptyDesc")}
-          </div>
-          <button onClick={openNew} style={{
-            background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
-            borderRadius: 10, padding: "9px 16px", color: "white",
-            fontWeight: 700, fontSize: 13, cursor: "pointer",
-            fontFamily: "'Space Grotesk', sans-serif",
-            display: "inline-flex", alignItems: "center", gap: 6,
-          }}>
-            <Plus size={14}/> {t("trips.add")}
-          </button>
+      {grouped.upcoming.length > 0 && <>
+        <div style={sectionTitle}>{t("trips.upcoming")}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {grouped.upcoming.map(trip => {
+            const d = tripDays(trip, today);
+            const c = costs[trip.id];
+            return (
+              <TripRow key={trip.id} trip={trip} onClick={() => setDetailsId(trip.id)}
+                sub={`${fmtRange(trip)} · ${inDaysLabel(d.until)}`}
+                right={c && c.myCost > 0 ? fmtDisplay(c.myCost) : tripBudget(trip) > 0 ? fmtDisplay(tripBudget(trip)) : "—"}
+                rightLabel={c && c.myCost > 0 ? t("trips.booked", "już wydane") : t("trips.budget")}/>
+            );
+          })}
         </div>
-      )}
+      </>}
 
-      {/* Modal add/edit (shared z gałęzią detailsId) */}
-      {modalNode}
-    </div>
-  );
-}
-
-// ═══ COMPONENTS ═══
-// Stat, YoYBars, iconBtn, ColorPicker — patrz src/components/PlansShared.jsx
-// (wspólne z HobbyView, jeden kanon).
-
-function SectionTitle({ label, children }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#475569",
-        textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-        {label}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function TripCard({ trip, transactions, onClick, dimmed = false }) {
-  const spending = useMemo(() => getTripSpending(transactions, trip.id), [transactions, trip.id]);
-  const budget = trip.budget || 0;
-  const pct = budget > 0 ? Math.min(100, (spending.total / budget) * 100) : 0;
-  const overBudget = budget > 0 && spending.total > budget;
-
-  return (
-    <button onClick={onClick} style={{
-      width: "100%", textAlign: "left", cursor: "pointer",
-      background: dimmed ? "#0a1120" : "#0d1628",
-      border: `1px solid ${dimmed ? "#1a2744" : trip.color + "44"}`,
-      borderRadius: 14, padding: "14px 16px",
-      fontFamily: "'Space Grotesk', sans-serif",
-      opacity: dimmed ? 0.7 : 1,
-      transition: "all 0.15s ease",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: trip.color + "22", border: `1px solid ${trip.color}66`,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <Plane size={16} color={trip.color}/>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {trip.name}
-            </div>
-            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-              {trip.dateFrom} — {trip.dateTo}
-            </div>
-          </div>
+      {grouped.past.length > 0 && <>
+        <div style={{ ...sectionTitle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{t("trips.past")}</span>
         </div>
-        <ChevronRight size={16} color="#475569"/>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
-        <div>
-          <span style={{ color: "#64748b" }}>{t("trips.spent")}: </span>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700,
-            color: overBudget ? "#ef4444" : "#e2e8f0" }}>
-            {fmtDisplay(spending.total)}
-          </span>
-        </div>
-        {budget > 0 && (
-          <div style={{ color: "#64748b", fontSize: 11 }}>
-            z {fmtDisplay(budget)}
+        {pastYears.length > 1 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+            {pastYears.map(y => <Chip key={y} on={y === yearShown} color={ACCENT} onClick={() => setPastYear(y)}>{y}</Chip>)}
           </div>
         )}
-      </div>
-
-      {budget > 0 && (
-        <div style={{ marginTop: 8, background: "#060b14", borderRadius: 4, height: 4, overflow: "hidden" }}>
-          <div style={{
-            width: pct + "%", height: "100%",
-            background: overBudget ? "#ef4444" : trip.color,
-            transition: "width 0.5s",
-          }}/>
+        <div style={{ fontSize: 12, color: "#94a3b8", margin: "0 2px 8px" }}>
+          {t("trips.yearLine", "Wyjazdy: {n} · {amount} · średnio {perDay} dziennie")
+            .replace("{n}", pastList.length).replace("{amount}", fmtDisplay(yearCost)).replace("{perDay}", fmtDisplay(yearDays ? yearCost / yearDays : 0))}
         </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {pastList.map(trip => {
+            const c = costs[trip.id];
+            const d = tripDays(trip, today);
+            return (
+              <TripRow key={trip.id} trip={trip} dimmed={trip.archived} onClick={() => setDetailsId(trip.id)}
+                sub={`${fmtRange(trip)} · ${daysLabel(d.total)} · ${fmtDisplay((c?.myCost || 0) / d.total)}/${t("trips.dayShort", "dzień")}`}
+                right={fmtDisplay(c?.myCost || 0)} rightLabel={t("trips.yourCost", "Twój koszt")}/>
+            );
+          })}
+        </div>
+      </>}
+
+      {trips.length === 0 && !migrationCandidate && (
+        <EmptyCard title={t("trips.empty")} desc={t("trips.emptyDesc2", "Dodaj wyjazd: budżet, wydatki w lokalnej walucie i rozliczenie ze znajomymi — kto komu ile oddaje.")} cta={t("trips.addShort", "Wyjazd")} onCta={openNew}/>
       )}
+
+      {modalNode}
+      <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
+    </div>
+  );
+}
+
+// „1 dzień”, „5 dni”; „jutro” zamiast „za 1 dni”
+const daysLabel = (n) => n === 1 ? t("trips.oneDay", "1 dzień") : t("trips.daysN", "{n} dni").replace("{n}", n);
+const inDaysLabel = (n) => n === 1 ? t("sub.when.tomorrow", "jutro") : t("trips.inDays", "za {n} dni").replace("{n}", n);
+
+function fmtRange(trip) {
+  const f = (d) => (d || "").slice(5).split("-").reverse().join(".");
+  return trip.dateFrom === trip.dateTo ? f(trip.dateFrom) : `${f(trip.dateFrom)}–${f(trip.dateTo)}`;
+}
+
+function TripRow({ trip, sub, right, rightLabel, onClick, dimmed }) {
+  return (
+    <button onClick={onClick} style={{ all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", ...card, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, opacity: dimmed ? 0.6 : 1 }}>
+      <span style={{ width: 10, height: 36, borderRadius: 4, background: trip.color || ACCENT, flexShrink: 0 }}/>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{trip.name}</span>
+        <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>
+      </span>
+      <span style={{ textAlign: "right", flexShrink: 0 }}>
+        <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{rightLabel}</span>
+        <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700 }}>{right}</span>
+      </span>
+      <ChevronRight size={14} color="#334155"/>
     </button>
   );
 }
 
-function TripDetails({ trip, transactions, setTransactions, allCats, onBack, onEdit, onDelete, onArchiveToggle, onDrilldownCategory }) {
-  const spending = useMemo(() => getTripSpending(transactions, trip.id), [transactions, trip.id]);
-  const currencyBreakdown = useMemo(
-    () => getTripSpendingByCurrency(transactions, trip.id),
-    [transactions, trip.id]
-  );
-  const tripTxs = useMemo(() => (transactions || [])
-    .filter(t => t.tripId === trip.id)
-    .sort((a, b) => (b.date || "").localeCompare(a.date || "")),
-  [transactions, trip.id]);
+/** Budżet na resztę wyjazdu: ile zostało na dzień i ile wydano dziś. */
+function dailyNumbers(trip, cost, today) {
+  const d = tripDays(trip, today);
+  const budget = tripBudget(trip);
+  const spentToday = (cost && cost.byDay[today]) || 0;
+  const remaining = budget - (cost ? cost.myCost : 0);
+  const perDayLeft = budget > 0 && d.left > 0 ? (remaining + spentToday) / d.left : null;
+  return { d, budget, spentToday, remaining, perDayLeft };
+}
 
-  const budget = trip.budget || 0;
-  const remaining = budget - spending.total;
-
-  const removeTagFromTx = (txId) => {
-    if (!setTransactions) return;
-    setTransactions(transactions.map(tx => tx.id === txId ? { ...tx, tripId: null } : tx));
-  };
-
+function ActiveTripCard({ trip, cost, today, onOpen, onAdd }) {
+  const { d, budget, spentToday, perDayLeft } = dailyNumbers(trip, cost, today);
+  const spent = cost ? cost.myCost : 0;
+  const ratio = budget > 0 ? spent / budget : 0;
   return (
-    <div style={{ padding: "0 16px 100px" }}>
-      {/* Header */}
-      <button onClick={onBack} style={{
-        background: "none", border: "none", color: "#60a5fa", fontSize: 13,
-        cursor: "pointer", padding: "0 0 12px 0", display: "flex", alignItems: "center", gap: 4,
-        fontFamily: "'Space Grotesk', sans-serif",
-      }}>
-        <ChevronLeft size={14}/> {t("common.back", "Wstecz")}
-      </button>
-
-      <Card style={{ padding: "18px 20px", marginBottom: 14, borderColor: trip.color + "66" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: trip.color + "22", border: `1px solid ${trip.color}66`,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}>
-              <Plane size={18} color={trip.color}/>
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 18, color: "#e2e8f0" }}>
-                {trip.name}
-              </div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2,
-                display: "flex", alignItems: "center", gap: 4 }}>
-                <Calendar size={11}/> {trip.dateFrom} — {trip.dateTo}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={onEdit} title={t("common.edit", "Edytuj")} style={iconBtn}><Edit2 size={14}/></button>
-            <button onClick={onArchiveToggle} title={trip.archived ? t("trips.restore", "Przywróć") : t("trips.archive", "Archiwum")} style={iconBtn}>
-              {trip.archived ? <RotateCcw size={14}/> : <ArchiveIcon size={14}/>}
-            </button>
-            <button onClick={onDelete} title={t("common.delete", "Usuń")} style={{...iconBtn, color: "#ef4444"}}>
-              <Trash2 size={14}/>
-            </button>
-          </div>
+    <div style={{ ...heroCard, borderColor: (trip.color || ACCENT) + "66", marginBottom: 12 }}>
+      <button onClick={onOpen} style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <span style={{ ...heroLabel, color: "#34d399" }}>● {t("trips.now", "Trwa teraz")} · {t("trips.dayOf", "dzień {n} z {total}").replace("{n}", d.current).replace("{total}", d.total)}</span>
+          <ChevronRight size={14} color="#475569"/>
         </div>
-
-        {trip.notes && (
-          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12,
-            padding: "10px 12px", background: "#060b14", borderRadius: 8 }}>
-            {trip.notes}
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <Stat label={t("trips.spent")}     value={fmtDisplay(spending.total)}      color="#ef4444"/>
-          <Stat label={t("trips.budget")}    value={budget > 0 ? fmtDisplay(budget) : "—"} color="#3b82f6"/>
-          <Stat
-            label={t("trips.remaining")}
-            value={budget > 0 ? fmtDisplay(remaining) : "—"}
-            color={remaining >= 0 ? "#10b981" : "#ef4444"}
-          />
+        <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{trip.name}</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          <Stat label={t("trips.yourCost", "Twój koszt")} value={fmtDisplay(spent)}/>
+          <Stat label={t("trips.today", "Dziś")} value={fmtDisplay(spentToday)}/>
+          <Stat label={t("trips.perDayLeft", "Na dzień")} value={perDayLeft != null ? fmtDisplay(Math.max(0, perDayLeft)) : "—"} color={perDayLeft != null && perDayLeft < spentToday ? "#f87171" : "#34d399"}/>
         </div>
-
         {budget > 0 && (
-          <div style={{ marginTop: 12, background: "#060b14", borderRadius: 4, height: 6, overflow: "hidden" }}>
-            <div style={{
-              width: Math.min(100, (spending.total / budget) * 100) + "%",
-              height: "100%",
-              background: spending.total > budget ? "#ef4444" : trip.color,
-            }}/>
+          <div style={{ height: 6, borderRadius: 3, background: "#060b14", marginTop: 12, overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(100, ratio * 100)}%`, height: "100%", background: progressColor(ratio), borderRadius: 3 }}/>
           </div>
         )}
-      </Card>
-
-      {/* v1.4.1: Wydatki według waluty — pokazuje gdy są transakcje w nie-PLN
-          albo w wielu walutach. Dla wyjazdu PLN-only nie pokazuje (zbędne). */}
-      {(() => {
-        const entries = Object.entries(currencyBreakdown.byCurrency);
-        const nonPlnCount = entries.filter(([cur]) => cur !== "PLN").length;
-        if (nonPlnCount === 0) return null; // wyjazd 100% w PLN — brak sekcji
-        return (
-          <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
-              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-              💱 {t("trips.byCurrency", "Wydatki według waluty")}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {entries
-                .sort((a, b) => b[1].pln - a[1].pln)
-                .map(([cur, { orig, pln }]) => (
-                  <div key={cur} style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "8px 10px", background: "#060b14", borderRadius: 8,
-                  }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>
-                        {cur}
-                      </div>
-                      {cur !== "PLN" && (
-                        <div style={{ fontSize: 10, color: "#64748b", marginTop: 1,
-                          fontFamily: "'DM Mono', monospace" }}>
-                          {fmtCurrency(orig, cur)}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13,
-                      fontWeight: 700, color: trip.color, flexShrink: 0 }}>
-                      {fmtDisplay(pln)}
-                    </div>
-                  </div>
-                ))}
-            </div>
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2744",
-              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8",
-                textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {t("trips.totalConverted", "Łącznie (po przeliczeniu)")}
-              </span>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15,
-                fontWeight: 800, color: "#e2e8f0" }}>
-                {fmtDisplay(currencyBreakdown.totalPLN)}
-              </span>
-            </div>
-          </Card>
-        );
-      })()}
-
-      {/* Breakdown wg kategorii */}
-      {Object.keys(spending.byCategory).length > 0 && (
-        <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
-            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            {t("trips.byCategory")}
-          </div>
-          {Object.entries(spending.byCategory)
-            .sort((a, b) => b[1] - a[1])
-            .map(([catId, val]) => {
-              const cat = (allCats || []).find(c => c.id === catId) || getCat(catId);
-              const pct = (val / spending.total) * 100;
-              return (
-                // v1.5.1: cały wiersz klikalny → drill-down do listy tx z tej kat w tym wyjeździe
-                <button
-                  key={catId}
-                  onClick={() => onDrilldownCategory && onDrilldownCategory(catId)}
-                  style={{
-                    marginBottom: 8, padding: 0,
-                    background: "none", border: "none", cursor: "pointer",
-                    width: "100%", textAlign: "left",
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>
-                      {cat.label || catId}
-                    </span>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: cat.color || "#94a3b8" }}>
-                      {fmtDisplay(val)}
-                    </span>
-                  </div>
-                  <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
-                    <div style={{ width: pct + "%", height: "100%", borderRadius: 3,
-                      background: cat.color || "#3b82f6", opacity: 0.7 }}/>
-                  </div>
-                </button>
-              );
-            })
-          }
-        </Card>
-      )}
-
-      {/* Lista transakcji */}
-      {tripTxs.length > 0 && (
-        <Card style={{ padding: "14px 16px" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
-            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10,
-            display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>{t("trips.entries", "Wpisy")}</span>
-            <span style={{ color: "#475569" }}>{tripTxs.length} {t("trips.txCount")}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {tripTxs.map(tx => {
-              const cat = (allCats || []).find(c => c.id === tx.cat) || getCat(tx.cat);
-              const isExpense = tx.amount < 0;
-              return (
-                <div key={tx.id} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "8px 10px", background: "#060b14", borderRadius: 8,
-                }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {tx.desc || cat.label}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>
-                      {tx.date} · {cat.label}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700,
-                        color: isExpense ? "#ef4444" : "#10b981" }}>
-                        {isExpense ? "−" : "+"}{fmt(Math.abs(tx.amount))}
-                      </div>
-                      {/* v1.4.1: pod kwotą PLN pokazujemy oryginał gdy tx walutowa */}
-                      {tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null && (
-                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9,
-                          color: "#64748b", marginTop: 1 }}>
-                          {fmtCurrency(Math.abs(tx.origAmount), tx.origCurrency)}
-                        </div>
-                      )}
-                    </div>
-                    <button onClick={() => removeTagFromTx(tx.id)} title={t("trips.removeTag", "Usuń tag")} style={{
-                      background: "none", border: "none", cursor: "pointer", color: "#475569",
-                      padding: 4, borderRadius: 4,
-                    }}>
-                      <X size={11}/>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {tripTxs.length === 0 && (
-        <div style={{ textAlign: "center", padding: "30px 20px", color: "#64748b", fontSize: 12,
-          background: "#0a1120", borderRadius: 14, border: "1px dashed #1a2744" }}>
-          <Tag size={20} color="#475569" style={{ marginBottom: 8 }}/>
-          <div>{t("trips.noTx", "Brak przypisanych transakcji do tego wyjazdu.")}</div>
-          <div style={{ fontSize: 11, marginTop: 6 }}>
-            {t("trips.assignHint", "Dodaj nową lub w widoku Transakcje użyj „Przypisz do wyjazdu\".")}
-          </div>
-        </div>
-      )}
+      </button>
+      <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 12, padding: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <Plus size={15}/> {t("trips.addExpense", "Wydatek")}{trip.defaultCurrency && trip.defaultCurrency !== "PLN" ? ` (${trip.defaultCurrency})` : ""}
+      </button>
     </div>
   );
 }
 
-function TripModal({ trip, setTrip, onClose, onSave }) {
+function TripDetails({ trip, cost, transactions, setTransactions, setAccounts, defaultAcc, today, updateTrip, showToast, onBack, onEdit, onAddExpense }) {
+  const lang = getLang();
+  const { d, budget, spentToday, remaining, perDayLeft } = dailyNumbers(trip, cost, today);
+  const spent = cost ? cost.myCost : 0;
+  const ratio = budget > 0 ? spent / budget : 0;
+  const people = trip.participants || [];
+  const balances = useMemo(() => tripBalances(trip, transactions), [trip, transactions, getDisplayCurrency()]);
+  const [personName, setPersonName] = useState("");
+  const [friendForm, setFriendForm] = useState(null);
+  const [splitTx, setSplitTx] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const nameOf = (id) => id === ME ? t("trips.me", "Ja") : (people.find(p => p.id === id) || {}).name || "?";
+
+  const entries = useMemo(() => {
+    const mine = transactions.filter(tx => tx.tripId === trip.id).map(tx => ({ kind: tx.tripSettle ? "settle" : "tx", date: tx.date, tx }));
+    const theirs = (trip.friendPaid || []).map(e => ({ kind: "friend", date: e.date, e }));
+    return [...mine, ...theirs].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }, [transactions, trip]);
+
+  // ── Ekipa ─────────────────────────────────────────────────────────
+  const addPerson = () => {
+    const name = personName.trim();
+    if (!name) return;
+    updateTrip(x => ({ participants: [...(x.participants || []), { id: newId(), name }] }));
+    setPersonName("");
+  };
+  const removePerson = (p) => {
+    const used = transactions.some(tx => tx.tripId === trip.id && ((tx.tripSplit || []).includes(p.id) || (tx.tripSettle && tx.tripSettle.with === p.id)))
+      || (trip.friendPaid || []).some(e => e.paidBy === p.id || (e.split || []).includes(p.id));
+    if (used) { showToast(t("trips.personUsed", "{name} ma wpisy w rozliczeniu — najpierw je zmień.").replace("{name}", p.name), "error"); return; }
+    updateTrip(x => ({ participants: (x.participants || []).filter(y => y.id !== p.id) }));
+  };
+
+  // ── Rozliczenia ───────────────────────────────────────────────────
+  const settle = (p) => {
+    const disp = getDisplayCurrency();
+    const amountDisp = Math.round(convert(Math.abs(p.balance), "PLN", disp) * 100) / 100;
+    const label = fmtCurrency(amountDisp, disp);
+    const q = p.balance > 0
+      ? t("trips.settleInQ", "{name} oddał(a) Ci {amount}?").replace("{name}", p.name).replace("{amount}", label)
+      : t("trips.settleOutQ", "Oddałeś {amount} — {name}?").replace("{name}", p.name).replace("{amount}", label);
+    if (!window.confirm(q)) return;
+    const rate = disp === "PLN" ? 1 : getRate(disp);
+    const tx = makeTx({
+      date: today, currency: disp, rate, acc: defaultAcc, module: "trips", cat: "inne",
+      amount: p.balance > 0 ? amountDisp : -amountDisp,
+      desc: `${t("trips.settleDesc", "Rozliczenie")}: ${p.name} · ${trip.name}`,
+      tripId: trip.id, tripSettle: { with: p.id },
+    });
+    commitTxChanges({ setTransactions, setAccounts }, { add: [tx] });
+    showToast(t("trips.settled", "Rozliczone ✓"));
+  };
+  const shareSettlement = async () => {
+    const lines = balances.filter(b => Math.abs(b.balance) >= 0.01).map(b => b.balance > 0
+      ? `${b.name} → ${t("trips.me", "Ja")}: ${fmtDisplay(b.balance)}`
+      : `${t("trips.me", "Ja")} → ${b.name}: ${fmtDisplay(-b.balance)}`);
+    const text = [`${trip.name} — ${t("trips.settlement", "Rozliczenie")}`, ...lines, "", t("trips.shareFooter", "Policzone w Sidegig")].join("\n");
+    const r = await shareText(text, trip.name);
+    if (r === "copied") showToast(t("trips.copied", "Skopiowano do schowka ✓"));
+  };
+
+  // ── Zapłacił ktoś inny ────────────────────────────────────────────
+  const openFriend = (e = null) => setFriendForm(e ? { ...e, amount: String(e.amount) } : {
+    id: null, paidBy: people[0]?.id, desc: "", amount: "", currency: trip.defaultCurrency || getDisplayCurrency(),
+    date: today < trip.dateFrom ? trip.dateFrom : today > trip.dateTo ? trip.dateTo : today, split: [ME, ...people.map(p => p.id)], cat: "jedzenie",
+  });
+  const saveFriend = async () => {
+    const f = friendForm;
+    const amount = num(f.amount);
+    if (!f.paidBy || !isFinite(amount) || amount <= 0 || !f.split.length) { showToast(t("trips.err.friend", "Uzupełnij, kto zapłacił, kwotę i z kim dzielone"), "error"); return; }
+    setSaving(true);
+    try {
+      const fxRate = await rateOnDate(f.currency, f.date);
+      const entry = { id: f.id || newId(), paidBy: f.paidBy, desc: f.desc.trim(), amount, currency: f.currency, fxRate, date: f.date, split: f.split, cat: f.cat };
+      updateTrip(x => ({ friendPaid: f.id ? (x.friendPaid || []).map(y => y.id === f.id ? entry : y) : [...(x.friendPaid || []), entry] }));
+      setFriendForm(null);
+    } finally { setSaving(false); }
+  };
+  const deleteFriend = () => {
+    if (!window.confirm(t("trips.confirmDeleteEntry", "Usunąć ten wpis?"))) return;
+    updateTrip(x => ({ friendPaid: (x.friendPaid || []).filter(y => y.id !== friendForm.id) }));
+    setFriendForm(null);
+  };
+
+  // ── Podział Twojego wydatku ───────────────────────────────────────
+  const saveSplit = () => {
+    const split = splitTx.split;
+    setTransactions(prev => prev.map(tx => tx.id === splitTx.tx.id ? { ...tx, tripSplit: split.length > 1 || (split.length === 1 && split[0] !== ME) ? split : null } : tx));
+    setSplitTx(null);
+  };
+  const untag = () => {
+    setTransactions(prev => prev.map(tx => tx.id === splitTx.tx.id ? { ...tx, tripId: null, tripSplit: null } : tx));
+    setSplitTx(null);
+  };
+  const toggleIn = (list, id) => list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+
+  const days = [];
+  for (let i = 0; i < Math.min(d.total, 31); i++) {
+    const dt = new Date(`${trip.dateFrom}T00:00:00`); dt.setDate(dt.getDate() + i);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    days.push({ key, label: String(dt.getDate()), value: (cost && cost.byDay[key]) || 0 });
+  }
+  const maxDay = Math.max(1, ...days.map(x => x.value));
+  const preTrip = Object.entries((cost && cost.byDay) || {}).filter(([k]) => k < trip.dateFrom).reduce((s, [, v]) => s + v, 0);
+  const byCat = Object.entries((cost && cost.byCategory) || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+
   return (
-    <Modal open={true} onClose={onClose} title={trip.id ? t("trips.editTitle", "Edytuj wyjazd") : t("trips.add")}>
-      <Input
-        label={t("trips.name")}
-        value={trip.name}
-        onChange={e => setTrip({ ...trip, name: e.target.value })}
-        placeholder={t("trips.namePh", "np. Lizbona z przyjaciółmi")}
-      />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Input
-          label={t("trips.dateFrom")}
-          type="date"
-          value={trip.dateFrom}
-          onChange={e => setTrip({ ...trip, dateFrom: e.target.value })}
-        />
-        <Input
-          label={t("trips.dateTo")}
-          type="date"
-          value={trip.dateTo}
-          onChange={e => setTrip({ ...trip, dateTo: e.target.value })}
-        />
-      </div>
-      <Input
-        label={t("trips.budget") + " (" + t("common.currencyPLN", "zł") + ")"}
-        type="number"
-        inputMode="decimal"
-        value={trip.budget}
-        onChange={e => setTrip({ ...trip, budget: e.target.value })}
-        placeholder="0"
-      />
+    <div style={{ padding: "0 16px 100px" }}>
+      <ModuleHeader Icon={Plane} color={trip.color || ACCENT} title={trip.name} onBack={onBack}
+        addLabel={t("trips.addExpense", "Wydatek")} onAdd={onAddExpense}
+        extra={<button onClick={onEdit} aria-label={t("common.edit", "Edytuj")} style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: 7, cursor: "pointer", color: "#94a3b8", display: "grid", placeItems: "center" }}><Pencil size={14}/></button>}/>
 
-      {/* Domyślna waluta wyjazdu (v1.4.1). Gdy aktywny → presetuje walutę
-          przy dodawaniu tx. Np. Serbia = EUR, Praga = CZK. */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
-          textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-          {t("trips.defaultCurrency", "Domyślna waluta wyjazdu")}
+      <div style={heroCard}>
+        <div style={heroLabel}>
+          {fmtRange(trip)} · {d.status === "active" ? t("trips.dayOf", "dzień {n} z {total}").replace("{n}", d.current).replace("{total}", d.total)
+            : d.status === "upcoming" ? inDaysLabel(d.until)
+            : daysLabel(d.total)}
         </div>
-        <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
-          {t("trips.defaultCurrencyHint", "Wpisy dodawane w trakcie wyjazdu dostaną tę walutę automatycznie.")}
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 30, fontWeight: 800, marginTop: 4 }}>{fmtDisplay(spent)}</div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>{t("trips.yourCostHint", "Twój koszt — Twoja część wspólnych wydatków")}</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <Stat label={t("trips.budget")} value={budget > 0 ? fmtDisplay(budget) : "—"}/>
+          <Stat label={t("trips.remaining")} value={budget > 0 ? fmtDisplay(remaining) : "—"} color={budget > 0 && remaining < 0 ? "#f87171" : "#e2e8f0"}/>
+          <Stat label={d.status === "active" ? t("trips.perDayLeft", "Na dzień") : t("trips.perDay", "Dziennie")}
+            value={d.status === "active" ? (perDayLeft != null ? fmtDisplay(Math.max(0, perDayLeft)) : "—") : fmtDisplay(spent / d.total)}/>
         </div>
-        <select
-          value={trip.defaultCurrency || "PLN"}
-          onChange={e => setTrip({ ...trip, defaultCurrency: e.target.value })}
-          style={{
-            width: "100%", padding: "10px 12px",
-            background: "#060b14", border: "1px solid #1e3a5f",
-            borderRadius: 10, color: "#e2e8f0", fontSize: 14,
-            fontFamily: "'DM Mono', monospace", outline: "none",
-            WebkitAppearance: "none", appearance: "none",
-            boxSizing: "border-box",
-          }}
-        >
-          {["PLN", ...SUPPORTED_CURRENCIES].map(c => (
-            <option key={c} value={c}>{c}</option>
+        {budget > 0 && (
+          <div style={{ height: 6, borderRadius: 3, background: "#060b14", marginTop: 12, overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(100, ratio * 100)}%`, height: "100%", background: progressColor(ratio), borderRadius: 3 }}/>
+          </div>
+        )}
+        {d.status === "active" && (
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 10 }}>
+            {t("trips.todayLine", "Dziś wydane: {amount}").replace("{amount}", fmtDisplay(spentToday))}
+            {perDayLeft != null && perDayLeft > 0 && ` · ${t("trips.todayLeft", "zostało na dziś: {amount}").replace("{amount}", fmtDisplay(Math.max(0, perDayLeft - spentToday)))}`}
+          </div>
+        )}
+        {preTrip > 0 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{t("trips.preTrip", "Przed wyjazdem (rezerwacje, bilety): {amount}").replace("{amount}", fmtDisplay(preTrip))}</div>}
+        {cost && cost.paid > spent + 0.01 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{t("trips.paidLine", "Zapłaciłeś łącznie {amount} — część oddadzą znajomi.").replace("{amount}", fmtDisplay(cost.paid))}</div>}
+      </div>
+
+      {/* Ekipa i rozliczenie */}
+      <div style={sectionTitle}>{t("trips.crew", "Ekipa")}</div>
+      <div style={{ ...card, padding: "12px 14px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          <Chip on color={ACCENT}>{t("trips.me", "Ja")}</Chip>
+          {people.map(p => (
+            <button key={p.id} onClick={() => removePerson(p)} title={t("common.delete", "Usuń")} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 9, background: "#060b14", border: "1px solid #1a2744", color: "#cbd5e1", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              {p.name} <X size={11} color="#64748b"/>
+            </button>
           ))}
-        </select>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={personName} onChange={e => setPersonName(e.target.value)} onKeyDown={e => e.key === "Enter" && addPerson()} placeholder={t("trips.personPh", "Imię, np. Kasia")}
+            style={{ flex: 1, minWidth: 0, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 12px", color: "#e2e8f0", fontSize: 15, outline: "none", fontFamily: "inherit" }}/>
+          <button onClick={addPerson} style={{ background: ACCENT + "22", border: `1px solid ${ACCENT}66`, color: ACCENT, borderRadius: 10, padding: "0 12px", cursor: "pointer", display: "grid", placeItems: "center" }} aria-label={t("trips.addPerson", "Dodaj osobę")}><UserPlus size={15}/></button>
+        </div>
+        {people.length === 0 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, lineHeight: 1.45 }}>{t("trips.crewHint", "Jedziesz ze znajomymi? Dodaj ich — podzielisz wydatki i zobaczysz, kto komu ile oddaje.")}</div>}
+
+        {people.length > 0 && <>
+          <div style={{ height: 1, background: "#1a2744", margin: "12px 0" }}/>
+          {balances.map(b => (
+            <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "#cbd5e1" }}>
+                {Math.abs(b.balance) < 0.01 ? t("trips.even", "{name}: rozliczeni").replace("{name}", b.name)
+                  : b.balance > 0 ? t("trips.owesYou", "{name} oddaje Ci {amount}").replace("{name}", b.name).replace("{amount}", fmtDisplay(b.balance))
+                  : t("trips.youOwe", "Oddajesz: {name} — {amount}").replace("{name}", b.name).replace("{amount}", fmtDisplay(-b.balance))}
+              </span>
+              {Math.abs(b.balance) >= 0.01 && (
+                <button onClick={() => settle(b)} style={{ background: "#10b98118", border: "1px solid #10b98155", color: "#34d399", borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                  <Check size={11}/> {t("trips.settle", "Rozliczone")}
+                </button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={() => openFriend()} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", color: "#cbd5e1", borderRadius: 10, padding: "9px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Users size={13}/> {t("trips.friendPaid", "Zapłacił ktoś inny")}
+            </button>
+            <button onClick={shareSettlement} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", color: "#cbd5e1", borderRadius: 10, padding: "9px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Share2 size={13}/> {t("trips.share", "Udostępnij")}
+            </button>
+          </div>
+        </>}
       </div>
 
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
-          textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-          {t("trips.color")}
+      {byCat.length > 0 && <>
+        <div style={sectionTitle}>{t("trips.byCategory")}</div>
+        <div style={{ ...card, padding: "10px 14px" }}>
+          {byCat.map(([cat, val]) => {
+            const c = getCat(cat);
+            return (
+              <div key={cat} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                  <span style={{ color: "#cbd5e1", fontWeight: 600 }}>{c.label}</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{fmtDisplay(val)}</span>
+                </div>
+                <div style={{ height: 4, borderRadius: 2, background: "#060b14" }}>
+                  <div style={{ width: `${spent > 0 ? (val / spent) * 100 : 0}%`, height: "100%", borderRadius: 2, background: c.color || ACCENT, opacity: 0.8 }}/>
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <ColorPicker
-          colors={DEFAULT_TRIP_COLORS}
-          value={trip.color}
-          onChange={c => setTrip({ ...trip, color: c })}
-        />
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
-          textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-          {t("trips.notes")}
-        </div>
-        <textarea
-          value={trip.notes || ""}
-          onChange={e => setTrip({ ...trip, notes: e.target.value })}
-          rows={2}
-          placeholder={t("trips.notesPh", "np. hotel, atrakcje, kto płaci za co")}
-          style={{
-            width: "100%", padding: "10px 12px",
-            background: "#060b14", border: "1px solid #1e3a5f",
-            borderRadius: 10, color: "#e2e8f0", fontSize: 13,
-            fontFamily: "'Space Grotesk', sans-serif", boxSizing: "border-box", resize: "vertical",
-          }}
-        />
-      </div>
+      </>}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button onClick={onClose} style={{
-          flex: 1, padding: 12, background: "#0a1120", border: "1px solid #1a2744",
-          borderRadius: 10, color: "#94a3b8", fontWeight: 600, fontSize: 13, cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>
-          {t("common.cancel")}
-        </button>
-        <button onClick={onSave} disabled={!trip.name.trim()} style={{
-          flex: 2, padding: 12,
-          background: trip.name.trim() ? "linear-gradient(135deg,#1e40af,#3b82f6)" : "#1e3a5f",
-          border: "none", borderRadius: 10, color: "white",
-          fontWeight: 700, fontSize: 13,
-          cursor: trip.name.trim() ? "pointer" : "not-allowed",
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>
-          {t("common.save")}
-        </button>
+      {spent > 0 && d.total > 1 && <>
+        <div style={sectionTitle}>{t("trips.byDay", "Dzień po dniu")}</div>
+        <div style={{ ...card, padding: "12px 10px 8px", display: "flex", alignItems: "flex-end", gap: 3, height: 90 }}>
+          {days.map(x => (
+            <div key={x.key} title={`${x.key}: ${fmtDisplay(x.value)}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }}>
+              <div style={{ width: "100%", maxWidth: 18, height: `${Math.max(2, (x.value / maxDay) * 60)}px`, background: x.key === today ? "#34d399" : (trip.color || ACCENT), opacity: x.value ? 0.85 : 0.2, borderRadius: 3 }}/>
+              <span style={{ fontSize: 8, color: x.key === today ? "#34d399" : "#475569", fontFamily: "'DM Mono', monospace" }}>{x.label}</span>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      {cost && Object.keys(cost.byCurrency).length > 1 && <>
+        <div style={sectionTitle}>{t("trips.byCurrency", "Wydatki według waluty")}</div>
+        <div style={{ ...card, padding: "4px 14px" }}>
+          {Object.entries(cost.byCurrency).map(([cur, v], i, arr) => (
+            <div key={cur} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < arr.length - 1 ? "1px solid #0f1a2e" : "none", fontSize: 13 }}>
+              <span style={{ fontWeight: 700 }}>{fmtCurrency(v.orig, cur)}</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", color: "#94a3b8" }}>{fmtDisplay(v.value)}</span>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      <div style={sectionTitle}>{t("trips.entries", "Wpisy")} · {entries.length}</div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>{t("trips.noTx2", "Brak wydatków. Dodaj pierwszy przyciskiem „Wydatek” — od razu w walucie wyjazdu.")}</div>
+      ) : (
+        <div style={{ ...card, padding: "2px 14px" }}>
+          {entries.map((en, i) => {
+            const last = i === entries.length - 1;
+            const rowStyle = { all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: last ? "none" : "1px solid #0f1a2e" };
+            if (en.kind === "friend") {
+              const e = en.e;
+              return (
+                <button key={"f" + e.id} onClick={() => openFriend(e)} style={rowStyle}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.desc || getCat(e.cat).label}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>{e.date} · {t("trips.paidBy", "płacił(a): {name}").replace("{name}", nameOf(e.paidBy))} · ÷{e.split.length}</span>
+                  </span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#94a3b8" }}>{fmtCurrency(e.amount, e.currency)}</span>
+                </button>
+              );
+            }
+            const tx = en.tx;
+            const settleRow = en.kind === "settle";
+            const fx = tx.origCurrency && tx.origAmount != null;
+            const shared = Array.isArray(tx.tripSplit) && tx.tripSplit.length > 1;
+            return (
+              <button key={tx.id} onClick={() => !settleRow && setSplitTx({ tx, split: Array.isArray(tx.tripSplit) && tx.tripSplit.length ? tx.tripSplit : [ME] })} style={{ ...rowStyle, cursor: settleRow ? "default" : "pointer" }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc || getCat(tx.cat).label}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    {tx.date} · {settleRow ? t("trips.settleDesc", "Rozliczenie") : getCat(tx.cat).label}{shared ? ` · ÷${tx.tripSplit.length}` : ""}
+                  </span>
+                </span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: tx.amount < 0 ? "#f87171" : "#34d399" }}>
+                  {fx ? fmtCurrency(Math.sign(tx.amount) * Math.abs(tx.origAmount), tx.origCurrency, true) : fmtCurrency(tx.amount, "PLN", true)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Podział Twojego wydatku */}
+      <Modal open={!!splitTx} onClose={() => setSplitTx(null)} title={splitTx ? (splitTx.tx.desc || t("trips.expense", "Wydatek")) : ""}>
+        {splitTx && <>
+          {people.length > 0 ? <>
+            <div style={fieldLabel}>{t("trips.splitWith", "Podziel po równo z")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {[ME, ...people.map(p => p.id)].map(id => (
+                <Chip key={id} on={splitTx.split.includes(id)} color={ACCENT} onClick={() => setSplitTx(s => ({ ...s, split: toggleIn(s.split, id) }))}>{nameOf(id)}</Chip>
+              ))}
+            </div>
+            <button onClick={saveSplit} disabled={!splitTx.split.length} style={{ ...primaryBtn, opacity: splitTx.split.length ? 1 : 0.5 }}>{t("common.save", "Zapisz")}</button>
+          </> : (
+            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 14, lineHeight: 1.5 }}>{t("trips.splitNoCrew", "Dodaj ekipę, żeby dzielić wydatki ze znajomymi.")}</div>
+          )}
+          <button onClick={untag} style={{ ...dangerBtn, border: "none", color: "#64748b" }}><X size={14}/> {t("trips.removeTag", "Usuń z wyjazdu")}</button>
+        </>}
+      </Modal>
+
+      {/* Zapłacił ktoś inny */}
+      <Modal open={!!friendForm} onClose={() => setFriendForm(null)} title={t("trips.friendPaid", "Zapłacił ktoś inny")}>
+        {friendForm && <>
+          <div style={fieldLabel}>{t("trips.whoPaid", "Kto zapłacił")}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {people.map(p => <Chip key={p.id} on={friendForm.paidBy === p.id} color={ACCENT} onClick={() => setFriendForm(f => ({ ...f, paidBy: p.id }))}>{p.name}</Chip>)}
+          </div>
+          <Input label={t("trips.what", "Za co")} placeholder={t("trips.whatPh", "np. kolacja, Airbnb")} value={friendForm.desc} onChange={e => setFriendForm(f => ({ ...f, desc: e.target.value }))}/>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1.4 }}><Input label={t("trips.amount", "Kwota")} type="number" inputMode="decimal" step="0.01" value={friendForm.amount} onChange={e => setFriendForm(f => ({ ...f, amount: e.target.value }))}/></div>
+            <div style={{ flex: 1 }}>
+              <Select label={t("tx.currency", "Waluta")} value={friendForm.currency} onChange={e => setFriendForm(f => ({ ...f, currency: e.target.value }))}>
+                {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </div>
+          </div>
+          <Input label={t("tx.date", "Data")} type="date" value={friendForm.date} onChange={e => setFriendForm(f => ({ ...f, date: e.target.value }))}/>
+          <div style={fieldLabel}>{t("trips.tx.category", "Na co")}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {TRIP_CATS.map(c => <Chip key={c} on={friendForm.cat === c} color={getCat(c).color} onClick={() => setFriendForm(f => ({ ...f, cat: c }))}>{getCat(c).label}</Chip>)}
+          </div>
+          <div style={fieldLabel}>{t("trips.splitWith", "Podziel po równo z")}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {[ME, ...people.map(p => p.id)].map(id => (
+              <Chip key={id} on={friendForm.split.includes(id)} color={ACCENT} onClick={() => setFriendForm(f => ({ ...f, split: toggleIn(f.split, id) }))}>{nameOf(id)}</Chip>
+            ))}
+          </div>
+          <button onClick={saveFriend} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}>{saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}</button>
+          {friendForm.id && <button onClick={deleteFriend} style={dangerBtn}><Trash2 size={14}/> {t("common.delete", "Usuń")}</button>}
+        </>}
+      </Modal>
+    </div>
+  );
+}
+
+function TripModal({ trip, setTrip, onClose, onSave, onDelete, onArchive }) {
+  const set = (patch) => setTrip({ ...trip, ...patch });
+  return (
+    <Modal open onClose={onClose} title={trip.id ? t("trips.editTitle", "Edytuj wyjazd") : t("trips.add")}>
+      <Input label={t("trips.name")} value={trip.name} onChange={e => set({ name: e.target.value })} placeholder={t("trips.namePh", "np. Lizbona z przyjaciółmi")}/>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <Input label={t("trips.dateFrom")} type="date" value={trip.dateFrom} onChange={e => set({ dateFrom: e.target.value, dateTo: trip.dateTo < e.target.value ? e.target.value : trip.dateTo })}/>
+        <Input label={t("trips.dateTo")} type="date" value={trip.dateTo} onChange={e => set({ dateTo: e.target.value })}/>
       </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 1.4 }}><Input label={t("trips.budgetOpt", "Budżet (opcjonalnie)")} type="number" inputMode="decimal" value={trip.budget} onChange={e => set({ budget: e.target.value })} placeholder="0"/></div>
+        <div style={{ flex: 1 }}>
+          <Select label={t("tx.currency", "Waluta")} value={trip.budgetCurrency || "PLN"} onChange={e => set({ budgetCurrency: e.target.value })}>
+            {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        </div>
+      </div>
+      <Select label={t("trips.defaultCurrency", "Domyślna waluta wyjazdu")} value={trip.defaultCurrency || "PLN"} onChange={e => set({ defaultCurrency: e.target.value })}>
+        {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
+      </Select>
+      <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 14px", lineHeight: 1.45 }}>{t("trips.defaultCurrencyHint", "Wpisy dodawane w trakcie wyjazdu dostaną tę walutę automatycznie.")}</div>
+      <div style={fieldLabel}>{t("trips.color")}</div>
+      <div style={{ marginBottom: 14 }}><ColorPicker colors={DEFAULT_TRIP_COLORS} value={trip.color} onChange={c => set({ color: c })}/></div>
+      <Input label={t("trips.notes")} value={trip.notes || ""} onChange={e => set({ notes: e.target.value })} placeholder={t("trips.notesPh", "np. hotel, atrakcje, kto płaci za co")}/>
+      <button onClick={onSave} style={primaryBtn}>{t("common.save", "Zapisz")}</button>
+      {onArchive && (
+        <button onClick={onArchive} style={{ ...dangerBtn, border: "1px solid #1a2744", color: "#94a3b8" }}>
+          {trip.archived ? <><RotateCcw size={14}/> {t("trips.restore", "Przywróć")}</> : <><Archive size={14}/> {t("trips.archive", "Archiwum")}</>}
+        </button>
+      )}
+      {onDelete && <button onClick={onDelete} style={dangerBtn}><Trash2 size={14}/> {t("trips.delete", "Usuń wyjazd")}</button>}
     </Modal>
   );
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { fmtDisplay, fmtCurrency, todayLocal, monthName } from "../utils.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
-import { groupTrips, getTripSpending } from "../lib/trips.js";
+import { groupTrips, tripCost, tripBudget } from "../lib/trips.js";
 import { txAmountForDisplay, amountForDisplay, getDisplayCurrency } from "../lib/fx.js";
 import { bettingStats } from "../lib/betting.js";
 import { daysBetween, resellingStats } from "../lib/reselling.js";
@@ -167,7 +167,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
     const g = groupTrips(trips, todayLocal());
     const trip = g.active[0] || g.upcoming[0];
     if (!trip) return null;
-    return { trip, active: !!g.active[0], spent: getTripSpending(transactions, trip.id).total };
+    return { trip, active: !!g.active[0], spent: tripCost(trip, transactions).myCost };
   }, [modules, trips, transactions]);
 
   return (
@@ -404,7 +404,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
               <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tripCard.trip.name}</span>
               <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
                 {tripCard.active ? t("home.tripActive", "Trwa teraz") : `${t("home.tripFrom", "Od")} ${tripCard.trip.dateFrom}`}
-                {tripCard.trip.budget > 0 && ` · ${t("trips.budget", "Budżet")} ${fmtDisplay(tripCard.trip.budget)}`}
+                {tripBudget(tripCard.trip) > 0 && ` · ${t("trips.budget", "Budżet")} ${fmtDisplay(tripBudget(tripCard.trip))}`}
               </span>
             </span>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#cbd5e1", flexShrink: 0 }}>
