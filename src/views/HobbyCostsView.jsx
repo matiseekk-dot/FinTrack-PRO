@@ -14,7 +14,7 @@ import { getCat } from "../constants.js";
 import {
   SUB_KINDS, subKind, subKindLabel, addCycle, monthlyCost, daysUntil, subscriptionState, buildSubscriptionTx,
 } from "../lib/subscriptions.js";
-import { moveCandidates } from "../lib/hobbyMove.js";
+import { moveCandidates, guessHobby } from "../lib/hobbyMove.js";
 import { txMatchesHobby } from "../lib/hobby.js";
 
 // Na co poszły pieniądze — te same kategorie co w formularzu wpisu
@@ -127,10 +127,25 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
   const inactive = subscriptions.filter(x => !x.active);
   const due = active.filter(x => subscriptionState(x, today) === "due");
   const perMonth = active.reduce((s, x) => s + monthlyCost(x), 0);
+  // Aktywne subskrypcje według rodzaju (najdroższe rodzaje na górze)
+  const byKind = useMemo(() => {
+    const m = new Map();
+    for (const x of active) {
+      const k = x.kind || "other";
+      const g = m.get(k) || { kind: k, subs: [], monthly: 0 };
+      g.subs.push(x); g.monthly += monthlyCost(x);
+      m.set(k, g);
+    }
+    return [...m.values()].sort((a, b) => b.monthly - a.monthly);
+  }, [subscriptions]);
+  // Kilka usług tego samego rodzaju (np. 3 serwisy z filmami) — warto sprawdzić, czy wszystkie są potrzebne
+  const overlaps = byKind.filter(g => g.kind !== "other" && g.subs.length >= 2);
 
   // ── Subskrypcje ─────────────────────────────────────────────────────
-  const blank = () => ({ editingId: null, name: "", kind: "streaming", amount: "", currency: getDisplayCurrency(), cycle: "month", nextDate: today, trial: false, active: true });
-  const fromSub = (x) => ({ editingId: x.id, name: x.name, kind: x.kind || "other", amount: String(x.amount), currency: x.currency || "PLN", cycle: x.cycle || "month", nextDate: x.nextDate, trial: !!x.trial, active: !!x.active });
+  const blank = () => ({ editingId: null, name: "", kind: "other", kindTouched: false, amount: "", currency: getDisplayCurrency(), cycle: "month", nextDate: today, trial: false, active: true });
+  const fromSub = (x) => ({ editingId: x.id, name: x.name, kind: x.kind || "other", kindTouched: true, amount: String(x.amount), currency: x.currency || "PLN", cycle: x.cycle || "month", nextDate: x.nextDate, trial: !!x.trial, active: !!x.active });
+  // „Spotify” → Muzyka, „ChatGPT” → AI: rodzaj ustawia się sam, dopóki nie wybierzesz go ręcznie
+  const kindFromName = (name) => { const g = guessHobby(name); return (g && g.kind) || "other"; };
   const setF = (patch) => setForm(f => ({ ...f, ...patch }));
 
   const saveSub = () => {
@@ -264,6 +279,42 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
       ) : (
         <div style={{ ...card, padding: "2px 14px" }}>{active.map(subRow)}</div>
       )}
+      {overlaps.map(g => {
+        const k = subKind(g.kind);
+        const priciest = [...g.subs].sort((a, b) => monthlyCost(b) - monthlyCost(a))[0];
+        return (
+          <div key={g.kind} style={{ ...card, marginTop: 10, padding: "11px 14px", background: "#fbbf2410", borderColor: "#fbbf2455", display: "flex", gap: 10 }}>
+            <k.icon size={16} color={k.color} style={{ flexShrink: 0, marginTop: 1 }}/>
+            <div style={{ flex: 1, fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 700 }}>
+                {t("sub.overlap", "{kind}: {n}× — {amount}/mies.").replace("{kind}", subKindLabel(g.kind, lang)).replace("{n}", g.subs.length).replace("{amount}", fmtDisplay(g.monthly))}
+              </div>
+              <div style={{ color: "#94a3b8" }}>{g.subs.map(x => x.name).join(", ")}</div>
+              <div style={{ color: "#fbbf24", marginTop: 3 }}>
+                {t("sub.overlapSave", "Korzystasz ze wszystkich? Bez {name} zostaje Ci {amount} rocznie.").replace("{name}", priciest.name).replace("{amount}", fmtDisplay(monthlyCost(priciest) * 12))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {byKind.length >= 2 && <>
+        <div style={sectionTitle}>{t("sub.byKind", "Subskrypcje według rodzaju")}</div>
+        <div style={{ ...card, padding: "4px 14px" }}>
+          {byKind.map((g, i) => {
+            const k = subKind(g.kind);
+            return (
+              <div key={g.kind} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: i < byKind.length - 1 ? "1px solid #0f1a2e" : "none" }}>
+                <k.icon size={14} color={k.color}/>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{subKindLabel(g.kind, lang)}</span>
+                <span style={{ fontSize: 11, color: "#64748b" }}>{g.subs.length}×</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, minWidth: 90, textAlign: "right" }}>{fmtDisplay(g.monthly)}<span style={{ fontSize: 10, color: "#64748b", fontWeight: 400 }}> /{t("sub.cycle.month", "mies.")}</span></span>
+              </div>
+            );
+          })}
+        </div>
+      </>}
+
       {allCandidates.length > 0 && (
         <button onClick={() => openMove(null)} style={{
           all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "11px 14px", borderRadius: 12,
@@ -342,10 +393,10 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
       {/* Formularz subskrypcji */}
       <Modal open={!!form} onClose={() => setForm(null)} title={form?.editingId != null ? t("sub.editTitle", "Subskrypcja") : t("sub.newTitle", "Nowa subskrypcja")}>
         {form && <>
-          <Input label={t("sub.name", "Nazwa")} placeholder="Netflix" value={form.name} onChange={e => setF({ name: e.target.value })}/>
+          <Input label={t("sub.name", "Nazwa")} placeholder="Netflix" value={form.name} onChange={e => { const name = e.target.value; setF(form.kindTouched ? { name } : { name, kind: kindFromName(name) }); }}/>
           <div style={fieldLabel}>{t("sub.kind", "Rodzaj")}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {SUB_KINDS.map(k => <Chip key={k.id} on={form.kind === k.id} color={k.color} onClick={() => setF({ kind: k.id })}>{subKindLabel(k.id, lang)}</Chip>)}
+            {SUB_KINDS.map(k => <Chip key={k.id} on={form.kind === k.id} color={k.color} onClick={() => setF({ kind: k.id, kindTouched: true })}>{subKindLabel(k.id, lang)}</Chip>)}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1.4 }}><Input label={t("sub.price", "Cena")} type="number" inputMode="decimal" step="0.01" value={form.amount} onChange={e => setF({ amount: e.target.value })}/></div>

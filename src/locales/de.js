@@ -706,4 +706,7 @@ export default {
   "move.apply": "Verschieben ({n})",
   "coll.hobbyLike": "Diese Sammlungen sehen nach Hobby-Ausgaben aus (Abos, Kino, Konzerte), nicht nach Sammelstücken:",
   "coll.moveToHobby": "Zu Hobbys",
+  "sub.overlap": "{kind}: {n}× — {amount}/Monat",
+  "sub.overlapSave": "Nutzt du alle? Ohne {name} bleiben dir {amount} im Jahr.",
+  "sub.byKind": "Abos nach Art",
 };

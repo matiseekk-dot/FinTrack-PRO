@@ -706,4 +706,7 @@ export default {
   "move.apply": "Sposta ({n})",
   "coll.hobbyLike": "Queste collezioni sembrano spese per hobby (abbonamenti, cinema, concerti), non oggetti da collezionare:",
   "coll.moveToHobby": "Sposta in Hobby",
+  "sub.overlap": "{kind}: {n}× — {amount}/mese",
+  "sub.overlapSave": "Li usi tutti? Senza {name} ti restano {amount} all'anno.",
+  "sub.byKind": "Abbonamenti per tipo",
 };

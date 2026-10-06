@@ -437,6 +437,9 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "sub.overlap": "{kind}: {n}× — {amount}/mo",
+    "sub.overlapSave": "Using all of them? Without {name} you keep {amount} a year.",
+    "sub.byKind": "Subscriptions by type",
     "coll.hobbyLike": "These collections look like hobby spending (subscriptions, cinema, concerts), not things you collect:",
     "coll.moveToHobby": "Move to Hobbies",
     "move.fromCollectionCta": "Not a collection (subscriptions, cinema, concerts)? Move it to Hobbies",

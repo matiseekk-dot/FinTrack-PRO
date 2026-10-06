@@ -706,4 +706,7 @@ export default {
   "move.apply": "Перенести ({n})",
   "coll.hobbyLike": "Ці колекції схожі на витрати на хобі (підписки, кіно, концерти), а не на речі для колекціонування:",
   "coll.moveToHobby": "У Хобі",
+  "sub.overlap": "{kind}: {n}× — {amount}/міс.",
+  "sub.overlapSave": "Користуєтеся всіма? Без {name} у вас лишиться {amount} на рік.",
+  "sub.byKind": "Підписки за типом",
 };

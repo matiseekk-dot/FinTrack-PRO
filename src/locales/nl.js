@@ -706,4 +706,7 @@ export default {
   "move.apply": "Verplaatsen ({n})",
   "coll.hobbyLike": "Deze collecties lijken op hobby-uitgaven (abonnementen, bioscoop, concerten), niet op spullen die je verzamelt:",
   "coll.moveToHobby": "Naar Hobby's",
+  "sub.overlap": "{kind}: {n}× — {amount}/mnd",
+  "sub.overlapSave": "Gebruik je ze allemaal? Zonder {name} hou je {amount} per jaar over.",
+  "sub.byKind": "Abonnementen per soort",
 };
