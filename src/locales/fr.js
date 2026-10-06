@@ -704,4 +704,6 @@ export default {
   "move.srcPersonal": "dépenses personnelles",
   "move.makeSub": "Créer un abonnement : {price} / {cycle}, prochain paiement {date}",
   "move.apply": "Déplacer ({n})",
+  "coll.hobbyLike": "Ces collections ressemblent à des dépenses de loisirs (abonnements, cinéma, concerts), pas à des objets que vous collectionnez :",
+  "coll.moveToHobby": "Vers Loisirs",
 };

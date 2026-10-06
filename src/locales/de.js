@@ -704,4 +704,6 @@ export default {
   "move.srcPersonal": "private Ausgaben",
   "move.makeSub": "Abo anlegen: {price} / {cycle}, nächste Zahlung {date}",
   "move.apply": "Verschieben ({n})",
+  "coll.hobbyLike": "Diese Sammlungen sehen nach Hobby-Ausgaben aus (Abos, Kino, Konzerte), nicht nach Sammelstücken:",
+  "coll.moveToHobby": "Zu Hobbys",
 };

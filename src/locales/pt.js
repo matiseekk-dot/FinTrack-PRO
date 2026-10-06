@@ -704,4 +704,6 @@ export default {
   "move.srcPersonal": "gastos pessoais",
   "move.makeSub": "Criar assinatura: {price} / {cycle}, próximo pagamento {date}",
   "move.apply": "Mover ({n})",
+  "coll.hobbyLike": "Estas coleções parecem gastos com hobbies (assinaturas, cinema, shows), não coisas que você coleciona:",
+  "coll.moveToHobby": "Mover p/ Hobbies",
 };

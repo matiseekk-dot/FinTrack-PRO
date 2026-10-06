@@ -704,4 +704,6 @@ export default {
   "move.srcPersonal": "persoonlijke uitgaven",
   "move.makeSub": "Abonnement maken: {price} / {cycle}, volgende betaling {date}",
   "move.apply": "Verplaatsen ({n})",
+  "coll.hobbyLike": "Deze collecties lijken op hobby-uitgaven (abonnementen, bioscoop, concerten), niet op spullen die je verzamelt:",
+  "coll.moveToHobby": "Naar Hobby's",
 };

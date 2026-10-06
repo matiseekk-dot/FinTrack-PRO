@@ -437,6 +437,8 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "coll.hobbyLike": "These collections look like hobby spending (subscriptions, cinema, concerts), not things you collect:",
+    "coll.moveToHobby": "Move to Hobbies",
     "move.fromCollectionCta": "Not a collection (subscriptions, cinema, concerts)? Move it to Hobbies",
     "move.confirm": "Move to Hobbies & subscriptions — entries: {n}?",
     "move.toast": "Entries moved: {n}{subs}",

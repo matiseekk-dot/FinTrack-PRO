@@ -15,6 +15,7 @@ import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere } from "../lib/hobby.js";
 import { getModule } from "../lib/modules.js";
+import { guessHobby } from "../lib/hobbyMove.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
@@ -45,6 +46,10 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   // (zostają w danych). Kolekcja z pozycjami w katalogu zawsze zostaje widoczna.
   const isCollection = (h) => (!isRulesOnlyElsewhere(h) && !h.movedToHobby) || items.some(it => it.hobbyId === h.id);
   const active = hobbies.filter(h => !h.archived && isCollection(h));
+  const looksLikeHobby = (h) => !items.some(it => it.hobbyId === h.id)
+    && [h.name, ...(Array.isArray(h.keywords) ? h.keywords : [])].some(w => guessHobby(w))
+    && getHobbyExpenses(transactions, h).length > 0;
+  const hobbyLike = onMoveToHobby ? active.filter(looksLikeHobby) : [];
   const archived = hobbies.filter(h => h.archived && isCollection(h));
   const open = openId != null ? hobbies.find(h => h.id === openId) : null;
 
@@ -343,6 +348,22 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             desc={t("coll.emptyDesc", "Winyle, książki, gry — zapisuj pozycje, ich wartość i to, co sprzedałeś.")}
             cta={t("coll.addCollection", "Kolekcja")} onCta={newCollection}/>
         ) : <>
+          {hobbyLike.length > 0 && (
+            <div style={{ ...card, marginTop: 14, padding: "12px 14px", background: "#f9731612", borderColor: "#f9731655" }}>
+              <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5, marginBottom: 8 }}>
+                {t("coll.hobbyLike", "Te kolekcje wyglądają na wydatki na hobby (subskrypcje, kino, koncerty), a nie na rzeczy do zbierania:")}
+              </div>
+              {hobbyLike.map(h => (
+                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 5, background: h.color, flexShrink: 0 }}/>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                  <button onClick={() => onMoveToHobby(h.id)} style={{ ...actionBtn("#f97316"), flex: "none", padding: "6px 12px" }}>
+                    {t("coll.moveToHobby", "Przenieś do Hobby")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={sectionTitle}>{t("coll.collections", "Twoje kolekcje")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {active.map(h => collectionRow(h))}
@@ -365,6 +386,16 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           <Chip on={detailTab === "catalog"} color={ACCENT} onClick={() => setDetailTab("catalog")}>{t("coll.tab.catalog", "Katalog")}</Chip>
           <Chip on={detailTab === "spending"} color={ACCENT} onClick={() => setDetailTab("spending")}>{t("coll.tab.spending", "Wydatki")}</Chip>
         </div>
+
+        {onMoveToHobby && looksLikeHobby(open) && (
+          <button onClick={() => onMoveToHobby(open.id)} style={{
+            all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginBottom: 12, padding: "10px 14px", borderRadius: 12,
+            background: "#f9731612", border: "1px solid #f9731655", fontSize: 12, color: "#cbd5e1", lineHeight: 1.45, display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{ flex: 1 }}>{t("move.fromCollectionCta", "To nie kolekcja (subskrypcje, kino, koncerty)? Przenieś do Hobby")}</span>
+            <ChevronRight size={14} color="#f97316"/>
+          </button>
+        )}
 
         {detailTab === "spending" ? (
           <HobbyDetails embedded hobby={open} transactions={transactions} cyclePool={cyclePool} allCats={allCats}/>
