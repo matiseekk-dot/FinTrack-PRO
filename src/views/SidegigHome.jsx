@@ -27,7 +27,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], month = null, onMonthChange, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], month = null, onMonthChange, onEnableModule, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
@@ -42,6 +42,10 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
   };
   const isCurrent = period.y === current.y && period.m === current.m;
   const [goalOpen, setGoalOpen] = useState(false);
+  // Nowy moduł, którego użytkownik jeszcze nie włączył — jednorazowa karta „Nowość”
+  const [promoHidden, setPromoHidden] = useState(() => { try { return localStorage.getItem("ft_promo_hobby") === "1"; } catch { return false; } });
+  const showPromo = !promoHidden && !modules.includes("hobby") && !!onEnableModule;
+  const hidePromo = () => { setPromoHidden(true); try { localStorage.setItem("ft_promo_hobby", "1"); } catch { /* bez pamięci */ } };
 
   const sideEnabled = SIDE_MODULES.filter(id => modules.includes(id));
 
@@ -269,6 +273,32 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
               <Arrow size={14} color="#475569"/>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* NOWOŚĆ: moduł Hobby i subskrypcje */}
+      {showPromo && (
+        <div style={{ background: MODULES.hobby.color + "12", border: `1px solid ${MODULES.hobby.color}55`, borderRadius: 16, padding: "14px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: MODULES.hobby.color + "22", display: "grid", placeItems: "center" }}>
+              <MODULES.hobby.icon size={16} color={MODULES.hobby.color}/>
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: MODULES.hobby.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("home.promo.new", "Nowość")}</span>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginTop: 1 }}>{moduleLabel("hobby", lang)}</span>
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: "8px 0 12px" }}>
+            {t("home.promo.hobby", "Netflix, Spotify, AI, siłownia, koncerty — przypomnimy o płatnościach i końcu okresu próbnego. Osobno od dochodu pobocznego.")}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { hidePromo(); onEnableModule("hobby"); }} style={{ flex: 1, background: BRAND, border: "none", borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              {t("home.promo.enable", "Włącz")}
+            </button>
+            <button onClick={hidePromo} style={{ flex: 1, background: "none", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 0", color: "#64748b", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              {t("home.promo.later", "Nie teraz")}
+            </button>
+          </div>
         </div>
       )}
 

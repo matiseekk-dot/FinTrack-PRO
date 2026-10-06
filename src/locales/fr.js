@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "abonnements {amount}/mois · hors revenus",
   "bet.bank.shareAll": "Vous avez retiré autant que vous avez gagné.",
   "home.backToNow": "Aujourd'hui",
+  "home.promo.new": "Nouveau",
+  "home.promo.hobby": "Netflix, Spotify, IA, salle, concerts — rappels de paiements et de fin d'essai. Séparé de vos revenus annexes.",
+  "home.promo.enable": "Activer",
+  "home.promo.later": "Pas maintenant",
 };

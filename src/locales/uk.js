@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "підписки {amount}/міс. · не входить у дохід",
   "bet.bank.shareAll": "Ви вивели стільки, скільки виграли.",
   "home.backToNow": "Сьогодні",
+  "home.promo.new": "Новинка",
+  "home.promo.hobby": "Netflix, Spotify, ШІ, спортзал, концерти — нагадаємо про платежі й кінець пробного періоду. Окремо від додаткового доходу.",
+  "home.promo.enable": "Увімкнути",
+  "home.promo.later": "Не зараз",
 };

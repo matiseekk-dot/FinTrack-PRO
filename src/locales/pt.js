@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "assinaturas {amount}/mês · não entra na renda",
   "bet.bank.shareAll": "Você sacou tanto quanto ganhou.",
   "home.backToNow": "Hoje",
+  "home.promo.new": "Novidade",
+  "home.promo.hobby": "Netflix, Spotify, IA, academia, shows — lembramos dos pagamentos e do fim dos testes. Separado da sua renda extra.",
+  "home.promo.enable": "Ativar",
+  "home.promo.later": "Agora não",
 };

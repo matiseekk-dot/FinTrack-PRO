@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "abbonamenti {amount}/mese · non conta nelle entrate",
   "bet.bank.shareAll": "Hai prelevato quanto hai vinto.",
   "home.backToNow": "Oggi",
+  "home.promo.new": "Novità",
+  "home.promo.hobby": "Netflix, Spotify, IA, palestra, concerti: ti ricordiamo pagamenti e fine delle prove. Separato dalle entrate extra.",
+  "home.promo.enable": "Attiva",
+  "home.promo.later": "Non ora",
 };

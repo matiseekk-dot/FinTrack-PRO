@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "Abos {amount}/Monat · zählt nicht zum Einkommen",
   "bet.bank.shareAll": "Du hast so viel ausgezahlt, wie du gewonnen hast.",
   "home.backToNow": "Heute",
+  "home.promo.new": "Neu",
+  "home.promo.hobby": "Netflix, Spotify, KI, Gym, Konzerte — wir erinnern an Zahlungen und das Ende von Testphasen. Getrennt vom Nebeneinkommen.",
+  "home.promo.enable": "Aktivieren",
+  "home.promo.later": "Nicht jetzt",
 };

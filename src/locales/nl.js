@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "abonnementen {amount}/mnd · telt niet mee als inkomen",
   "bet.bank.shareAll": "Je hebt evenveel opgenomen als je hebt gewonnen.",
   "home.backToNow": "Vandaag",
+  "home.promo.new": "Nieuw",
+  "home.promo.hobby": "Netflix, Spotify, AI, sportschool, concerten — herinneringen aan betalingen en einde proefperiode. Los van je bijverdiensten.",
+  "home.promo.enable": "Aanzetten",
+  "home.promo.later": "Niet nu",
 };

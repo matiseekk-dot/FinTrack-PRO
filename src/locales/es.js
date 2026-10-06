@@ -685,4 +685,8 @@ export default {
   "home.hobbySubs": "suscripciones {amount}/mes · no cuenta como ingreso",
   "bet.bank.shareAll": "Has retirado tanto como has ganado.",
   "home.backToNow": "Hoy",
+  "home.promo.new": "Novedad",
+  "home.promo.hobby": "Netflix, Spotify, IA, gimnasio, conciertos: te recordamos los pagos y el fin de las pruebas. Aparte de tus ingresos extra.",
+  "home.promo.enable": "Activar",
+  "home.promo.later": "Ahora no",
 };

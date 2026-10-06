@@ -684,6 +684,7 @@ export default function App() {
             onAddTx={() => setQuickAddOpen(true)}
             onOpenTrips={() => setTab("trips")}
             prefs={prefs} onPrefChange={setPref} subscriptions={subscriptions} month={viewMonth} onMonthChange={setViewMonth}
+            onEnableModule={(id) => { setModules(prev => sanitizeModules([...(prev || []), id]) || prev); setTab(id); }}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
         {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} navTabs={navTabs} onNavTabsChange={changeNavTabs} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
         {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} month={viewMonth} onMonthChange={setViewMonth} lossLimit={prefs.betLossLimit || null} onLossLimitChange={(m) => setPref("betLossLimit", m)} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}

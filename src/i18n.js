@@ -437,6 +437,10 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "home.promo.new": "New",
+    "home.promo.hobby": "Netflix, Spotify, AI, gym, concerts — we'll remind you of payments and trial ends. Kept apart from your side income.",
+    "home.promo.enable": "Turn on",
+    "home.promo.later": "Not now",
     "home.backToNow": "Today",
     "bet.bank.shareAll": "You've cashed out as much as you've won.",
     "cat.subskrypcje": "Subscriptions",
