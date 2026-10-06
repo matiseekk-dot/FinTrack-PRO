@@ -7,7 +7,7 @@
 
 import { Disc3, BookOpen, Gamepad2, Shirt, Smartphone, Gem, Package } from "lucide-react";
 import { round2, makeTx } from "./ledger.js";
-import { amountForDisplay, txAmountForDisplay } from "./fx.js";
+import { amountForDisplay, txAmountForDisplay, convertFromPLN, getRate } from "./fx.js";
 
 // Typowe prowizje sprzedającego (procent + stała kwota w walucie transakcji).
 // Zależą od kraju, kategorii i typu konta — dlatego zawsze edytowalne w formularzu,
@@ -149,6 +149,7 @@ function resellingStats(items, moduleTxs, inPeriod) {
   const s = {
     sold: 0, gross: 0, fees: 0, revenue: 0, cost: 0, profit: 0,
     daysSum: 0, daysCount: 0,
+    hours: 0, hoursProfit: 0, hoursCount: 0,
     stockCount: 0, capital: 0, listedCount: 0, listedValue: 0,
     looseCount: 0, looseNet: 0,
     byPlatform: {}, byCategory: {},
@@ -165,6 +166,9 @@ function resellingStats(items, moduleTxs, inPeriod) {
       s.sold += 1; s.gross += gross; s.fees += fees; s.revenue += gross - fees; s.cost += cost; s.profit += profit;
       const days = daysBetween(it.buyDate || it.createdAt, it.sellDate);
       if (days != null) { s.daysSum += days; s.daysCount += 1; }
+      // Czas pracy (szukanie, zdjęcia, wysyłka) — tylko przedmioty, przy których go wpisano
+      const hrs = Number(it.hours) || 0;
+      if (hrs > 0) { s.hours += hrs; s.hoursProfit += profit; s.hoursCount += 1; }
       for (const [map, key] of [[s.byPlatform, it.platform || "other"], [s.byCategory, it.category || "other"]]) {
         const g = map[key] || (map[key] = { key, count: 0, revenue: 0, fees: 0, profit: 0 });
         g.count += 1; g.revenue += gross - fees; g.fees += fees; g.profit += profit;
@@ -186,9 +190,41 @@ function resellingStats(items, moduleTxs, inPeriod) {
     ...s,
     margin: s.gross > 0 ? s.profit / s.gross : null,
     avgDays: s.daysCount > 0 ? Math.round(s.daysSum / s.daysCount) : null,
+    hourly: s.hours > 0 ? s.hoursProfit / s.hours : null,
     byPlatform: finish(s.byPlatform),
     byCategory: finish(s.byCategory),
   };
+}
+
+// DAC7 (dyrektywa UE 2021/514): platforma sprzedażowa zgłasza sprzedawcę do urzędu
+// skarbowego, gdy w roku kalendarzowym ma on na niej co najmniej 30 sprzedaży ALBO
+// 2000 € przychodu. Progi liczą się osobno dla każdej platformy. To raport, nie podatek.
+const DAC7_PLATFORMS = ["vinted", "allegro", "olx", "ebay", "depop", "wallapop", "etsy", "discogs", "kleinanzeigen", "leboncoin", "subito", "marktplaats"];
+const DAC7_SALES = 30;
+const DAC7_EUR = 2000;
+
+// Kwota sprzedaży w euro: po kursie z dnia sprzedaży do PLN, potem po dzisiejszym do EUR
+function toEUR(amount, currency, fxRate) {
+  const num = Number(amount) || 0;
+  const cur = (currency || "PLN").toUpperCase();
+  if (cur === "EUR") return num;
+  const rate = cur === "PLN" ? 1 : (fxRate > 0 ? fxRate : getRate(cur));
+  return convertFromPLN(num * (isFinite(rate) && rate > 0 ? rate : 1), "EUR");
+}
+
+/** Sprzedaże w danym roku na platformach objętych DAC7, najbliższe progu na początku. */
+function dac7Stats(items, year) {
+  const by = {};
+  for (const it of items) {
+    if (it.status !== "sold" || !DAC7_PLATFORMS.includes(it.platform)) continue;
+    if (!(it.sellDate || "").startsWith(String(year))) continue;
+    const g = by[it.platform] || (by[it.platform] = { platform: it.platform, count: 0, eur: 0 });
+    g.count += 1;
+    g.eur += toEUR(it.sellPrice, it.currency, it.sellFxRate);
+  }
+  return Object.values(by)
+    .map(g => ({ ...g, progress: Math.max(g.count / DAC7_SALES, g.eur / DAC7_EUR), reached: g.count >= DAC7_SALES || g.eur >= DAC7_EUR }))
+    .sort((a, b) => b.progress - a.progress);
 }
 
 function sanitizeItems(value) {
@@ -200,4 +236,5 @@ export {
   PLATFORMS, ITEM_CATEGORIES, marketPlatforms,
   platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
   saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats, sanitizeItems,
+  dac7Stats, DAC7_SALES, DAC7_EUR,
 };

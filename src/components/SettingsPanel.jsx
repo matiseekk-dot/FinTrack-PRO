@@ -26,7 +26,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
                          resaleItems = [], modules = null, onRestoreFull,
                          // v2.2.0: katalog Kolekcji i zlecenia Freelance
-                         collectionItems = [], gigs = [] }) {
+                         collectionItems = [], gigs = [],
+                         // v2.7.0: cel miesięczny i limit strat (trafiają do kopii)
+                         prefs = {} }) {
   const [importStatus, setImportStatus] = useState(null); // null | "ok" | "err" | "loading"
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -292,7 +294,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
       // Wszystkie dane finansowe
       accounts, transactions, budgets, payments, paid, goals,
       customCats, cycleDay, cycleDayHistory, defaultAcc, partnerName,
-      portfolio, trips, hobbies, resaleItems, collectionItems, gigs, modules,
+      portfolio, trips, hobbies, resaleItems, collectionItems, gigs, modules, prefs,
       // Legacy/templates
       templates, vacation, vacationArchiveData: vacationArchive,
       // Preferencje per device (mogą być przydatne przy restore na tym samym urządzeniu)

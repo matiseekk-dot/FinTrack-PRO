@@ -53,10 +53,15 @@ async function shareFile({ filename, base64, text, title }) {
 
 /**
  * One-time native setup: dark system bars, hide the splash once React has
- * painted, route the Android back button to `onBack`.
+ * painted, route the Android back button to `onBack` and app-icon shortcuts
+ * to `onShortcut(id)` (also the one the app was launched from).
  */
-async function initNative({ onBack }) {
+async function initNative({ onBack, onShortcut }) {
   if (!isNative) return;
+  if (onShortcut) {
+    const { AppShortcuts } = await import("@capawesome/capacitor-app-shortcuts");
+    AppShortcuts.addListener("click", (e) => e && e.shortcutId && onShortcut(e.shortcutId)).catch(() => {});
+  }
   SystemBars.setStyle({ style: SystemBarsStyle.Dark }).catch(() => {});
   const { App } = await import("@capacitor/app");
   App.addListener("backButton", () => {
@@ -66,4 +71,16 @@ async function initNative({ onBack }) {
   SplashScreen.hide().catch(() => {});
 }
 
-export { isNative, sitePage, openExternal, linkProps, shareFile, initNative };
+/**
+ * Skróty po przytrzymaniu ikony aplikacji: [{ id, title, icon }] — icon to nazwa
+ * obrazka w res/drawable (ic_sc_*). Ustawiane od nowa, gdy zmieniają się moduły.
+ */
+async function setAppShortcuts(items) {
+  if (!isNative) return;
+  const { AppShortcuts } = await import("@capawesome/capacitor-app-shortcuts");
+  await AppShortcuts.set({
+    shortcuts: items.map(i => ({ id: i.id, title: i.title, description: i.title, androidIcon: i.icon })),
+  }).catch(() => {});
+}
+
+export { isNative, sitePage, openExternal, linkProps, shareFile, initNative, setAppShortcuts };

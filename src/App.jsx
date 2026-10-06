@@ -30,7 +30,8 @@ import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
 import { getNavTabs, setNavTabs, navItem } from "./lib/nav.js";
-import { initNative } from "./lib/native.js";
+import { initNative, setAppShortcuts } from "./lib/native.js";
+import { sanitizePrefs, withPref } from "./lib/prefs.js";
 import { closeTopOverlay } from "./lib/backButton.js";
 
 function applyData(d, s) {
@@ -98,6 +99,11 @@ function applyData(d, s) {
       // (display currency jest re-czytane sync przy każdym fmtDisplay)
     }
   }
+  // v2.7.0: cel miesięczny, limit strat — nowszy zapis (updatedAt) wygrywa
+  if (d.prefs && typeof d.prefs === "object" && s.setPrefs) {
+    const incoming = sanitizePrefs(d.prefs);
+    s.setPrefs(prev => (incoming.updatedAt || 0) >= ((prev && prev.updatedAt) || 0) ? incoming : prev);
+  }
   // v2.0.0 Sidegig: włączone moduły. null = setup Sidegig jeszcze nie przeprowadzony.
   const mods = sanitizeModules(d.modules);
   if (mods && s.setModules) s.setModules(mods);
@@ -154,6 +160,17 @@ export default function App() {
   const [resaleItems,  setResaleItems]  = useState([]); // v2.1.0: przedmioty modułu Sprzedaż
   const [collectionItems, setCollectionItems] = useState([]); // v2.2.0: katalog Kolekcji
   const [gigs,         setGigs]         = useState([]); // v2.2.0: zlecenia Freelance
+  const [prefs,        setPrefs]        = useState({}); // v2.7.0: cel miesięczny, limit strat
+  // Skrót z ikony aplikacji / ?add= w adresie: wykonujemy, gdy apka jest gotowa (po PIN-ie)
+  const [pendingAction, setPendingAction] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("add") || null; } catch { return null; }
+  });
+  // ?add= zostaje odczytane raz — usuń je z adresu, żeby odświeżenie strony nie otwierało formularza ponownie
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).has("add")) window.history.replaceState(null, "", window.location.pathname); } catch { /* bez historii */ }
+  }, []);
+  // Ekran modułu otwarty skrótem startuje z otwartym formularzem dodawania
+  const [addOnMount,   setAddOnMount]   = useState(false);
   // v1.2.4: tombstones blokują wskrzeszanie usuniętych elementów przy Firestore real-time sync.
   // Format: { [arrayKey]: { [id]: deletedAtMs } }. Auto-purge po 30 dniach (w mergeSnapshots).
   const [tombstones,   setTombstones]   = useState({});
@@ -193,7 +210,7 @@ export default function App() {
     accounts, transactions, budgets, payments, paid, goals, month, cycleDay,
     cycleDayHistory,
     customCats, defaultAcc, partnerName, portfolio, vacationArchiveData: vacationArchive,
-    trips, hobbies, resaleItems, collectionItems, gigs,
+    trips, hobbies, resaleItems, collectionItems, gigs, prefs,
     tombstones,
     proStatus: getProStatusRaw(),       // v1.2.7: sync PRO status między urządzeniami
     displayCurrency: getDisplayCurrency(), // v1.5.1: sync waluty wyświetlania
@@ -266,7 +283,7 @@ export default function App() {
     setAccounts, setTransactions, setBudgets, setPayments, setPaid, setGoals,
     setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
     setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
-    setTrips, setHobbies, setResaleItems, setCollectionItems, setGigs, setTombstones, setModules,
+    setTrips, setHobbies, setResaleItems, setCollectionItems, setGigs, setTombstones, setModules, setPrefs,
   };
 
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
@@ -349,7 +366,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, modules, fxEpoch]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, tombstones, modules, fxEpoch]);
 
   // Save to Firestore
   useEffect(() => {
@@ -364,7 +381,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, modules, fxEpoch]);
+  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, prefs, tombstones, modules, fxEpoch]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -461,6 +478,7 @@ export default function App() {
     setResaleItems([]);
     setCollectionItems([]);
     setGigs([]);
+    setPrefs({});
     setCustomCats([]);
     setPortfolio([]);
     setPartnerName("Partner");
@@ -483,7 +501,39 @@ export default function App() {
     if (tab !== "home") { setTab("home"); return true; }
     return false;
   };
-  useEffect(() => { initNative({ onBack: () => backRef.current() }); }, []);
+  useEffect(() => { initNative({ onBack: () => backRef.current(), onShortcut: (id) => setPendingAction(id) }); }, []);
+
+  useEffect(() => {
+    if (!pendingAction || !loaded || !user || !modules || pinLocked || setupOpen) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    setSettingsOpen(false);
+    if (MODULE_SCREENS.includes(action) && modules.includes(action)) {
+      setAddOnMount(true);
+      setModuleAddSignal(n => n + 1);
+      setTab(action);
+    } else {
+      setTab("home");
+      setQuickAddOpen(true);
+    }
+  }, [pendingAction, loaded, user, modules, pinLocked, setupOpen]);
+  // Widok modułu przeczytał openAdd przy montowaniu (efekty dzieci biegną przed rodzicem)
+  useEffect(() => { if (addOnMount) setAddOnMount(false); }, [addOnMount]);
+
+  // Skróty po przytrzymaniu ikony: moduły z formularzem dodawania + zwykły wpis
+  useEffect(() => {
+    if (!modules) return;
+    const items = [
+      ["betting", t("shortcut.bet", "Dodaj kupon"), "ic_sc_bet"],
+      ["reselling", t("shortcut.item", "Dodaj przedmiot"), "ic_sc_item"],
+      ["freelance", t("shortcut.gig", "Dodaj zlecenie"), "ic_sc_gig"],
+      ["collections", t("shortcut.collection", "Dodaj do kolekcji"), "ic_sc_coll"],
+    ].filter(([id]) => modules.includes(id)).slice(0, 3)
+      .map(([id, title, icon]) => ({ id, title, icon }));
+    setAppShortcuts([...items, { id: "entry", title: t("shortcut.entry", "Nowy wpis"), icon: "ic_sc_entry" }]);
+  }, [modules ? modules.join(",") : ""]);
+
+  const setPref = (key, money) => setPrefs(p => withPref(p, key, money));
 
   const enabledModules = modules || [];
   // Pasek: Start + do 3 skrótów wybranych przez użytkownika (domyślnie jego moduły) + Więcej,
@@ -622,12 +672,13 @@ export default function App() {
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
             onOpenTrips={() => setTab("trips")}
+            prefs={prefs} onPrefChange={setPref}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
         {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} navTabs={navTabs} onNavTabsChange={changeNavTabs} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
-        {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
-        {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
-        {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
-        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
+        {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} lossLimit={prefs.betLossLimit || null} onLossLimitChange={(m) => setPref("betLossLimit", m)} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
+        {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} openAdd={addOnMount} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
+        {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
+        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
           {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} allCats={allCategories}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} onBack={() => setTab("home")}/></ErrorBoundary>}
           {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
@@ -655,6 +706,7 @@ export default function App() {
         user={user} onSignOut={signOutUser} onClearData={clearAllData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
+        prefs={prefs}
       />
       </ErrorBoundary>
 

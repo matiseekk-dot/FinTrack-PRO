@@ -24,7 +24,7 @@ const ACCENT = "#06b6d4";
  * „Opłacone” tworzy przychód w Wpisach, więc Start pokazuje tylko realne wpływy.
  */
 function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
-  onBack, addSignal = 0, focusGigId = null, onFocusHandled }) {
+  onBack, addSignal = 0, openAdd = false, focusGigId = null, onFocusHandled }) {
   const { toast, showToast } = useToast();
   const today = todayLocal();
   const [period, setPeriod] = useState("month");
@@ -66,7 +66,8 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
     acc: g.acc ?? defaultAcc, ...patch,
   });
 
-  const firstAddSignal = useRef(addSignal);
+  // openAdd: ekran otwarty skrótem — formularz od razu
+  const firstAddSignal = useRef(openAdd ? null : addSignal);
   useEffect(() => { if (addSignal !== firstAddSignal.current) setForm(blankForm()); }, [addSignal]);
   useEffect(() => {
     if (focusGigId == null) return;
@@ -258,7 +259,10 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
           <Input label={t("gig.client", "Klient")} value={form.client} onChange={e => setF({ client: e.target.value })} placeholder={t("gig.clientPh", "np. Studio XYZ")}/>
           {recentClients.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-6px 0 14px" }}>
-              {recentClients.map(c => <Chip key={c} on={form.client === c} color={ACCENT} onClick={() => setF({ client: c })}>{c}</Chip>)}
+              {recentClients.map(c => <Chip key={c} on={form.client === c} color={ACCENT} onClick={() => {
+                const last = gigs.filter(g => (g.client || "").trim() === c).sort((x, y) => (y.date || "").localeCompare(x.date || ""))[0];
+                setF({ client: c, ...(last && form.editingId == null ? { currency: last.currency || form.currency } : {}) });
+              }}>{c}</Chip>)}
             </div>
           )}
           <Input label={t("gig.what", "Za co")} value={form.title} onChange={e => setF({ title: e.target.value })} placeholder={t("gig.whatPh", "np. Landing page, logo, tłumaczenie")}/>

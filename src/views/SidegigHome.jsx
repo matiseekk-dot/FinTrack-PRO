@@ -5,9 +5,11 @@ import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "..
 import { groupTrips, getTripSpending } from "../lib/trips.js";
 import { txAmountForDisplay, amountForDisplay, getDisplayCurrency } from "../lib/fx.js";
 import { bettingStats } from "../lib/betting.js";
-import { daysBetween } from "../lib/reselling.js";
+import { daysBetween, resellingStats } from "../lib/reselling.js";
 import { collectionStats } from "../lib/collections.js";
-import { isOverdue } from "../lib/freelance.js";
+import { isOverdue, freelanceStats } from "../lib/freelance.js";
+import { moneyForDisplay } from "../lib/prefs.js";
+import { AmountModal } from "../components/AmountModal.jsx";
 import { positionValues } from "../lib/accountTypes.js";
 import { t, getLang } from "../i18n.js";
 
@@ -24,12 +26,13 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
   const [period, setPeriod] = useState(current);
   const isCurrent = period.y === current.y && period.m === current.m;
+  const [goalOpen, setGoalOpen] = useState(false);
 
   const sideEnabled = SIDE_MODULES.filter(id => modules.includes(id));
 
@@ -87,6 +90,13 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       if (overdue.length) out.push({ id: "freelance", tone: "#f87171", text: t("home.att.overdue", "Faktury po terminie: {n} · {amount}").replace("{n}", overdue.length).replace("{amount}", fmtDisplay(sum(overdue))) });
       else if (unpaid.length) out.push({ id: "freelance", tone: "#fbbf24", text: t("home.att.unpaid", "Czeka na zapłatę: {n} · {amount}").replace("{n}", unpaid.length).replace("{amount}", fmtDisplay(sum(unpaid))) });
     }
+    if (modules.includes("betting") && prefs.betLossLimit) {
+      const cur = today.slice(0, 7);
+      const loss = Math.max(0, -resolved.filter(r => r.mod === "betting" && r.ym === cur).reduce((s, r) => s + r.amt, 0));
+      const limit = moneyForDisplay(prefs.betLossLimit);
+      if (limit > 0 && loss >= limit) out.push({ id: "betting", tone: "#f87171", text: t("home.att.limitOver", "Limit strat w Zakładach przekroczony: {loss} z {limit}").replace("{loss}", fmtDisplay(loss)).replace("{limit}", fmtDisplay(limit)) });
+      else if (limit > 0 && loss >= limit * 0.8) out.push({ id: "betting", tone: "#fbbf24", text: t("home.att.limitNear", "Blisko limitu strat w Zakładach: {loss} z {limit}").replace("{loss}", fmtDisplay(loss)).replace("{limit}", fmtDisplay(limit)) });
+    }
     if (modules.includes("betting")) {
       const open = transactions.filter(tx => tx.bet && tx.bet.status === "pending");
       if (open.length) out.push({ id: "betting", tone: "#a78bfa", text: t("home.att.openBets", "Kupony do rozliczenia: {n}").replace("{n}", open.length) });
@@ -96,7 +106,7 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
       if (stale.length) out.push({ id: "reselling", tone: "#ec4899", text: t("home.att.stale", "Na stanie dłużej niż 30 dni: {n}").replace("{n}", stale.length) });
     }
     return out;
-  }, [modules, gigs, transactions, resaleItems, today, getDisplayCurrency()]);
+  }, [modules, gigs, transactions, resaleItems, today, resolved, prefs.betLossLimit, getDisplayCurrency()]);
 
   // Dodatkowa informacja w wierszu modułu (ROI, stan magazynu, wartość kolekcji, zaległe)
   const extras = useMemo(() => {
@@ -104,14 +114,20 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
     const monthBets = resolved.filter(r => r.ym === ym && r.mod === "betting").map(r => r.tx);
     const bs = bettingStats(monthBets);
     if (bs.roi != null) x.betting = `ROI ${bs.roi > 0 ? "+" : ""}${(bs.roi * 100).toFixed(1)}%`;
+    const inMonth = (d) => (d || "").startsWith(ym);
+    const perHour = (v) => t("home.extra.perHour", "{amount}/h").replace("{amount}", fmtDisplay(v));
     const stock = resaleItems.filter(r => r.status !== "sold").length;
-    if (stock > 0) x.reselling = t("home.extra.stock", "{n} na stanie").replace("{n}", stock);
+    const resaleHourly = resellingStats(resaleItems, [], inMonth).hourly;
+    const resaleParts = [stock > 0 ? t("home.extra.stock", "{n} na stanie").replace("{n}", stock) : null, resaleHourly != null ? perHour(resaleHourly) : null].filter(Boolean);
+    if (resaleParts.length) x.reselling = resaleParts.join(" · ");
     const cs = collectionStats(collectionItems, resaleItems).total;
     if (cs.value > 0) x.collections = t("home.extra.collection", "kolekcja {amount}").replace("{amount}", fmtDisplay(cs.value));
     const unpaid = gigs.filter(g => g.status === "unpaid").reduce((s, g) => s + amountForDisplay(g.amount, g.currency), 0);
-    if (unpaid > 0) x.freelance = t("home.extra.unpaid", "czeka {amount}").replace("{amount}", fmtDisplay(unpaid));
+    const gigHourly = freelanceStats(gigs, [], inMonth, today).hourly;
+    const gigParts = [unpaid > 0 ? t("home.extra.unpaid", "czeka {amount}").replace("{amount}", fmtDisplay(unpaid)) : null, gigHourly != null ? perHour(gigHourly) : null].filter(Boolean);
+    if (gigParts.length) x.freelance = gigParts.join(" · ");
     return x;
-  }, [resolved, ym, resaleItems, collectionItems, gigs]);
+  }, [resolved, ym, resaleItems, collectionItems, gigs, today]);
 
   // Trips card: active trip first, otherwise the next upcoming one
   const tripCard = useMemo(() => {
@@ -150,6 +166,39 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
           {t("home.vsPrev", "Poprzedni miesiąc")} {fmtDisplay(prevNet, { showSign: true })} · {t("home.ytd", "Od początku roku")} {fmtDisplay(ytdNet, { showSign: true })}
         </div>
+
+        {/* Cel miesiąca */}
+        {prefs.monthlyGoal ? (() => {
+          const goal = moneyForDisplay(prefs.monthlyGoal);
+          const done = Math.max(0, stats.net);
+          const ratio = goal > 0 ? done / goal : 0;
+          const reached = ratio >= 1;
+          const daysLeft = new Date(period.y, period.m + 1, 0).getDate() - now.getDate();
+          return (
+            <button onClick={() => setGoalOpen(true)} aria-label={t("home.goal.edit", "Zmień cel miesiąca")} style={{ all: "unset", boxSizing: "border-box", display: "block", width: "100%", cursor: "pointer", marginTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>{t("home.goal.label", "Cel miesiąca")}</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: reached ? "#34d399" : "#e2e8f0" }}>
+                  {fmtDisplay(done)} / {fmtDisplay(goal)}
+                </span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: "#060b14", marginTop: 6, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, ratio * 100)}%`, height: "100%", borderRadius: 4, background: BRAND, transition: "width 0.4s ease" }}/>
+              </div>
+              <div style={{ fontSize: 11, color: reached ? "#34d399" : "#64748b", marginTop: 5 }}>
+                {reached
+                  ? t("home.goal.reached", "Cel osiągnięty — brawo!")
+                  : isCurrent && daysLeft > 0
+                    ? t("home.goal.leftDays", "Brakuje {amount} · {days} dni do końca miesiąca").replace("{amount}", fmtDisplay(goal - done)).replace("{days}", daysLeft)
+                    : t("home.goal.left", "Brakuje {amount}").replace("{amount}", fmtDisplay(goal - done))}
+              </div>
+            </button>
+          );
+        })() : isCurrent && (
+          <button onClick={() => setGoalOpen(true)} style={{ width: "100%", marginTop: 12, background: "none", border: "1px dashed #10b98155", borderRadius: 10, padding: 8, color: "#34d399", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            + {t("home.goal.set", "Ustaw cel na miesiąc")}
+          </button>
+        )}
 
         {/* 6-month bars: positive above the baseline, negative below */}
         <div style={{ display: "flex", alignItems: "stretch", gap: 6, height: 56, marginTop: 12 }}>
@@ -280,6 +329,13 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         </>
       )}
 
+      {goalOpen && (
+        <AmountModal title={t("home.goal.modalTitle", "Cel na miesiąc")}
+          desc={t("home.goal.desc", "Ile chcesz zarabiać na boku co miesiąc? Na Starcie zobaczysz, ile już masz i ile brakuje.")}
+          label={t("home.goal.amount", "Dochód netto na miesiąc")} value={prefs.monthlyGoal || null}
+          onSave={(m) => onPrefChange && onPrefChange("monthlyGoal", m)} onClear={() => onPrefChange && onPrefChange("monthlyGoal", null)}
+          onClose={() => setGoalOpen(false)}/>
+      )}
     </div>
   );
 }

@@ -42,9 +42,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Add entry",
-      "short_name": "Add",
-      "url": "/FinTrack-PRO/?action=add",
+      "name": "New entry",
+      "short_name": "New entry",
+      "description": "Add an entry to Sidegig",
+      "url": "/FinTrack-PRO/?add=entry",
       "icons": [
         {
           "src": "/FinTrack-PRO/icon-192.png",

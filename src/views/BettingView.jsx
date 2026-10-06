@@ -11,6 +11,8 @@ import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import { linkProps } from "../lib/native.js";
+import { moneyForDisplay } from "../lib/prefs.js";
+import { AmountModal } from "../components/AmountModal.jsx";
 import {
   BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel, marketBookmakers,
   potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats,
@@ -50,7 +52,7 @@ function Sparkline({ series }) {
  * więc rozliczenie kuponu od razu zmienia Start i saldo konta.
  */
 function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
-  onBack, addSignal = 0, focusTxId = null, onFocusHandled }) {
+  onBack, addSignal = 0, openAdd = false, focusTxId = null, onFocusHandled, lossLimit = null, onLossLimitChange }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -58,6 +60,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
   const [settle, setSettle] = useState(null); // { tx, status, payout }
   const [saving, setSaving] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(15);
+  const [limitOpen, setLimitOpen] = useState(false);
 
   const all = useMemo(() => transactions
     .filter(tx => tx && tx.date && getModule(tx, hobbies) === "betting")
@@ -71,6 +74,11 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     [all, period, today, getDisplayCurrency()]
   );
   const pending = all.filter(tx => tx.bet?.status === "pending");
+  const monthLoss = Math.max(0, -all.filter(tx => tx.date.startsWith(today.slice(0, 7))).reduce((sum, tx) => sum + txAmountForDisplay(tx), 0));
+  const limitValue = moneyForDisplay(lossLimit);
+  const limitRatio = limitValue > 0 ? monthLoss / limitValue : 0;
+  // Ostatni kupon — do „jak ostatnio”
+  const lastBet = all.find(tx => tx.bet && tx.bet.stake > 0);
   const history = all.filter(tx => tx.bet?.status !== "pending" && inPeriod(tx.date));
 
   // Ostatnio używani bukmacherzy jako szybkie chipy; bez historii — polscy albo międzynarodowi
@@ -97,6 +105,15 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     });
   };
 
+  const repeatLast = () => {
+    const b = lastBet && lastBet.bet;
+    if (!b) return;
+    setF({
+      bookmaker: b.bookmaker || "", custom: !!b.bookmaker && !BOOKMAKERS.some(x => x.id === b.bookmaker),
+      sport: b.sport || "other", stake: String(b.stake), taxed: !!b.taxed, currency: b.currency || "PLN",
+    });
+  };
+
   const openEdit = (tx) => {
     const b = tx.bet;
     setForm({
@@ -109,7 +126,8 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
 
   // Przycisk + z dolnego paska, gdy ten widok jest otwarty
   // Licznik jest wspólny dla ekranów modułów — reagujemy tylko na kliknięcia po wejściu na ekran
-  const firstAddSignal = useRef(addSignal);
+  // openAdd: ekran otwarty skrótem „Dodaj kupon” — formularz od razu
+  const firstAddSignal = useRef(openAdd ? null : addSignal);
   useEffect(() => { if (addSignal !== firstAddSignal.current) openNew(); }, [addSignal]);
   // Edycja kuponu kliknięta w Wpisach
   useEffect(() => {
@@ -143,6 +161,12 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     const payout = num(form.payout);
     if (usesPayout(form.status) && (!isFinite(payout) || payout < 0)) { showToast(t("bet.err.payout", "Wpisz wypłatę"), "error"); return; }
     const oldTx = form.editingId != null ? transactions.find(x => x.id === form.editingId) : null;
+    if (!oldTx && limitValue > 0) {
+      const stakeDisp = moneyForDisplay({ amount: stake, currency: form.currency });
+      if (monthLoss + stakeDisp > limitValue && !window.confirm(
+        t("bet.limit.confirm", "Ten kupon może przekroczyć Twój miesięczny limit strat ({limit}). Zapisać mimo to?").replace("{limit}", fmtDisplay(limitValue))
+      )) return;
+    }
 
     setSaving(true);
     try {
@@ -232,6 +256,34 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           </div>
         )}
       </div>
+
+      {/* Limit strat */}
+      {lossLimit ? (() => {
+        const over = limitRatio >= 1, near = limitRatio >= 0.8;
+        const color = over ? "#f87171" : near ? "#fbbf24" : "#34d399";
+        return (
+          <button onClick={() => setLimitOpen(true)} style={{ all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", ...card, padding: "12px 16px", marginTop: 10, borderColor: over ? "#7f1d1d" : near ? "#78350f" : "#1a2744" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("bet.limit.title", "Limit strat w tym miesiącu")}</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color }}>{fmtDisplay(monthLoss)} / {fmtDisplay(limitValue)}</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: "#060b14", marginTop: 8, overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, limitRatio * 100)}%`, height: "100%", background: color, borderRadius: 3 }}/>
+            </div>
+            {(over || near) && (
+              <div style={{ fontSize: 12, color, marginTop: 8, lineHeight: 1.45 }}>
+                {over
+                  ? t("bet.limit.over", "Limit przekroczony. Może warto zrobić przerwę do końca miesiąca.")
+                  : t("bet.limit.near", "Zbliżasz się do swojego limitu strat.")}
+              </div>
+            )}
+          </button>
+        );
+      })() : (
+        <button onClick={() => setLimitOpen(true)} style={{ width: "100%", marginTop: 10, background: "none", border: "1px dashed #1a2744", borderRadius: 12, padding: 10, color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          {t("bet.limit.set", "Ustaw miesięczny limit strat")}
+        </button>
+      )}
 
       {/* Otwarte kupony */}
       {pending.length > 0 && <>
@@ -344,6 +396,17 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
       {/* Formularz kuponu */}
       <Modal open={!!form} onClose={() => setForm(null)} title={form?.editingId != null ? t("bet.editTitle", "Edytuj kupon") : t("bet.newTitle", "Nowy kupon")}>
         {form && <>
+          {form.editingId == null && lastBet && (
+            <button type="button" onClick={repeatLast} style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "9px 12px", borderRadius: 10,
+              background: ACCENT + "14", border: `1px solid ${ACCENT}44`, color: "#cbd5e1", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+            }}>
+              <RotateCcw size={13} color={ACCENT}/>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("bet.repeatLast", "Jak ostatnio")}: {[bookmakerName(lastBet.bet.bookmaker), fmtBet(lastBet.bet.stake, lastBet.bet.currency), sportLabel(lastBet.bet.sport, lang)].filter(Boolean).join(" · ")}
+              </span>
+            </button>
+          )}
           <div style={fieldLabel}>{t("bet.bookmaker", "Bukmacher")}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
             {recentBookmakers.map(id => (
@@ -444,6 +507,14 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           </button>
         </>}
       </Modal>
+
+      {limitOpen && (
+        <AmountModal title={t("bet.limit.modalTitle", "Miesięczny limit strat")}
+          desc={t("bet.limit.desc", "Ile najwyżej chcesz stracić na zakładach w miesiącu? Pokażemy, ile zostało, i ostrzeżemy przed przekroczeniem.")}
+          label={t("bet.limit.amount", "Limit na miesiąc")} value={lossLimit}
+          onSave={(m) => onLossLimitChange && onLossLimitChange(m)} onClear={() => onLossLimitChange && onLossLimitChange(null)}
+          onClose={() => setLimitOpen(false)}/>
+      )}
 
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
     </div>

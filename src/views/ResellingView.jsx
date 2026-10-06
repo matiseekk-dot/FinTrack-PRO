@@ -6,26 +6,28 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { BRAND, card, sectionTitle, fieldLabel, Chip, Stat, actionBtn, num } from "../components/ModuleUI.jsx";
 import { useToast } from "../hooks/useToast.js";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
-import { t, getLang } from "../i18n.js";
+import { t, getLang, getLocale } from "../i18n.js";
 import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import {
   PLATFORMS, ITEM_CATEGORIES, marketPlatforms, platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
-  saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats,
+  saleNet, itemProfit, daysBetween, buildItemTxs, resellingStats, dac7Stats, DAC7_SALES, DAC7_EUR,
 } from "../lib/reselling.js";
 
 const ACCENT = "#ec4899";
 const STATUS_COLORS = { stock: "#64748b", listed: "#f59e0b", sold: "#10b981" };
 
 const pct = (x) => x == null ? "—" : `${(x * 100).toFixed(1)}%`;
+// Progi DAC7 w pełnych euro
+const eur0 = (v) => { try { return new Intl.NumberFormat(getLocale(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v); } catch { return `${Math.round(v)} €`; } };
 
 /**
  * Sprzedaż: przedmioty od zakupu do sprzedaży. Zakup i sprzedaż to wpisy w Wpisach
  * (moduł reselling), więc Start i saldo konta zgadzają się bez osobnego liczenia.
  */
 function ResellingView({ items = [], setItems, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
-  onBack, addSignal = 0, focusItemId = null, onFocusHandled }) {
+  onBack, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -44,6 +46,8 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
     () => resellingStats(items, moduleTxs, inPeriod),
     [items, moduleTxs, period, today, getDisplayCurrency()]
   );
+  const year = today.slice(0, 4);
+  const dac7 = useMemo(() => dac7Stats(items, year), [items, year]);
   const stock = items.filter(it => it.status !== "sold")
     .sort((a, b) => (b.buyDate || b.createdAt || "").localeCompare(a.buyDate || a.createdAt || ""));
   const sold = items.filter(it => it.status === "sold" && inPeriod(it.sellDate))
@@ -61,9 +65,10 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
   const blankForm = (patch = {}) => {
     const platform = platformOrder[0] || "vinted";
     const rule = feeRule(platform);
+    const last = [...items].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "") || (b.id > a.id ? 1 : -1))[0];
     return {
-      editingId: null, name: "", category: "other", status: "stock",
-      currency: getDisplayCurrency(), acc: defaultAcc,
+      editingId: null, name: "", category: last?.category || "other", status: "stock",
+      currency: last?.currency || getDisplayCurrency(), acc: defaultAcc, hours: "",
       buyPrice: "", buyDate: today, recordPurchase: true,
       platform, customPlatform: false, listPrice: "",
       sellPrice: "", sellDate: today, feePct: String(rule.pct), feeFixed: String(rule.fixed), shipping: "",
@@ -84,12 +89,14 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
       sellPrice: it.sellPrice != null ? String(it.sellPrice) : (it.listPrice != null ? String(it.listPrice) : ""),
       sellDate: it.sellDate || today,
       feePct: String(rule.pct), feeFixed: String(rule.fixed), shipping: it.shipping != null ? String(it.shipping) : "",
+      hours: it.hours != null ? String(it.hours) : "",
       ...patch,
     };
   };
 
   // Licznik jest wspólny dla ekranów modułów — reagujemy tylko na kliknięcia po wejściu na ekran
-  const firstAddSignal = useRef(addSignal);
+  // openAdd: ekran otwarty skrótem „Dodaj przedmiot” — formularz od razu
+  const firstAddSignal = useRef(openAdd ? null : addSignal);
   useEffect(() => { if (addSignal !== firstAddSignal.current) setForm(blankForm()); }, [addSignal]);
   useEffect(() => {
     if (focusItemId == null) return;
@@ -133,6 +140,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
       feeFixed: form.status === "sold" ? (num(form.feeFixed) || 0) : null,
       fees: form.status === "sold" ? fee : null,
       shipping: form.status === "sold" ? (num(form.shipping) || 0) : null,
+      hours: isFinite(num(form.hours)) && num(form.hours) > 0 ? num(form.hours) : null,
       buyTxId: old?.buyTxId ?? null, sellTxId: old?.sellTxId ?? null,
       createdAt: old?.createdAt || today,
     };
@@ -220,6 +228,11 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
             {t("resale.feesLine", "Prowizje i wysyłka: {amount}").replace("{amount}", fmtDisplay(stats.fees))}
           </div>
         )}
+        {stats.hourly != null && (
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
+            {t("resale.hourlyLine", "Zysk na godzinę: {amount} (przedmioty z wpisanym czasem: {n})").replace("{amount}", fmtDisplay(stats.hourly)).replace("{n}", stats.hoursCount)}
+          </div>
+        )}
         {stats.looseCount > 0 && (
           <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
             {t("resale.looseNote", "Wpisy bez przedmiotu ({n}): {amount}").replace("{n}", stats.looseCount).replace("{amount}", fmtDisplay(stats.looseNet, { showSign: true }))}
@@ -233,6 +246,35 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
           <Stat label={t("resale.inStock", "Na stanie")} value={String(stats.stockCount)}/>
           <Stat label={t("resale.capital", "Zamrożone")} value={fmtDisplay(stats.capital)}/>
           <Stat label={t("resale.listedValue", "Wystawione za")} value={stats.listedCount > 0 ? fmtDisplay(stats.listedValue) : "—"}/>
+        </div>
+      )}
+
+      {dac7.length > 0 && (
+        <div style={{ ...card, padding: "12px 16px", marginTop: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            {t("resale.dac7.title", "Próg DAC7 · {year}").replace("{year}", year)}
+          </div>
+          {dac7.slice(0, 4).map(g => {
+            const color = g.reached ? "#f87171" : g.progress >= 0.8 ? "#fbbf24" : "#34d399";
+            return (
+              <div key={g.platform} style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, fontSize: 12 }}>
+                  <span style={{ fontWeight: 700, color: "#e2e8f0" }}>{platformName(g.platform, lang)}</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", color, fontWeight: 700 }}>
+                    {g.count}/{DAC7_SALES} · {eur0(g.eur)}/{eur0(DAC7_EUR)}
+                  </span>
+                </div>
+                <div style={{ height: 5, borderRadius: 3, background: "#060b14", marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, g.progress * 100)}%`, height: "100%", background: color, borderRadius: 3 }}/>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+            {dac7.some(g => g.reached)
+              ? t("resale.dac7.reached", "Na platformie zaznaczonej na czerwono przekroczyłeś próg — zgłosi ona Twoje sprzedaże do urzędu skarbowego. To raport, nie podatek: sprawdź, czy Twoja sprzedaż podlega opodatkowaniu.")
+              : t("resale.dac7.hint", "Platformy w UE zgłaszają do urzędu skarbowego sprzedawców z co najmniej 30 sprzedażami albo 2000 € w roku — osobno na każdej platformie. To raport, nie podatek.")}
+          </div>
         </div>
       )}
 
@@ -417,6 +459,9 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
               </div>
             )}
           </>}
+
+          <Input label={t("resale.hours", "Czas pracy (h, opcjonalnie)")} type="number" inputMode="decimal" step="0.25" placeholder={t("resale.hoursPh", "szukanie, zdjęcia, wysyłka")}
+            value={form.hours} onChange={e => setF({ hours: e.target.value })}/>
 
           <button onClick={save} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
             {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}

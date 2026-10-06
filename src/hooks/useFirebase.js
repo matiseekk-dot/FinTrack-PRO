@@ -49,6 +49,7 @@ const SYNC_KEYS = [
   "resaleItems",      // v2.1.0: przedmioty modułu Sprzedaż
   "collectionItems",  // v2.2.0: katalog Kolekcji
   "gigs",             // v2.2.0: zlecenia Freelance
+  "prefs",            // v2.7.0: cel miesięczny, limit strat w Zakładach
 ];
 
 // Tablice z ID - merge po ID przy real-time sync (dwa urządzenia)
@@ -127,7 +128,11 @@ function mergeSnapshots(local, remote) {
     else if (typeof localVal === "object" && localVal !== null && typeof remoteVal === "object" && remoteVal !== null) {
       // proStatus: last-write-wins po `since` timestamp - potrzebne żeby drugie urządzenie
       // dostało aktywację PRO bez ponownego wpisywania klucza.
-      if (key === "proStatus") {
+      if (key === "prefs") {
+        // Ustawienia: nowszy zapis wygrywa w całości. Scalanie pól zostawiłoby
+        // starą wartość z tego urządzenia nad nowszą z drugiego.
+        merged[key] = (localVal.updatedAt || 0) >= (remoteVal.updatedAt || 0) ? localVal : remoteVal;
+      } else if (key === "proStatus") {
         const localSince  = localVal.since  || "";
         const remoteSince = remoteVal.since || "";
         merged[key] = localSince >= remoteSince ? localVal : remoteVal;

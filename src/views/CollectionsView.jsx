@@ -30,7 +30,7 @@ const STATE_COLORS = { owned: "#34d399", wishlist: "#f59e0b", selling: "#ec4899"
  */
 function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resaleItems = [], setResaleItems,
   transactions, setTransactions, setAccounts, defaultAcc = 1, allCats, month, cycleDay,
-  onBack, onOpenResale, addSignal = 0, focusItemId = null, onFocusHandled }) {
+  onBack, onOpenResale, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const today = todayLocal();
@@ -137,7 +137,8 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   };
 
   // Przycisk + z dolnego paska (licznik wspólny dla ekranów modułów)
-  const firstAddSignal = useRef(addSignal);
+  // openAdd: ekran otwarty skrótem — formularz od razu
+  const firstAddSignal = useRef(openAdd ? null : addSignal);
   useEffect(() => { if (addSignal !== firstAddSignal.current) startAdd(); }, [addSignal]);
   // Wpis z katalogu kliknięty w Wpisach
   useEffect(() => {
