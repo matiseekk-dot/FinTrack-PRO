@@ -14,7 +14,8 @@ import { t, getLang } from "../i18n.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { canAddTransaction } from "../lib/tier.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
-import { getHobbyStats, getHobbyExpenses, pickHobbyColor } from "../lib/hobby.js";
+import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby } from "../lib/hobby.js";
+import { getModule } from "../lib/modules.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
@@ -87,8 +88,25 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     setOpenId(null);
   };
 
+  // ── Wpisy bez kolekcji ─────────────────────────────────────────────
+  // Wpis z modułem Kolekcje dodany w Wpisach bez wybranej kolekcji (albo z kolekcją,
+  // którą usunięto) nie pasuje do żadnej — pokazujemy go, żeby nie przepadł z widoku.
+  const unassigned = useMemo(() => transactions
+    .filter(tx => tx && tx.date && tx.collectionItemId == null && getModule(tx, hobbies) === "collections"
+      && !hobbies.some(h => txMatchesHobby(tx, h)))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "")), [transactions, hobbies]);
+  const [assignTx, setAssignTx] = useState(null);
+  const assignToCollection = (txId, hobbyId) => {
+    setTransactions(prev => prev.map(x => x.id === txId ? { ...x, module: "collections", hobbyId } : x));
+  };
+
   // ── Pozycje katalogu ───────────────────────────────────────────────
   const linkedTxIds = useMemo(() => new Set(items.filter(i => i.buyTxId != null).map(i => i.buyTxId)), [items]);
+  // Zakupy z kolekcji spoza katalogu (np. dodane w Wpisach) — do szybkiego dopisania
+  const [pickFromLedger, setPickFromLedger] = useState(false);
+  const offCatalog = useMemo(() => open
+    ? getHobbyExpenses(transactions, open).filter(tx => !linkedTxIds.has(tx.id))
+    : [], [open, transactions, linkedTxIds]);
 
   const blankItem = (hobbyId, patch = {}) => ({
     editingId: null, hobbyId, status: "owned", title: "", creator: "", format: "", condition: "mint",
@@ -104,6 +122,14 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     buyPrice: it.buyPrice != null ? String(it.buyPrice) : "", buyDate: it.buyDate || today, buyTxId: it.buyTxId ?? null,
     value: it.value != null ? String(it.value) : "", targetPrice: it.targetPrice != null ? String(it.targetPrice) : "",
   });
+
+  const startFromTx = (tx, hobbyId) => {
+    const fx = tx.origCurrency && tx.origAmount != null;
+    setForm(blankItem(hobbyId, {
+      title: tx.desc || "", buyMode: "ledger", buyTxId: tx.id, buyDate: tx.date,
+      buyPrice: String(Math.abs(fx ? tx.origAmount : tx.amount)), currency: fx ? tx.origCurrency : "PLN",
+    }));
+  };
 
   const startAdd = () => {
     const target = open || active[0];
@@ -129,13 +155,14 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   // Wydatki tej kolekcji z Wpisów, których nie przypięto jeszcze do żadnej pozycji
   const candidates = useMemo(() => {
     if (!form || !formHobby) return [];
-    let pool = getHobbyExpenses(transactions, formHobby);
+    let pool = [...getHobbyExpenses(transactions, formHobby), ...unassigned.filter(tx => tx.amount < 0)]
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     if (pool.length === 0) {
       pool = transactions.filter(tx => tx.amount < 0 && tx.cat !== "inne" && tx.cat !== "inwestycje")
         .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     }
     return pool.filter(tx => !linkedTxIds.has(tx.id) || tx.id === form.buyTxId).slice(0, 8);
-  }, [form?.hobbyId, form?.buyTxId, formHobby, transactions, linkedTxIds]);
+  }, [form?.hobbyId, form?.buyTxId, formHobby, transactions, linkedTxIds, unassigned]);
 
   const pickLedgerTx = (tx) => {
     const fx = tx.origCurrency && tx.origAmount != null;
@@ -181,6 +208,8 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       } else if (oldOwnedTx) {
         commitTxChanges({ setTransactions, setAccounts }, { remove: [oldOwnedTx] });
       }
+      // Zakup podpięty z Wpisów liczy się w wydatkach tej kolekcji
+      if (!item.buyTxOwned && item.buyTxId != null) assignToCollection(item.buyTxId, item.hobbyId);
       setItems(prev => old ? prev.map(x => x.id === item.id ? item : x) : [item, ...prev]);
       setOpenId(item.hobbyId);
       setShelf(item.status === "wishlist" ? "wishlist" : "owned");
@@ -215,6 +244,9 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   // ── Widoki ─────────────────────────────────────────────────────────
   const valueChange = total.value - total.cost;
   const fmtItem = (amount, it) => fmtCurrency(amount, it.currency || "PLN");
+  const txLabel = (tx) => tx.origCurrency && tx.origAmount != null
+    ? fmtCurrency(Math.sign(tx.amount) * Math.abs(tx.origAmount), tx.origCurrency, true)
+    : fmtCurrency(tx.amount, "PLN", true);
 
   const collectionRow = (h, dimmed = false) => {
     const s = by[h.id];
@@ -280,6 +312,30 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           </div>
         )}
 
+        {unassigned.length > 0 && <>
+          <div style={sectionTitle}>{t("coll.unassigned", "Wpisy bez kolekcji")} · {unassigned.length}</div>
+          <div style={{ fontSize: 12, color: "#64748b", margin: "-4px 2px 8px", lineHeight: 1.45 }}>
+            {t("coll.unassignedHint", "Dodane w Wpisach bez wybranej kolekcji. Stuknij, żeby przypisać albo dodać do katalogu.")}
+          </div>
+          <div style={{ ...card, padding: "2px 14px", marginBottom: 6 }}>
+            {unassigned.slice(0, 20).map((tx, i, arr) => (
+              <button key={tx.id} onClick={() => setAssignTx(tx)} style={{
+                all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #0f1a2e" : "none",
+              }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc || "—"}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>{tx.date}</span>
+                </span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: tx.amount < 0 ? "#f87171" : "#34d399" }}>
+                  {txLabel(tx)}
+                </span>
+                <ChevronRight size={14} color="#334155"/>
+              </button>
+            ))}
+          </div>
+        </>}
+
         {active.length === 0 && archived.length === 0 ? (
           <EmptyCard title={t("coll.emptyTitle", "Załóż pierwszą kolekcję")}
             desc={t("coll.emptyDesc", "Winyle, książki, gry — zapisuj pozycje, ich wartość i to, co sprzedałeś.")}
@@ -322,6 +378,16 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
               </div>
             );
           })()}
+
+          {offCatalog.length > 0 && (
+            <button onClick={() => setPickFromLedger(true)} style={{
+              all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
+              background: ACCENT + "14", border: `1px solid ${ACCENT}44`, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1",
+            }}>
+              <span style={{ flex: 1 }}>{t("coll.offCatalog", "Zakupy spoza katalogu: {n}. Dodaj je jako pozycje.").replace("{n}", offCatalog.length)}</span>
+              <ChevronRight size={14} color={ACCENT}/>
+            </button>
+          )}
 
           <div style={{ display: "flex", gap: 6, margin: "14px 0 10px", flexWrap: "wrap" }}>
             {[["owned", t("coll.shelf.owned", "Mam")], ["wishlist", t("coll.shelf.wishlist", "Lista życzeń")], ["sold", t("coll.shelf.sold", "Sprzedane")]].map(([id, label]) => {
@@ -499,6 +565,53 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             )}
           </>;
         })()}
+      </Modal>
+
+      <Modal open={!!assignTx} onClose={() => setAssignTx(null)} title={t("coll.assignTitle", "Przypisz do kolekcji")}>
+        {assignTx && <>
+          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>{assignTx.desc || "—"} · {assignTx.date} · {txLabel(assignTx)}</div>
+          {active.length === 0 ? <>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>{t("coll.assignNoCollections", "Nie masz jeszcze kolekcji. Załóż pierwszą, a potem przypisz do niej ten wpis.")}</div>
+            <button onClick={() => { setAssignTx(null); newCollection(); }} style={primaryBtn}>+ {t("coll.newCollection", "Nowa kolekcja")}</button>
+          </> : <>
+            <div style={fieldLabel}>{t("tx.collection.label", "Kolekcja")}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {active.map(h => (
+                <div key={h.id} style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { assignToCollection(assignTx.id, h.id); setAssignTx(null); showToast(t("coll.toast.assigned", "Przypisano do: {name} ✓").replace("{name}", h.name)); }} style={{
+                    flex: 1, ...card, padding: "11px 14px", cursor: "pointer", textAlign: "left", color: "#e2e8f0", fontSize: 14, fontWeight: 700, fontFamily: "inherit",
+                    display: "flex", alignItems: "center", gap: 10,
+                  }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 5, background: h.color, flexShrink: 0 }}/>{h.name}
+                  </button>
+                  {assignTx.amount < 0 && (
+                    <button onClick={() => { const tx = assignTx; assignToCollection(tx.id, h.id); setAssignTx(null); setOpenId(h.id); setDetailTab("catalog"); startFromTx(tx, h.id); }}
+                      style={{ ...actionBtn(ACCENT), padding: "0 12px", borderRadius: 14, fontSize: 12, whiteSpace: "nowrap" }}>
+                      + {t("coll.toCatalog", "Do katalogu")}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>}
+        </>}
+      </Modal>
+
+      <Modal open={pickFromLedger} onClose={() => setPickFromLedger(false)} title={t("coll.offCatalogTitle", "Dodaj zakup do katalogu")}>
+        <div style={{ ...card, background: "#060b14", padding: "2px 12px" }}>
+          {offCatalog.slice(0, 30).map((tx, i, arr) => (
+            <button key={tx.id} onClick={() => { setPickFromLedger(false); if (open) startFromTx(tx, open.id); }} style={{
+              all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #0f1a2e" : "none",
+            }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
+                <span style={{ display: "block", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc || "—"}</span>
+                <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>{tx.date}</span>
+              </span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#f87171" }}>{txLabel(tx)}</span>
+            </button>
+          ))}
+        </div>
       </Modal>
 
       {hobbyForm && (

@@ -50,6 +50,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const filterModules = Array.isArray(modules) ? modules : [];
   const [editingId, setEditingId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
+  // Kolekcje, do których można przypisać wpis modułu Kolekcje — bez tego wpis
+  // nie pojawia się w żadnej kolekcji (ani w jej wydatkach, ani w katalogu).
+  const activeCollections = (hobbies || []).filter(h => !h.archived);
+  const defaultCollectionId = () => {
+    const last = transactions.find(tx => tx.hobbyId != null && activeCollections.some(h => h.id === tx.hobbyId));
+    return last ? last.hobbyId : (activeCollections[0]?.id ?? null);
+  };
   const getEmptyForm = () => {
     const active = getActiveTrips(trips);
     const presetTrip = active.length > 0 ? active[0] : null;
@@ -60,7 +67,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     // Gdy lista jest przefiltrowana do modułu, nowy wpis domyślnie trafia do tego modułu
     const presetModule = formModules.includes(modFilter) ? modFilter : null;
     const presetCat = (presetModule && MODULE_DEFAULT_CAT[presetModule] && MODULE_DEFAULT_CAT[presetModule].expense) || "jedzenie";
-    return { date: todayLocal(), desc: "", amount: "", cat: presetCat, acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId, module: presetModule };
+    return { date: todayLocal(), desc: "", amount: "", cat: presetCat, acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId, module: presetModule, hobbyId: presetModule === "collections" ? defaultCollectionId() : null };
   };
   const [form, setForm] = useState(getEmptyForm);
   const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
@@ -198,6 +205,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     // v2.0.0 Sidegig: jawny moduł. Brak wyboru = moduł liczony z kategorii/tagu (getModule).
     if (form.module) txData.module = form.module;
     else if (editingId) txData.module = null;
+    if (form.module === "collections" && form.hobbyId != null) txData.hobbyId = form.hobbyId;
+    else if (editingId) txData.hobbyId = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
     // (oszczędność miejsca + backward compat — stare tx czytane jako PLN).
     // Edge case: edit walutowej → PLN MUSI explicit-null'ować stare pola,
@@ -523,7 +532,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           setForm({ date: todayLocal(), desc: tx.desc,
                             amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
                             type: tx.amount > 0 ? "income" : "expense",
-                            currency: "PLN", tripId: null, module: tx.module || null });
+                            currency: "PLN", tripId: null, module: tx.module || null, hobbyId: tx.hobbyId ?? null });
                           setModal(true);
                         }}
                         title={t("tx.copy", "Kopiuj")}
@@ -545,6 +554,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                             currency: hasFx ? tx.origCurrency : "PLN",
                             tripId: tx.tripId || null,
                             module: tx.module || null,
+                            hobbyId: tx.hobbyId ?? null,
                           });
                           setModal(true);
                         }}
@@ -628,7 +638,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                 return (
                   <button key={id || "auto"} type="button" aria-pressed={on} onClick={() => setForm(f => {
                     const cat = id && MODULE_DEFAULT_CAT[id] && MODULE_DEFAULT_CAT[id][f.type];
-                    return { ...f, module: id, cat: cat || f.cat };
+                    const hobbyId = id === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null;
+                    return { ...f, module: id, cat: cat || f.cat, hobbyId };
                   })} style={{
                     padding: "6px 11px", borderRadius: 9, cursor: "pointer",
                     fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
@@ -645,6 +656,30 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
               <div style={{ fontSize: 10, color: "#475569", marginTop: 5 }}>
                 {t("tx.module.autoHint", "Auto: moduł dobierany z kategorii (np. Zakłady → Zakłady, Sprzedaż → Odsprzedaż).")}
               </div>
+            )}
+            {form.module === "collections" && (
+              activeCollections.length > 0 ? (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {t("tx.collection.label", "Kolekcja")}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {activeCollections.map(h => {
+                      const on = form.hobbyId === h.id;
+                      return (
+                        <button key={h.id} type="button" aria-pressed={on} onClick={() => setForm(f => ({ ...f, hobbyId: h.id }))} style={{
+                          padding: "6px 11px", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+                          background: on ? h.color + "22" : "#060b14", border: `1px solid ${on ? h.color : "#1a2744"}`, color: on ? h.color : "#64748b",
+                        }}>{h.name}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: "#475569", marginTop: 5 }}>
+                  {t("tx.collection.none", "Załóż kolekcję w module Kolekcje, żeby wpis trafił do niej.")}
+                </div>
+              )
             )}
           </div>
         )}
