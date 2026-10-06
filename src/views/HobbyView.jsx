@@ -11,7 +11,6 @@ import { fmtDisplay as fmt, fmtShort, cycleTxs } from "../utils.js"; // v2.2.0: 
 import {
   pickHobbyColor, DEFAULT_HOBBY_COLORS, getAllHobbyTransactions, getHobbyStats
 } from "../lib/hobby.js";
-import { getCat } from "../constants.js";
 import { t } from "../i18n.js";
 
 // Szczegóły wydatków kolekcji (zakładka „Wydatki” w ekranie Kolekcji) i formularz kolekcji.
@@ -53,16 +52,6 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
               <div style={{ fontWeight: 800, fontSize: 18, color: "#e2e8f0" }}>
                 {hobby.name}
               </div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                {hobby.categories.length > 0
-                  ? hobby.categories.slice(0, 4).map(c => {
-                      const cat = (allCats || []).find(x => x.id === c) || getCat(c);
-                      return cat.label || c;
-                    }).join(" · ")
-                  : t("hobby.keywordsOnly", "Tylko po słowach kluczowych")
-                }
-                {hobby.categories.length > 4 && ` +${hobby.categories.length - 4}`}
-              </div>
             </div>
           </div>
           {!embedded && <div style={{ display: "flex", gap: 4 }}>
@@ -76,12 +65,8 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           letterSpacing: "0.08em", marginBottom: 6 }}>
           {t("hobby.expensesLabel", "Wydatki")}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-          <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.thisCycle)} color="#ec4899"/>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.thisMonth)} color="#f43f5e"/>
-          <Stat label={t("hobby.thisQuarter", "Ten kwartał")} value={fmt(stats.thisQuarter)} color="#a855f7"/>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.thisYear)} color="#8b5cf6"/>
           <Stat label={t("hobby.total", "Łącznie")}          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
@@ -94,7 +79,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
               💰 {t("hobby.incomeLabel", "Sprzedaż / przychody")}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <Stat label={t("hobby.thisCycle", "Bieżący cykl")} value={fmt(stats.incomeThisCycle)} color="#10b981"/>
+              <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.incomeThisMonth)} color="#10b981"/>
               <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.incomeThisYear)} color="#10b981"/>
               <Stat label={t("hobby.total", "Łącznie")}      value={fmt(stats.incomeAllTime)} color="#10b981"/>
             </div>
@@ -189,39 +174,6 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
         </Card>
       )}
 
-      {/* Breakdown wg kategorii */}
-      {Object.keys(stats.byCategory).length > 0 && (
-        <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
-            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            Wg kategorii
-          </div>
-          {Object.entries(stats.byCategory)
-            .sort((a, b) => b[1] - a[1])
-            .map(([catId, val]) => {
-              const cat = (allCats || []).find(c => c.id === catId) || getCat(catId);
-              const pct = (val / stats.allTime) * 100;
-              return (
-                <div key={catId} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>
-                      {cat.label || catId}
-                    </span>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: cat.color || "#94a3b8" }}>
-                      {fmt(val)}
-                    </span>
-                  </div>
-                  <div style={{ background: "#060b14", borderRadius: 3, height: 4 }}>
-                    <div style={{ width: pct + "%", height: "100%", borderRadius: 3,
-                      background: cat.color || hobby.color, opacity: 0.7 }}/>
-                  </div>
-                </div>
-              );
-            })
-          }
-        </Card>
-      )}
-
       {/* Top merchants */}
       {Object.keys(stats.byMerchant).length > 0 && (
         <Card style={{ padding: "14px 16px", marginBottom: 14 }}>
@@ -253,12 +205,11 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b",
             textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10,
             display: "flex", justifyContent: "space-between" }}>
-            <span>{t("hobby.txList", "Transakcje")}</span>
+            <span>{t("hobby.txList", "Wpisy")}</span>
             <span style={{ color: "#475569" }}>{txs.length}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {txs.slice(0, 30).map(tx => {
-              const cat = (allCats || []).find(c => c.id === tx.cat) || getCat(tx.cat);
               const isIncome = tx.amount > 0;
               return (
                 <div key={tx.id} style={{
@@ -269,10 +220,10 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {tx.desc || cat.label}
+                      {tx.desc || "—"}
                     </div>
                     <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>
-                      {tx.date} · {cat.label}
+                      {tx.date}
                     </div>
                   </div>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700,
@@ -303,25 +254,6 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
 }
 
 function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
-  // v1.3.4 fix: rozdziel kategorie na expense/income żeby user mógł wybierać OBIE.
-  // Wcześniej tylko expense cats były pokazywane — co blokowało scenariusz hobby ze
-  // sprzedażą (np. dodanie kat. "sprzedaż" do hobby Vinyle żeby liczyło jako income).
-  //
-  // Income kategoria = base cat z group: "income" LUB custom cat z type: "income".
-  // Kategoria "inne" zawsze pomijana (transfery, technical).
-  const isIncomeCat = (c) => c.group === "income" || c.type === "income";
-  const expenseCats = (allCats || []).filter(c => c.id !== "inne" && !isIncomeCat(c));
-  const incomeCats  = (allCats || []).filter(c => c.id !== "inne" &&  isIncomeCat(c));
-
-  const toggleCategory = (catId) => {
-    const cur = hobby.categories || [];
-    if (cur.includes(catId)) {
-      setHobby({ ...hobby, categories: cur.filter(c => c !== catId) });
-    } else {
-      setHobby({ ...hobby, categories: [...cur, catId] });
-    }
-  };
-
   const keywordsStr = Array.isArray(hobby.keywords) ? hobby.keywords.join(", ") : "";
 
   return (
@@ -344,71 +276,6 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
           value={hobby.color}
           onChange={c => setHobby({ ...hobby, color: c })}
         />
-      </div>
-
-      {/* Categories multi-select - rozdzielone na expense + income (v1.3.4) */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b",
-          textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-          {t("hobby.categories")}
-        </div>
-        <div style={{ fontSize: 10, color: "#475569", marginBottom: 8 }}>
-          {t("hobby.categoriesHelp")}
-        </div>
-
-        {/* Expense categories */}
-        {expenseCats.length > 0 && (
-          <>
-            <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b",
-              textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, marginTop: 4 }}>
-              {t("hobby.cats.expense", "Wydatkowe")}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {expenseCats.map(c => {
-                const selected = (hobby.categories || []).includes(c.id);
-                return (
-                  <button key={c.id} onClick={() => toggleCategory(c.id)} style={{
-                    padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-                    fontSize: 11, fontWeight: 600,
-                    background: selected ? c.color + "33" : "#060b14",
-                    border: `1px solid ${selected ? c.color + "88" : "#1a2744"}`,
-                    color: selected ? c.color : "#64748b",
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}>
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {/* Income categories - dla hobby ze sprzedażą / przychodem (Vinted, Allegro, sprzedaż gier itp.) */}
-        {incomeCats.length > 0 && (
-          <>
-            <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b",
-              textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-              {t("hobby.cats.income", "Przychodowe (sprzedaż / zwroty)")}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {incomeCats.map(c => {
-                const selected = (hobby.categories || []).includes(c.id);
-                return (
-                  <button key={c.id} onClick={() => toggleCategory(c.id)} style={{
-                    padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-                    fontSize: 11, fontWeight: 600,
-                    background: selected ? c.color + "33" : "#060b14",
-                    border: `1px solid ${selected ? c.color + "88" : "#1a2744"}`,
-                    color: selected ? c.color : "#64748b",
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}>
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
       </div>
 
       {/* Keywords */}

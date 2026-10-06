@@ -1,5 +1,5 @@
 import {
-  Wallet, TrendingUp, TrendingDown, ArrowUpRight, CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield, DollarSign, Bell, AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock
+  Wallet, TrendingUp, TrendingDown, ArrowUpRight, BedDouble, CreditCard, Briefcase, ShoppingBag, Car, Utensils, Zap, Coffee, Building, Repeat, Gift, Shield, DollarSign, Bell, AlertCircle, CalendarClock, Flame, ClipboardList, RefreshCw, AlarmClock
 } from "lucide-react";
 import { t } from "./i18n.js";
 
@@ -8,6 +8,7 @@ const BASE_CATEGORIES = [
   { id: "rząd",        label: "Podatki/ZUS",   icon: Building,   color: "#3b82f6", group: "essential" },
   { id: "rachunki",    label: "Rachunki",       icon: Zap,        color: "#f59e0b", group: "essential" },
   { id: "inwestycje",  label: "Inwestycje",     icon: TrendingUp, color: "#8b5cf6", group: "essential" },
+  { id: "noclegi",     label: "Noclegi",        icon: BedDouble,  color: "#14b8a6", group: "essential" }, // v2.6.0: Wyjazdy
   { id: "jedzenie",    label: "Jedzenie",       icon: Utensils,   color: "#ef4444", group: "essential" },
   { id: "transport",   label: "Transport",      icon: Car,        color: "#f97316", group: "essential" },
   { id: "zdrowie",     label: "Zdrowie",        icon: Shield,     color: "#10b981", group: "essential" },

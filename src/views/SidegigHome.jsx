@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, Wallet, SlidersHorizontal, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronRight as Arrow, Plus, Plane, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { fmtDisplay, todayLocal, monthName } from "../utils.js";
 import { MODULES, SIDE_MODULES, getModule, isCapitalFlow, moduleLabel } from "../lib/modules.js";
 import { groupTrips, getTripSpending } from "../lib/trips.js";
@@ -24,7 +24,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onOpenBudget, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
@@ -48,7 +48,6 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
   const stats = useMemo(() => {
     const perModule = {};
     for (const id of sideEnabled) perModule[id] = { net: 0, income: 0, expense: 0, count: 0, invested: 0 };
-    let personalSpent = 0;
     for (const r of resolved) {
       if (r.ym !== ym) continue;
       if (perModule[r.mod]) {
@@ -57,12 +56,10 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         if (r.capital) { p.invested -= r.amt; continue; } // wpłata/wypłata, nie wynik
         p.net += r.amt;
         if (r.amt > 0) p.income += r.amt; else p.expense += Math.abs(r.amt);
-      } else if (r.mod === "personal" && r.amt < 0) {
-        personalSpent += Math.abs(r.amt);
       }
     }
     const net = Object.values(perModule).reduce((s, p) => s + p.net, 0);
-    return { perModule, net, personalSpent };
+    return { perModule, net };
   }, [resolved, ym, sideEnabled.join(",")]);
 
   const prevNet = netFor(prevYm);
@@ -283,25 +280,6 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         </>
       )}
 
-      {/* PERSONAL BUDGET — classic FinTrack, outside the side-income total */}
-      {modules.includes("personal") && (
-        <>
-          <div style={{ ...sectionLbl, margin: "10px 4px 0" }}>{t("home.personal", "Wydatki osobiste")}</div>
-          <button onClick={onOpenBudget} style={rowBtn}>
-            <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "#64748b22", border: "1px solid #64748b55", display: "grid", placeItems: "center" }}>
-              <Wallet size={17} color="#94a3b8"/>
-            </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{t("home.personalSpent", "Wydatki osobiste")}</span>
-              <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>{t("home.personalHint", "Nie wliczają się do dochodu pobocznego")}</span>
-            </span>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#f87171", flexShrink: 0 }}>
-              −{fmtDisplay(stats.personalSpent)}
-            </span>
-            <Arrow size={14} color="#334155"/>
-          </button>
-        </>
-      )}
     </div>
   );
 }

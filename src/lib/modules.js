@@ -20,7 +20,9 @@ const MODULES = {
   personal:    { id: "personal",    icon: Wallet,      color: "#64748b", side: false, label: { en: "Personal spending", pl: "Wydatki osobiste", de: "Private Ausgaben", es: "Gastos personales", fr: "Dépenses personnelles", pt: "Gastos pessoais", it: "Spese personali", nl: "Persoonlijke uitgaven", uk: "Особисті витрати" }, desc: { en: "Everyday spending, kept apart from your side income", pl: "Codzienne wydatki, osobno od dochodu pobocznego", de: "Alltagsausgaben, getrennt vom Nebeneinkommen", es: "Gastos del día a día, separados de tus ingresos extra", fr: "Dépenses du quotidien, séparées de vos revenus annexes", pt: "Gastos do dia a dia, separados da sua renda extra", it: "Spese quotidiane, separate dalle entrate extra", nl: "Dagelijkse uitgaven, apart van je bijverdiensten", uk: "Щоденні витрати окремо від додаткового доходу" } },
 };
 
-const MODULE_ORDER = ["freelance", "reselling", "collections", "betting", "investments", "rental", "trips", "personal"];
+// "personal" nie jest już modułem do wyboru (2.6.0) — zostaje w MODULES tylko jako kubełek
+// dla starych wpisów osobistych, które getModule rozpoznaje, a widoki ukrywają.
+const MODULE_ORDER = ["freelance", "reselling", "collections", "betting", "investments", "rental", "trips"];
 const SIDE_MODULES = MODULE_ORDER.filter(id => MODULES[id].side);
 // New users start with these. Betting is opt-in on purpose (store policy + not everyone bets).
 const DEFAULT_MODULES = ["freelance", "reselling", "collections", "trips"];
@@ -78,7 +80,6 @@ function inferEnabledModules({ transactions = [], hobbies = [], trips = [], port
   if (hobbies.length > 0) found.add("collections");
   if (trips.length > 0) found.add("trips");
   if (portfolio.length > 0) found.add("investments");
-  if (payments.length > 0) found.add("personal");
   for (const tx of transactions) {
     found.add(getModule(tx, hobbies));
   }

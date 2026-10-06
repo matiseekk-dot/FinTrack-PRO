@@ -7,7 +7,7 @@ import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { SidegigSetup } from "./components/SidegigSetup.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { TransactionsView } from "./views/TransactionsView.jsx";
-import { PortfolioCombinedView } from "./views/PortfolioCombinedView.jsx";
+import { InvestmentsView } from "./views/InvestmentsView.jsx";
 import { TripsView } from "./views/TripsView.jsx";
 import { SidegigHome } from "./views/SidegigHome.jsx";
 import { MoreView } from "./views/MoreView.jsx";
@@ -24,9 +24,8 @@ import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMEN
 import { useFirebase } from "./hooks/useFirebase.js";
 import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { UpgradeModal } from "./components/UpgradeModal.jsx";
 import { FeedbackButton } from "./components/FeedbackButton.jsx";
-import { getProStatus, getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
+import { getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
 import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.js";
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
@@ -83,11 +82,10 @@ function applyData(d, s) {
   }
   if (Array.isArray(d.vacationArchiveData))                    s.setVacationArchive(d.vacationArchiveData);
   if (d.tombstones && typeof d.tombstones === "object")        s.setTombstones(d.tombstones);
-  // v1.2.7: PRO status syncuje się między urządzeniami. Sync przez SYNC_KEYS w useFirebase.
-  // Tu zapisujemy do localStorage (źródło prawdy dla getProStatus()) i refreshujemy state.
+  // v1.2.7: status PRO z dawnej płatnej wersji — od 2.6.0 apka jest w całości darmowa,
+  // ale zachowujemy zapis (sync + kopia), żeby nic z danych użytkownika nie przepadło.
   if (d.proStatus && typeof d.proStatus === "object" && d.proStatus.type) {
     setProStatusFromRemote(d.proStatus);
-    if (s.refreshProStatus) s.refreshProStatus();
   }
   // v1.5.1: display currency syncuje się między urządzeniami. Source of truth = localStorage,
   // sync przez SYNC_KEYS jako pole stateRef.current.displayCurrency.
@@ -129,14 +127,9 @@ export default function App() {
   const [focusResaleItem, setFocusResaleItem] = useState(null);
   const [focusCollectionItem, setFocusCollectionItem] = useState(null);
   const [focusGig,     setFocusGig]     = useState(null);
-  const openUpgrade = (trigger) => setUpgradeModal({ open: true, trigger });
-  // Expose globalnie dla komponentów które nie mają props (np. SettingsPanel close → upgrade)
-  if (typeof window !== "undefined") window.__openUpgrade = openUpgrade;
   const [onboarded,    setOnboarded]    = useState(false);
   const [month,        setMonth]        = useState(new Date().getMonth());
   const [customCats,   setCustomCats]   = useState([]);
-  const [proStatus,    setProStatus]    = useState(() => getProStatus());
-  const [upgradeModal, setUpgradeModal] = useState({ open: false, trigger: null });
   const [vacationArchive, setVacationArchive] = useState(() => {
     try {
       const parsed = JSON.parse(localStorage.getItem("ft_vacations") || "[]");
@@ -274,7 +267,6 @@ export default function App() {
     setCustomCats: setCustomCatsCap, setDefaultAcc, setMonth, setCycleDay,
     setCycleDayHistory, setPartnerName, setPortfolio, setVacationArchive,
     setTrips, setHobbies, setResaleItems, setCollectionItems, setGigs, setTombstones, setModules,
-    refreshProStatus: () => setProStatus(getProStatus()),  // v1.2.7: po sync PRO statusu
   };
 
   // Auto-snap month do bieżącego cyklu rozliczeniowego po loadzie cycleDayHistory.
@@ -357,7 +349,7 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => saveToStorage({ ...stateRef.current, customCats }), 500);
     return () => clearTimeout(t);
-  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, proStatus, modules, fxEpoch]);
+  }, [loaded, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, modules, fxEpoch]);
 
   // Save to Firestore
   useEffect(() => {
@@ -372,7 +364,7 @@ export default function App() {
       setSyncOk(true); setTimeout(() => { if (!cancelled) setSyncOk(false); }, 2500);
     }, 1500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, proStatus, modules, fxEpoch]);
+  }, [loaded, user, remoteChecked, accounts, transactions, budgets, payments, paid, goals, month, cycleDay, cycleDayHistory, customCats, defaultAcc, portfolio, partnerName, trips, hobbies, resaleItems, collectionItems, gigs, tombstones, modules, fxEpoch]);
 
   useEffect(() => {
     localStorage.setItem("ft_vacations", JSON.stringify(vacationArchive));
@@ -506,6 +498,8 @@ export default function App() {
   // Zakłady i Sprzedaż mają własne ekrany; pozostałe moduły to przefiltrowane Wpisy
   const openModule = (id) => {
     if (MODULE_SCREENS.includes(id)) { setTab(id); return; }
+    if (id === "investments") { setTab("portfolio"); return; }
+    if (id === "trips") { setTab("trips"); return; }
     setLedgerModule(id); setTab("transactions");
   };
   // Edycja wpisu kuponu/przedmiotu z Wpisów otwiera jego ekran modułu
@@ -628,16 +622,15 @@ export default function App() {
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
             onOpenTrips={() => setTab("trips")}
-            onOpenBudget={() => { setLedgerModule("personal"); setTab("transactions"); }}
             onManageModules={() => setSetupOpen(true)}/></ErrorBoundary>}
         {tab === "more"         && <ErrorBoundary><MoreView modules={enabledModules} navTabs={navTabs} onNavTabsChange={changeNavTabs} onNavigate={goTab} onOpenModule={openModule} onManageModules={() => setSetupOpen(true)} onOpenSettings={() => setSettingsOpen(true)}/></ErrorBoundary>}
-        {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
-        {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
-        {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
-        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} proStatus={proStatus} openUpgrade={openUpgrade} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
+        {tab === "betting"      && <ErrorBoundary><BettingView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusTxId={focusBetTx} onFocusHandled={() => setFocusBetTx(null)}/></ErrorBoundary>}
+        {tab === "collections"  && <ErrorBoundary><CollectionsView hobbies={hobbies} setHobbies={setHobbiesTracked} items={collectionItems} setItems={setCollectionItemsTracked} resaleItems={resaleItems} setResaleItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} allCats={allCategories} month={month} cycleDay={effectiveCycleDay} onBack={() => setTab("home")} onOpenResale={(id) => { setFocusResaleItem(id); setTab("reselling"); }} addSignal={moduleAddSignal} focusItemId={focusCollectionItem} onFocusHandled={() => setFocusCollectionItem(null)}/></ErrorBoundary>}
+        {tab === "freelance"    && <ErrorBoundary><FreelanceView gigs={gigs} setGigs={setGigsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusGigId={focusGig} onFocusHandled={() => setFocusGig(null)}/></ErrorBoundary>}
+        {tab === "reselling"    && <ErrorBoundary><ResellingView items={resaleItems} setItems={setResaleItemsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} hobbies={hobbies} onBack={() => setTab("home")} addSignal={moduleAddSignal} focusItemId={focusResaleItem} onFocusHandled={() => setFocusResaleItem(null)}/></ErrorBoundary>}
           {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} allCats={allCategories}/></ErrorBoundary>}
-          {tab === "portfolio"    && <ErrorBoundary><PortfolioCombinedView proStatus={proStatus} openUpgrade={openUpgrade} accounts={accounts} setAccounts={setAccountsTracked} portfolio={portfolio} setPortfolio={setPortfolioTracked}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView proStatus={proStatus} openUpgrade={openUpgrade} transactions={transactions} setTransactions={setTransactionsTracked} accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
+          {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} onBack={() => setTab("home")}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -662,27 +655,18 @@ export default function App() {
         user={user} onSignOut={signOutUser} onClearData={clearAllData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
-        proStatus={proStatus}
       />
       </ErrorBoundary>
 
       {fabMenu && <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
 
-      <UpgradeModal
-        open={upgradeModal.open}
-        trigger={upgradeModal.trigger}
-        onClose={() => setUpgradeModal({ open: false, trigger: null })}
-        onActivated={() => { setProStatus(getProStatus()); }}
-      />
-
       <FeedbackButton/>
 
       {quickAddOpen && (
         <TransactionsView
-          proStatus={proStatus} openUpgrade={openUpgrade}
           transactions={transactions}
           setTransactions={(txs) => { setTransactionsTracked(txs); setQuickAddOpen(false); }}
-          accounts={accounts} setAccounts={setAccountsTracked} allCats={allCategories}
+          setAccounts={setAccountsTracked} allCats={allCategories}
           _forceOpenModal={true}
           _onClose={() => setQuickAddOpen(false)}
           _onModalClose={() => setQuickAddOpen(false)}

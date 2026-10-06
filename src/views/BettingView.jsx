@@ -9,7 +9,6 @@ import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
 import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { canAddTransaction } from "../lib/tier.js";
 import { rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import { linkProps } from "../lib/native.js";
 import {
@@ -50,8 +49,8 @@ function Sparkline({ series }) {
  * Zakłady: wynik, ROI i obrót z kuponów. Każdy kupon to wpis w Wpisach (moduł betting),
  * więc rozliczenie kuponu od razu zmienia Start i saldo konta.
  */
-function BettingView({ transactions, setTransactions, accounts, setAccounts, defaultAcc = 1, hobbies = [],
-  proStatus, openUpgrade, onBack, addSignal = 0, focusTxId = null, onFocusHandled }) {
+function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
+  onBack, addSignal = 0, focusTxId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -144,7 +143,6 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
     const payout = num(form.payout);
     if (usesPayout(form.status) && (!isFinite(payout) || payout < 0)) { showToast(t("bet.err.payout", "Wpisz wypłatę"), "error"); return; }
     const oldTx = form.editingId != null ? transactions.find(x => x.id === form.editingId) : null;
-    if (!oldTx && !canAddTransaction(transactions, proStatus?.isPro).allowed) { if (openUpgrade) openUpgrade("limit"); return; }
 
     setSaving(true);
     try {
@@ -416,14 +414,7 @@ function BettingView({ transactions, setTransactions, accounts, setAccounts, def
               onChange={e => setForm(f => ({ ...f, payout: e.target.value, payoutTouched: true }))}/>
           )}
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Input label={t("tx.date", "Data")} type="date" value={form.date} onChange={e => setF({ date: e.target.value })}/></div>
-            <div style={{ flex: 1 }}>
-              <Select label={t("tx.account", "Konto")} value={form.acc} onChange={e => setF({ acc: parseInt(e.target.value) })}>
-                {accounts.filter(a => a.type !== "invest").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
-            </div>
-          </div>
+          <Input label={t("tx.date", "Data")} type="date" value={form.date} onChange={e => setF({ date: e.target.value })}/>
 
           <button onClick={save} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
             {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}

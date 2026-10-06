@@ -1,17 +1,13 @@
 import { useState } from "react";
 import {
-  Wallet, X, Settings, Edit2, Trash2
+  X, Settings
 } from "lucide-react";
-import { Card } from "./ui/Card.jsx";
-import { CATEGORIES } from "../constants.js";
-import { todayLocal, fmtCurrency } from "../utils.js";
+import { todayLocal } from "../utils.js";
 import { PinSettings } from "./PinLock.jsx";
 import { positionValues } from "../lib/accountTypes.js";
 import { getLang, setLang, t, getLocale, LANGUAGES } from "../i18n.js";
-import { getProStatus } from "../lib/tier.js";
 import { useBackHandler } from "../lib/backButton.js";
 import { isNative, sitePage, linkProps, shareFile } from "../lib/native.js";
-import { Crown } from "lucide-react";
 import { getCurrentRates, refreshRates, getDisplayCurrency, setDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
 
 const currencyName = (code) => {
@@ -24,49 +20,13 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
                          vacationArchive = [], partnerName = "Partner", onClearData,
-                         proStatus = null, user = null,
+                         user = null,
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
                          trips = [], hobbies = [], portfolio = [],
                          // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
                          resaleItems = [], modules = null, onRestoreFull,
                          // v2.2.0: katalog Kolekcji i zlecenia Freelance
                          collectionItems = [], gigs = [] }) {
-  const [newCatLabel, setNewCatLabel] = useState("");
-  const [newCatColor, setNewCatColor] = useState("#06b6d4");
-  const [newCatType,  setNewCatType]  = useState("expense"); // expense | income
-  const [newCatExpenseType, setNewCatExpenseType] = useState("variable"); // fixed | variable | lifestyle (tylko dla expense)
-
-  // v1.2.12: edit istniejącej custom cat. Pozwala zmienić label/color/expenseType
-  // ale NIE id (bo wszystkie tx mają t.cat = id, zmiana = utrata historii) ani type
-  // (expense ↔ income - bo amount sign jest semantycznie powiązany).
-  const [editingCatId, setEditingCatId] = useState(null);
-  const [editForm, setEditForm] = useState({ label: "", color: "", expenseType: "variable" });
-
-  const startEditCat = (cat) => {
-    setEditingCatId(cat.id);
-    setEditForm({
-      label: cat.label || "",
-      color: cat.color || "#06b6d4",
-      expenseType: cat.expenseType || "variable",
-    });
-  };
-  const cancelEditCat = () => {
-    setEditingCatId(null);
-    setEditForm({ label: "", color: "", expenseType: "variable" });
-  };
-  const saveEditCat = () => {
-    const trimmed = editForm.label.trim();
-    if (!trimmed) return;
-    const capLabel = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-    setCustomCats(c => c.map(x => x.id === editingCatId ? {
-      ...x,
-      label: capLabel,
-      color: editForm.color,
-      // expenseType tylko gdy expense (income tego nie używa)
-      expenseType: x.type === "expense" ? editForm.expenseType : null,
-    } : x));
-    cancelEditCat();
-  };
   const [importStatus, setImportStatus] = useState(null); // null | "ok" | "err" | "loading"
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -542,352 +502,18 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           </button>
         </div>
 
-        {/* PRO Status Card */}
-        {(() => {
-          const pro = getProStatus();
-          if (pro.isPro) {
-            return (
-              <div style={{
-                background: "linear-gradient(135deg,#1e40af 0%,#7c3aed 100%)",
-                border: "1px solid #60a5fa",
-                borderRadius: 16, padding: "16px 18px",
-                marginBottom: 22,
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    <Crown size={14} color="#fbbf24"/>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: "white", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      Sidegig PRO
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                    {pro.type === "lifetime" && t("settings.pro.lifetime", "Dożywotni dostęp · dziękuję za wsparcie!")}
-                    {pro.type === "yearly" && pro.expiresAt && `${t("settings.pro.validUntil", "Ważny do")} ${new Date(pro.expiresAt).toLocaleDateString(getLocale())}`}
-                    {pro.type === "trial" && t("settings.pro.trial", "Wersja próbna")}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <button onClick={() => { onClose(); setTimeout(() => { if (window.__openUpgrade) window.__openUpgrade("settings"); }, 300); }} style={{
-              width: "100%", background: "linear-gradient(135deg,#059669,#10b981)",
-              border: "none", borderRadius: 16, padding: "16px 18px",
-              marginBottom: 22, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-            }}>
-              <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <Crown size={14} color="#fbbf24"/>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
-                    {t("settings.upgrade.cta", "Upgrade do PRO")}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                  {t("settings.upgrade.subtitle", "99 zł/rok · bez limitów · bez reklam")}
-                </div>
-              </div>
-              <div style={{ background: "white", color: "#1e40af", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 800 }}>
-                {t("settings.upgrade.buy", "Kup")}
-              </div>
-            </button>
-          );
-        })()}
-
-        {/* ── DOMYSLNE KONTO ── */}
-        <SectionTitle>💳 {t("settings.defaultAcc.title", "Domyślne konto transakcji")}</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-          {t("settings.defaultAcc.help", "Konto wypełniane automatycznie przy dodawaniu transakcji.")}
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {accounts.filter(acc => acc.type === "checking").length === 0 && (
-            <div style={{
-              padding: "14px 16px",
-              background: "#1a1208",
-              border: "1px solid #78350f",
-              borderRadius: 12,
-              fontSize: 12,
-              color: "#fbbf24",
-              lineHeight: 1.5,
-              marginBottom: 8,
-            }}>
-              {t("settings.defaultAcc.empty", "Brak konta osobistego. Dodaj konto typu \"Rachunek bieżący\" w zakładce Portfel.")}
-            </div>
-          )}
-          {accounts.filter(acc => acc.type === "checking").map(acc => (
-            <button key={acc.id} onClick={() => setCycleDay && setDefaultAcc && setDefaultAcc(acc.id)} style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-              background: defaultAcc === acc.id ? acc.color + "22" : "#060b14",
-              border: "1px solid " + (defaultAcc === acc.id ? acc.color : "#1a2744"),
-              borderRadius: 12, cursor: "pointer", textAlign: "left",
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: acc.color, flexShrink: 0 }}/>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>{acc.name}</div>
-                <div style={{ fontSize: 11, color: "#475569" }}>{acc.bank}</div>
-              </div>
-              {defaultAcc === acc.id && (
-                <div style={{ fontSize: 11, color: acc.color, fontWeight: 700 }}>{t("settings.default", "Domyślne")}</div>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <Divider/>
-
-        {/* EXPORT SECTION */}
-        <SectionTitle>🏷️ {t("settings.cats.title", "Moje kategorie")}</SectionTitle>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
-          {t("settings.cats.help", "Dodaj własne kategorie wydatków lub przychodów.")}
-        </p>
-
-        {/* Existing custom cats */}
-        {customCats.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {customCats.map(cat => {
-              const isEditing = editingCatId === cat.id;
-
-              if (isEditing) {
-                // Inline edit form
-                return (
-                  <div key={cat.id} style={{
-                    background: "#0d1628", border: "1px solid #2563eb44",
-                    borderRadius: 10, padding: "12px 14px",
-                    display: "flex", flexDirection: "column", gap: 10,
-                  }}>
-                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700,
-                      textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {t("settings.cats.editing", "Edytuj kategorię")} · ID: {cat.id}
-                    </div>
-
-                    {/* Label */}
-                    <input
-                      value={editForm.label}
-                      onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
-                      placeholder={t("settings.cats.namePh", "Nazwa kategorii")}
-                      style={{ width: "100%", background: "#060b14", border: "1px solid #1a2744",
-                        borderRadius: 8, padding: "9px 11px", color: "#e2e8f0", fontSize: 14,
-                        fontFamily: "'Space Grotesk', sans-serif", outline: "none",
-                        WebkitAppearance: "none" }}
-                    />
-
-                    {/* Color picker */}
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
-                        marginBottom: 6, textTransform: "uppercase" }}>{t("common.color", "Kolor")}</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4",
-                          "#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
-                          <div key={c} onClick={() => setEditForm(f => ({ ...f, color: c }))}
-                            style={{ width: 24, height: 24, borderRadius: 6, background: c,
-                              cursor: "pointer",
-                              border: editForm.color === c ? "2px solid white" : "2px solid transparent" }}/>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Expense type (tylko dla expense cat) */}
-                    {cat.type === "expense" && (
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: "#64748b",
-                          marginBottom: 6, textTransform: "uppercase" }}>
-                          {t("settings.cats.expenseType", "Typ w strukturze wydatków")}
-                        </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          {[
-                            ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
-                            ["variable",  t("exptype.variable", "Zmienne"),   "#f59e0b"],
-                            ["lifestyle", t("exptype.lifestyle", "Lifestyle"), "#ec4899"],
-                          ].map(([v, l, col]) => (
-                            <button key={v}
-                              onClick={() => setEditForm(f => ({ ...f, expenseType: v }))}
-                              style={{
-                                flex: 1, padding: "6px 0", borderRadius: 6, cursor: "pointer",
-                                fontSize: 11, fontWeight: 700,
-                                fontFamily: "'Space Grotesk', sans-serif",
-                                background: editForm.expenseType === v ? col + "22" : "transparent",
-                                border: `1px solid ${editForm.expenseType === v ? col : "#1a2744"}`,
-                                color: editForm.expenseType === v ? col : "#475569",
-                              }}>{l}</button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Save / Cancel */}
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={cancelEditCat} style={{
-                        flex: 1, background: "#1a2744", border: "1px solid #334155",
-                        color: "#94a3b8", borderRadius: 8, padding: "9px 0",
-                        fontSize: 12, fontWeight: 700, cursor: "pointer",
-                        fontFamily: "'Space Grotesk', sans-serif",
-                      }}>{t("common.cancel", "Anuluj")}</button>
-                      <button onClick={saveEditCat} style={{
-                        flex: 2, background: "linear-gradient(135deg,#1e40af,#3b82f6)",
-                        border: "none", color: "white",
-                        borderRadius: 8, padding: "9px 0",
-                        fontSize: 12, fontWeight: 700, cursor: "pointer",
-                        fontFamily: "'Space Grotesk', sans-serif",
-                      }}>{t("tx.saveChanges", "Zapisz zmiany")}</button>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Default row (z Edit + Delete buttons)
-              return (
-                <div key={cat.id} style={{ display: "flex", alignItems: "center",
-                  justifyContent: "space-between",
-                  background: "#060b14", border: "1px solid #1a2744",
-                  borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: 4, background: cat.color, flexShrink: 0 }}/>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>
-                      {cat.label ? cat.label.charAt(0).toUpperCase() + cat.label.slice(1) : cat.label}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#334155" }}>
-                      {cat.type === "income" ? t("settings.cats.income", "przychód") : t("settings.cats.expense", "wydatek")}
-                    </span>
-                    {/* Pokaż expenseType jako mały badge */}
-                    {cat.type === "expense" && cat.expenseType && (
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                        textTransform: "uppercase", letterSpacing: "0.04em",
-                        background: cat.expenseType === "fixed"     ? "#3b82f622"
-                                  : cat.expenseType === "variable"  ? "#f59e0b22"
-                                  :                                   "#ec489922",
-                        color:      cat.expenseType === "fixed"     ? "#60a5fa"
-                                  : cat.expenseType === "variable"  ? "#fbbf24"
-                                  :                                   "#f472b6",
-                      }}>
-                        {cat.expenseType === "fixed" ? t("settings.cats.fixed", "Stałe")
-                         : cat.expenseType === "variable" ? t("exptype.variable", "Zmienne")
-                         : t("exptype.lifestyle", "Lifestyle")}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={() => startEditCat(cat)}
-                      style={{ background: "none", border: "none", cursor: "pointer",
-                        color: "#475569", padding: 4 }}
-                      title={t("common.edit", "Edytuj")}>
-                      <Edit2 size={13}/>
-                    </button>
-                    <button onClick={() => {
-                      if (confirm(`${t("settings.cats.deleteConfirm1", "Usunąć kategorię")} "${cat.label}"?\n\n${t("settings.cats.deleteConfirm2", "Uwaga: transakcje z tą kategorią pozostaną, ale stracą kolor i nazwę.")}`)) {
-                        setCustomCats(c => c.filter(x => x.id !== cat.id));
-                      }
-                    }}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}
-                      title={t("common.delete", "Usuń")}>
-                      <Trash2 size={13}/>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Add new custom cat */}
-        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 12, padding: "14px" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {[["expense", t("settings.cats.expense2", "Wydatek")],["income", t("settings.cats.income2", "Przychód")]].map(([v,l]) => (
-              <button key={v} onClick={() => setNewCatType(v)} style={{
-                flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
-                fontFamily: "'Space Grotesk', sans-serif",
-                background: newCatType === v ? "#1e3a5f" : "transparent",
-                border: `1px solid ${newCatType === v ? "#2563eb" : "#1a2744"}`,
-                color: newCatType === v ? "#60a5fa" : "#475569",
-              }}>{l}</button>
-            ))}
-          </div>
-          <input
-            value={newCatLabel}
-            onChange={e => setNewCatLabel(e.target.value)}
-            placeholder={t("settings.cats.namePlaceholder", "Nazwa kategorii (np. Siłownia)")}
-            style={{ width: "100%", background: "#0d1628", border: "1px solid #1a2744", borderRadius: 8,
-              padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif",
-              outline: "none", marginBottom: 10, WebkitAppearance: "none" }}
-          />
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase" }}>{t("common.color", "Kolor")}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#f97316","#14b8a6","#a855f7","#84cc16","#f43f5e"].map(c => (
-                <div key={c} onClick={() => setNewCatColor(c)}
-                  style={{ width: 28, height: 28, borderRadius: 8, background: c, cursor: "pointer",
-                    border: newCatColor === c ? "2px solid white" : "2px solid transparent" }}/>
-              ))}
-            </div>
-          </div>
-
-          {/* v1.2.10: typ wydatku dla custom expense cat - żeby user mógł powiedzieć
-              "Kredyt Dom = Stałe" zamiast fallback do Variable. */}
-          {newCatType === "expense" && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase" }}>
-                {t("settings.cats.expenseType", "Typ w strukturze wydatków")}
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[
-                  ["fixed",     t("exptype.fixed",     "Stałe"),     "#3b82f6"],
-                  ["variable",  t("exptype.variable", "Zmienne"),   "#f59e0b"],
-                  ["lifestyle", t("exptype.lifestyle", "Lifestyle"), "#ec4899"],
-                ].map(([v, l, c]) => (
-                  <button key={v} onClick={() => setNewCatExpenseType(v)} style={{
-                    flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700,
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    background: newCatExpenseType === v ? c + "22" : "transparent",
-                    border: `1px solid ${newCatExpenseType === v ? c : "#1a2744"}`,
-                    color: newCatExpenseType === v ? c : "#475569",
-                  }}>{l}</button>
-                ))}
-              </div>
-              <div style={{ fontSize: 10, color: "#475569", marginTop: 4, lineHeight: 1.4 }}>
-                {t("settings.cats.typeHelp", "Stałe = miesięczne (kredyt, czynsz). Zmienne = potrzebne (jedzenie, zdrowie). Lifestyle = przyjemności.")}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={() => {
-              if (!newCatLabel.trim()) return;
-              const id = newCatLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_ąćęłńóśźż]/gi, "");
-              if (CATEGORIES.find(c => c.id === id)) { alert(t("settings.cats.alreadyExists", "Kategoria o tej nazwie już istnieje")); return; }
-              const capLabel = newCatLabel.trim().charAt(0).toUpperCase() + newCatLabel.trim().slice(1);
-              setCustomCats(c => [...c, {
-                id, label: capLabel,
-                iconName: "Wallet", color: newCatColor,
-                type: newCatType, custom: true,
-                group: newCatType === "income" ? "income" : "lifestyle",
-                // v1.2.10: expenseType dla user-defined classification
-                expenseType: newCatType === "expense" ? newCatExpenseType : null,
-              }]);
-              setNewCatLabel("");
-              setNewCatExpenseType("variable");
-            }}
-            style={{ width: "100%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", border: "none",
-              borderRadius: 10, padding: "11px 0", color: "white", fontWeight: 700, fontSize: 14,
-              cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-            + {t("settings.cats.addBtn", "Dodaj kategorię")}
-          </button>
-        </div>
-
-        <Divider/>
-
-        {/* Język / Language */}
+        {/* Eksport */}
         <SectionTitle>📤 {t("settings.export.title", "Eksport danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
-          {t("settings.export.help", "Pobierz wszystkie swoje dane jako plik Excel (.xlsx) z 7 arkuszami: Transakcje, Konta, Budżety, Płatności, Podsumowanie, Cele + pełny backup JSON.")}
+          {t("settings.export.help2", "Wszystkie Twoje dane w pliku Excel (.xlsx): wpisy, moduły i pełna kopia do przywrócenia.")}
         </p>
 
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
           {[
-            { label: t("settings.stats.tx",       "Transakcji"),  val: transactions.length, color: "#3b82f6" },
-            { label: t("settings.stats.accounts", "Kont"),        val: accounts.length,     color: "#10b981" },
-            { label: t("settings.stats.budgets", "Budżetów"),    val: budgets.length,      color: "#8b5cf6" },
+            { label: t("settings.stats.entries", "Wpisy"),     val: transactions.length, color: "#3b82f6" },
+            { label: t("settings.stats.items", "Przedmioty"),  val: resaleItems.length + collectionItems.length, color: "#ec4899" },
+            { label: t("settings.stats.gigs", "Zlecenia"),     val: gigs.length,         color: "#06b6d4" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ background: "#060b14", border: "1px solid #1a2744",
                                        borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
@@ -909,36 +535,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           <span style={{ fontSize: 18 }}>⬇</span> {t("settings.export.btn", "Eksportuj do Excel (.xlsx)")}
         </button>
 
-        <div style={{ height: 10 }}/>
-        <button onClick={() => {
-          // Raport bieżącego miesiąca do druku / PDF — w języku i formacie apki
-          const now = new Date();
-          const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-          const monthTx = transactions.filter(tx => tx.date.startsWith(ym) && tx.cat !== "inne");
-          const cats = {};
-          monthTx.filter(tx => tx.amount < 0).forEach(tx => { cats[tx.cat] = (cats[tx.cat]||0) + Math.abs(tx.amount); });
-          const income = monthTx.filter(tx => tx.amount > 0).reduce((sum,tx) => sum+tx.amount,0);
-          const expense = Object.values(cats).reduce((sum,v) => sum+v, 0);
-          const pln = (v) => fmtCurrency(v, "PLN");
-          const catLabel = (id) => ([...CATEGORIES, ...(customCats || [])].find(c => c.id === id) || {}).label || id;
-          const period = now.toLocaleDateString(getLocale(), { month: "long", year: "numeric" });
-          const rows = Object.entries(cats).sort((x,y) => y[1]-x[1]).map(([cat,val]) => `<tr><td style="padding:4px 12px;border-bottom:1px solid #eee">${catLabel(cat)}</td><td style="padding:4px 12px;text-align:right;border-bottom:1px solid #eee">${pln(val)}</td></tr>`).join("");
-          const html = `<!DOCTYPE html><html lang="${getLang()}"><head><meta charset="utf-8"><title>Sidegig – ${period}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:600px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;color:#555;font-weight:400;margin-bottom:24px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 12px;background:#f5f5f5;font-size:13px}td{font-size:13px}.summary{display:flex;gap:32px;margin-bottom:24px}.box{background:#f9f9f9;padding:12px 20px;border-radius:8px}.label{font-size:11px;color:#888;text-transform:uppercase}.val{font-size:20px;font-weight:700;margin-top:4px}.green{color:#16a34a}.red{color:#dc2626}</style></head><body><h1>Sidegig — ${t("report.title", "Raport miesięczny")}</h1><h2>${period}</h2><div class="summary"><div class="box"><div class="label">${t("report.income", "Przychody")}</div><div class="val green">${pln(income)}</div></div><div class="box"><div class="label">${t("report.expenses", "Wydatki")}</div><div class="val red">${pln(expense)}</div></div><div class="box"><div class="label">${t("report.balance", "Bilans")}</div><div class="val ${income-expense>=0?"green":"red"}">${pln(income-expense)}</div></div></div><table><thead><tr><th>${t("report.category", "Kategoria")}</th><th style="text-align:right">${t("report.amount", "Kwota")}</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:24px;font-size:11px;color:#aaa">${t("report.generated", "Wygenerowano")}: ${now.toLocaleDateString(getLocale())} · Sidegig</p></body></html>`;
-          if (isNative) {
-            // WebView nie drukuje — plik HTML do udostępnienia (np. Chrome → Drukuj → PDF)
-            shareFile({ filename: `Sidegig_report_${ym}.html`, text: html, title: `Sidegig – ${period}` }).catch(e => console.error("[FT] report share error", e));
-            return;
-          }
-          const w = window.open("","_blank"); w.document.write(html); w.document.close(); w.print();
-        }} style={{
-          width: "100%", background: "#060b14", border: "1px solid #1a2744",
-          borderRadius: 12, padding: "12px 0", color: "#94a3b8",
-          fontWeight: 700, fontSize: 14, cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}>
-          <span style={{ fontSize: 16 }}>🖨</span> {t("settings.report.btn", "Drukuj raport miesiąca (PDF)")}
-        </button>
 
         <Divider/>
 
@@ -948,29 +544,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
           {t("settings.import.help1", "Wczytaj plik .xlsx wyeksportowany z Sidegig lub FinTrack. Dane zostaną")}
           <span style={{ color: "#f59e0b", fontWeight: 700 }}> {t("settings.import.replaced", "zastąpione")}</span>{t("settings.import.help2", " — zrób eksport przed importem jeśli chcesz zachować kopię.")}
         </p>
-
-        {/* Column legend */}
-        <div style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 10,
-                      padding: "10px 14px", marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8,
-                        textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            {t("settings.import.columns", "Wymagane kolumny (arkusz „Transakcje”)")}
-          </div>
-          {[
-            ["Data",      t("settings.import.colDate", "RRRR-MM-DD"),  "#3b82f6"],
-            ["Opis",      t("settings.import.colText", "tekst"),       "#10b981"],
-            ["Kwota",     t("settings.import.colNumber", "+/- liczba"),  "#f59e0b"],
-            ["Kategoria", t("settings.import.colCategory", "np. jedzenie"),"#8b5cf6"],
-            ["Konto_ID",  "1, 2, 3…",   "#06b6d4"],
-          ].map(([col, hint, color]) => (
-            <div key={col} style={{ display: "flex", justifyContent: "space-between",
-                                    padding: "3px 0", borderBottom: "1px solid #0f1a2e" }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11,
-                             color, fontWeight: 600 }}>{col}</span>
-              <span style={{ fontSize: 11, color: "#475569" }}>{hint}</span>
-            </div>
-          ))}
-        </div>
 
         {/* File input styled */}
         <label style={{
@@ -1112,7 +685,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
         <Divider/>
 
-        {/* Custom categories */}
+        {/* Język */}
         <SectionTitle>🌍 {t("settings.language", "Język")} / Language</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
           {LANGUAGES.map(({ code, name, flag }) => (
@@ -1133,7 +706,6 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* Data reset */}
-        <Divider/>
         <SectionTitle>♻️ {t("settings.reset.title", "Resetowanie danych")}</SectionTitle>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
           {t("settings.reset.help", "Usuń wszystkie dane z tego urządzenia i z chmury.")}

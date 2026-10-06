@@ -9,7 +9,6 @@ import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLang } from "../i18n.js";
 import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { canAddTransaction } from "../lib/tier.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import {
   PLATFORMS, ITEM_CATEGORIES, marketPlatforms, platformName, itemCategory, feeRule, rememberFeeRule, calcFee,
@@ -25,8 +24,8 @@ const pct = (x) => x == null ? "—" : `${(x * 100).toFixed(1)}%`;
  * Sprzedaż: przedmioty od zakupu do sprzedaży. Zakup i sprzedaż to wpisy w Wpisach
  * (moduł reselling), więc Start i saldo konta zgadzają się bez osobnego liczenia.
  */
-function ResellingView({ items = [], setItems, transactions, setTransactions, accounts, setAccounts, defaultAcc = 1, hobbies = [],
-  proStatus, openUpgrade, onBack, addSignal = 0, focusItemId = null, onFocusHandled }) {
+function ResellingView({ items = [], setItems, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
+  onBack, addSignal = 0, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const [period, setPeriod] = useState("month");
@@ -143,7 +142,6 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, ac
       .map(id => transactions.find(tx => tx.id === id))
       .filter(Boolean);
     const createsTx = (item.recordPurchase && item.buyTxId == null) || (item.status === "sold" && item.sellTxId == null);
-    if (createsTx && !canAddTransaction(transactions, proStatus?.isPro).allowed) { if (openUpgrade) openUpgrade("limit"); return; }
 
     setSaving(true);
     try {
@@ -419,10 +417,6 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, ac
               </div>
             )}
           </>}
-
-          <Select label={t("tx.account", "Konto")} value={form.acc} onChange={e => setF({ acc: parseInt(e.target.value) })}>
-            {accounts.filter(a => a.type !== "invest").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </Select>
 
           <button onClick={save} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
             {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}

@@ -1,17 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
-import {
-  Wallet, PlusCircle, Edit2, Trash2, Copy, Search, Plane, ChevronRight
-} from "lucide-react";
+import { PlusCircle, Edit2, Trash2, Copy, Search, ChevronRight } from "lucide-react";
 import { Card } from "../components/ui/Card.jsx";
 import { Modal } from "../components/ui/Modal.jsx";
-import { Input, Select } from "../components/ui/Input.jsx";
+import { Input } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { fmt, fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
-import { CATEGORIES, getCat } from "../constants.js";
 import { useToast } from "../hooks/useToast.js";
 import { useHaptic } from "../hooks/useHaptic.js";
 import { t, getLang } from "../i18n.js";
-import { canAddTransaction } from "../lib/tier.js";
 import { checkLimit } from "../lib/rateLimit.js";
 import { getActiveTrips, getSelectableTrips } from "../lib/trips.js";
 import { getRate, getCurrentRates, getRateForDate, getDisplayCurrency, txAmountForDisplay, SUPPORTED_CURRENCIES } from "../lib/fx.js";
@@ -19,16 +15,26 @@ import { txAmountInAccountCurrency } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 import { MODULES, SIDE_MODULES, getModule, moduleLabel } from "../lib/modules.js";
 
-// Wybór modułu w formularzu ustawia sensowną kategorię, żeby statystyki i analiza
-// (oparte na kategoriach) widziały wpis tak samo jak moduł.
+// Kategoria wpisu wynika z modułu i typu. Wybiera się ją tylko przy Wyjazdach —
+// tam dzieli budżet wyjazdu (noclegi, jedzenie, transport…).
 const MODULE_DEFAULT_CAT = {
   betting:     { expense: "bukmacher", income: "bukmacherka" },
-  reselling:   { income: "sprzedaż" },
-  freelance:   { income: "dodatkowe" },
-  investments: { expense: "inwestycje" },
+  reselling:   { expense: "zakupy", income: "sprzedaż" },
+  freelance:   { expense: "zakupy", income: "dodatkowe" },
+  collections: { expense: "zakupy", income: "sprzedaż" },
+  investments: { expense: "inwestycje", income: "inwestycje" },
+  rental:      { expense: "rachunki", income: "dodatkowe" },
+  trips:       { expense: "jedzenie", income: "zwrot" },
 };
+// Moduły, w których częściej zapisuje się przychód
+const INCOME_FIRST = ["freelance", "reselling", "rental"];
+const TRIP_CATS = ["noclegi", "jedzenie", "transport", "rozrywka", "zakupy", "kawiarnia", "alkohol", "prezenty", "zdrowie"];
+const catFor = (module, type, tripCat) =>
+  module === "trips" && type === "expense" && TRIP_CATS.includes(tripCat)
+    ? tripCat
+    : (MODULE_DEFAULT_CAT[module] && MODULE_DEFAULT_CAT[module][type]) || (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ proStatus, openUpgrade, transactions, setTransactions, accounts, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -36,18 +42,21 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const [modal, setModal] = useState(_forceOpenModal || false);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("all");
   // Filtr modułu: kontrolowany z App (klik w moduł na Home) albo lokalny
   const [localModFilter, setLocalModFilter] = useState("all");
   const modFilter = onModuleFilterChange ? (moduleFilter || "all") : localModFilter;
   const setModFilter = onModuleFilterChange || setLocalModFilter;
   const lang = getLang();
-  // Moduły do wyboru przy wpisie: włączone moduły dochodu pobocznego + budżet osobisty.
-  // Wyjazdy mają własny wybór (tag wyjazdu), więc tu ich nie ma.
-  const formModules = Array.isArray(modules)
-    ? [...SIDE_MODULES.filter(id => modules.includes(id)), ...(modules.includes("personal") ? ["personal"] : [])]
-    : [];
-  const filterModules = Array.isArray(modules) ? modules : [];
+  // Moduły do wyboru przy wpisie: włączone moduły dochodu pobocznego + Wyjazdy (gdy jest wyjazd,
+  // do którego można przypisać wydatek). Wydatki osobiste nie są już częścią apki — stare wpisy
+  // tego typu zostają w danych i w eksporcie, ale nie pokazujemy ich.
+  const selectableTrips = getSelectableTrips(trips || []);
+  const enabled = Array.isArray(modules) ? modules : [];
+  const formModules = [
+    ...SIDE_MODULES.filter(id => enabled.includes(id)),
+    ...(enabled.includes("trips") && selectableTrips.length > 0 ? ["trips"] : []),
+  ];
+  const filterModules = enabled.filter(id => id !== "personal" && MODULES[id]);
   const [editingId, setEditingId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   // Kolekcje, do których można przypisać wpis modułu Kolekcje — bez tego wpis
@@ -57,17 +66,41 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     const last = transactions.find(tx => tx.hobbyId != null && activeCollections.some(h => h.id === tx.hobbyId));
     return last ? last.hobbyId : (activeCollections[0]?.id ?? null);
   };
+  // Wyjazd domyślny: trwający, a jeśli żaden nie trwa — najbliższy do wyboru
+  const defaultTrip = () => getActiveTrips(trips || [])[0] || selectableTrips[0] || null;
+  const lastModule = () => {
+    const tx = transactions.find(x => x.module && formModules.includes(x.module));
+    return tx ? tx.module : (formModules[0] || null);
+  };
+  // Pola zależne od modułu: typ, kolekcja, wyjazd i jego waluta
+  const moduleFields = (module, f = {}) => {
+    const trip = module === "trips" ? ((trips || []).find(x => x.id === f.tripId) || defaultTrip()) : null;
+    return {
+      module,
+      type: INCOME_FIRST.includes(module) ? "income" : "expense",
+      hobbyId: module === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null,
+      tripId: trip ? trip.id : null,
+      currency: trip && trip.defaultCurrency && (!f.currency || f.currency === getDisplayCurrency()) ? trip.defaultCurrency : (f.currency || getDisplayCurrency()),
+    };
+  };
   const getEmptyForm = () => {
-    const active = getActiveTrips(trips);
-    const presetTrip = active.length > 0 ? active[0] : null;
-    const presetTripId = presetTrip ? presetTrip.id : null;
-    // v1.4.1: preselect waluty z aktywnego wyjazdu. Jedziesz do Serbii, defaultCurrency=EUR,
-    // dodajesz tx — waluta od razu ustawiona na EUR, nie musisz klikać dropdownu.
-    const presetCurrency = (presetTrip && presetTrip.defaultCurrency) || getDisplayCurrency();
-    // Gdy lista jest przefiltrowana do modułu, nowy wpis domyślnie trafia do tego modułu
-    const presetModule = formModules.includes(modFilter) ? modFilter : null;
-    const presetCat = (presetModule && MODULE_DEFAULT_CAT[presetModule] && MODULE_DEFAULT_CAT[presetModule].expense) || "jedzenie";
-    return { date: todayLocal(), desc: "", amount: "", cat: presetCat, acc: defaultAcc, toAcc: defaultAcc === 1 ? 2 : 1, type: "expense", currency: presetCurrency, tripId: presetTripId, module: presetModule, hobbyId: presetModule === "collections" ? defaultCollectionId() : null };
+    const module = formModules.includes(modFilter) ? modFilter : lastModule();
+    return { date: todayLocal(), desc: "", amount: "", acc: defaultAcc, tripCat: "jedzenie", currency: getDisplayCurrency(), ...moduleFields(module) };
+  };
+  // Formularz z istniejącego wpisu (edycja albo kopia)
+  const formFromTx = (tx, copy) => {
+    // Kopia też zostaje w walucie oryginału — kurs pobierze się na nowo z dnia kopii
+    const hasFx = tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null;
+    const module = tx.module || getModule(tx, hobbies);
+    return {
+      date: copy ? todayLocal() : tx.date, desc: tx.desc,
+      amount: String(Math.abs(hasFx ? tx.origAmount : tx.amount)),
+      acc: tx.acc ?? defaultAcc,
+      type: tx.amount > 0 ? "income" : "expense",
+      currency: hasFx ? tx.origCurrency : "PLN",
+      module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null,
+      tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
+    };
   };
   const [form, setForm] = useState(getEmptyForm);
   const [saving, setSaving] = useState(false); // spinner gdy fetch historycznego kursu leci
@@ -91,19 +124,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
   const addTx = async () => {
     if (saving) return;
     if (!form.desc || !form.amount) return;
+    if (!form.module) { showToast(t("tx.err.module", "Wybierz moduł"), "error"); return; }
+    if (form.module === "trips" && form.tripId == null) { showToast(t("tx.err.trip", "Wybierz wyjazd"), "error"); return; }
     // Rate limit - zapobiega przypadkowym pętlom / atakom
     if (!editingId) {
       const rateCheck = checkLimit("addTransaction");
       if (!rateCheck.allowed) {
         alert(t("tx.rateLimit", "Za dużo wpisów naraz. Spróbuj za {s} s.").replace("{s}", Math.ceil(rateCheck.resetIn/1000)));
-        return;
-      }
-    }
-    // Paywall: sprawdź limit transakcji dla Free userów (tylko dla nowych, nie edycji)
-    if (!editingId) {
-      const check = canAddTransaction(transactions, proStatus?.isPro);
-      if (!check.allowed) {
-        if (openUpgrade) openUpgrade("limit");
         return;
       }
     }
@@ -118,12 +145,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       showToast(t("tx.err.date", "Wprowadź poprawną datę"), "error");
       return;
     }
-    // v1.2.8: dynamicznie sprawdzamy czy form.cat jest income kategorią
-    // (BASE + custom z group: "income"), zamiast twardo zakodowanej listy.
-    const incomeCatsList = (allCats || CATEGORIES).filter(c => c.group === "income").map(c => c.id);
-    const finalCat = form.type === "income"
-      ? (incomeCatsList.includes(form.cat) ? form.cat : "przychód")
-      : form.cat;
+    const finalCat = catFor(form.module, form.type, form.tripCat);
     // Multi-currency (v1.4.1): dla nie-PLN pobierz HISTORYCZNY kurs z dnia tx,
     // nie dzisiejszy. NBP /tables/A/{date} z fallbackiem do najbliższego dnia
     // roboczego wstecz; offline → dzisiejszy kurs jako last resort.
@@ -156,55 +178,11 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
     }
     const rawAmt = Math.abs(parsedAmount) * safeRate;
 
-    // Internal transfer: create two transactions
-    if (form.type === "transfer" && form.toAcc && parseInt(form.toAcc) !== parseInt(form.acc)) {
-      const fromId = parseInt(form.acc);
-      const toId   = parseInt(form.toAcc);
-
-      // Edge case: user edytuje istniejącą tx i zmienia type na "transfer".
-      // Bez tego: stara tx zostaje, nowe 2 dodają się = duplikacja.
-      // Fix: usuń starą + zwróć balance, potem dodaj nową parę.
-      if (editingId) {
-        const oldTx = transactions.find(t => t.id === editingId);
-        if (oldTx) {
-          if (setAccounts) {
-            setAccounts(accs => accs.map(a =>
-              a.type !== "invest" && a.id === oldTx.acc
-                ? { ...a, balance: parseFloat((a.balance - txAmountInAccountCurrency(a, oldTx)).toFixed(2)) }
-                : a
-            ));
-          }
-          setTransactions(tx => tx.filter(t => t.id !== editingId));
-        }
-        setEditingId(null);
-      }
-
-      const txOut  = { id: Date.now(),     date: form.date, desc: `${t("tx.transfer.out", "Przelew")} → ${(accounts.find(a=>a.id===toId)||{name:toId}).name}`, amount: -rawAmt, cat: "inne", acc: fromId };
-      const txIn   = { id: Date.now()+1,   date: form.date, desc: `${t("tx.transfer.in", "Przelew")} ← ${(accounts.find(a=>a.id===fromId)||{name:fromId}).name}`, amount: rawAmt,  cat: "inne", acc: toId  };
-      setTransactions(tx => [txIn, txOut, ...tx]);
-      if (setAccounts) {
-        setAccounts(accs => accs.map(a => {
-          // v1.5.0: konwersja na walutę konta — np. transfer 100 EUR z konta EUR na PLN obciąża EUR o 100, kredytuje PLN o ~428
-          if (a.id === fromId) return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txOut)).toFixed(2)) };
-          if (a.id === toId)   return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txIn)).toFixed(2)) };
-          return a;
-        }));
-      }
-      setForm(f => ({ ...f }));
-      setModal(false);
-      if (_onModalClose) _onModalClose();
-      return;
-    }
-
     const amt    = form.type === "expense" ? -rawAmt : rawAmt;
-    const txData = { date: form.date, desc: form.desc, amount: parseFloat(amt.toFixed(2)), cat: finalCat, acc: parseInt(form.acc) };
-    // tripId tylko dla wydatków - przychody/transfery nie należą do wyjazdu
-    if (form.type === "expense" && form.tripId != null) {
-      txData.tripId = form.tripId;
-    }
-    // v2.0.0 Sidegig: jawny moduł. Brak wyboru = moduł liczony z kategorii/tagu (getModule).
-    if (form.module) txData.module = form.module;
-    else if (editingId) txData.module = null;
+    const txData = { date: form.date, desc: form.desc, amount: parseFloat(amt.toFixed(2)), cat: finalCat, acc: parseInt(form.acc) || defaultAcc, module: form.module };
+    // Wyjazd i kolekcja tylko w swoich modułach (edycja czyści stare przypisanie)
+    if (form.module === "trips" && form.tripId != null) txData.tripId = form.tripId;
+    else if (editingId) txData.tripId = null;
     if (form.module === "collections" && form.hobbyId != null) txData.hobbyId = form.hobbyId;
     else if (editingId) txData.hobbyId = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
@@ -242,7 +220,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       }
       setTransactions(tx => tx.map(t => t.id === editingId ? { ...t, ...txData } : t));
       setEditingId(null);
-      showToast(t("tx.toast.updated", "Transakcja zaktualizowana ✓"));
+      showToast(t("tx.toast.updated", "Wpis zaktualizowany ✓"));
       hapticSuccess();
     } else {
       // apply amount to linked account (only savings/checking, not invest)
@@ -254,15 +232,19 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         }));
       }
       setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
-      showToast(t("tx.toast.added", "Transakcja dodana ✓"));
+      showToast(t("tx.toast.added", "Wpis dodany ✓"));
       hapticSuccess();
     }
-    setForm(f => ({ ...f, currency: 'PLN' }));
     setModal(false);
     if (_onModalClose) _onModalClose();
   };
 
   const todayStr2 = todayLocal();
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" };
+  const chip = (on, color) => ({
+    padding: "6px 11px", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+    background: on ? color + "22" : "#060b14", border: `1px solid ${on ? color : "#1a2744"}`, color: on ? color : "#64748b",
+  });
 
   // Memoized filter + grouping - jedna pętla zamiast 4 filter + forEach
   const { filtered, grouped } = useMemo(() => {
@@ -276,13 +258,13 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
       if (t.date > todayStr2) continue;
       if (filter === "income" && t.amount <= 0) continue;
       if (filter === "expense" && t.amount >= 0) continue;
-      if (filterCat !== "all" && t.cat !== filterCat) continue;
-      if (modFilter !== "all" && getModule(t, hobbies) !== modFilter) continue;
+      const mod = getModule(t, hobbies);
+      if (mod === "personal") continue;   // stare wydatki osobiste: zostają w danych, nie na liście
+      if (modFilter !== "all" && mod !== modFilter) continue;
       if (searchLower !== "") {
         const descMatch = t.desc && t.desc.toLowerCase().includes(searchLower);
-        const catLabel = getLocalCat(t.cat).label;
-        const catMatch = catLabel && catLabel.toLowerCase().includes(searchLower);
-        if (!descMatch && !catMatch) continue;
+        const modMatch = moduleLabel(mod, lang).toLowerCase().includes(searchLower);
+        if (!descMatch && !modMatch) continue;
       }
       result.push(t);
       if (!groupMap[t.date]) groupMap[t.date] = [];
@@ -291,43 +273,26 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
 
     const sorted = Object.entries(groupMap).sort((a, b) => b[0].localeCompare(a[0]));
     return { filtered: result, grouped: sorted };
-  }, [transactions, filter, filterCat, search, todayStr2, modFilter, hobbies]);
+  }, [transactions, filter, search, todayStr2, modFilter, hobbies, lang]);
 
-  // Free tier warning - pokaż gdy blisko limitu
-  const tierCheck = canAddTransaction(transactions, proStatus?.isPro);
+  // Podpis wpisu: moduł + kolekcja / wyjazd i kategoria wyjazdu
+  const rowMeta = (tx) => {
+    const mod = getModule(tx, hobbies);
+    const parts = [moduleLabel(mod, lang)];
+    if (mod === "collections" && tx.hobbyId != null) {
+      const h = (hobbies || []).find(x => x.id === tx.hobbyId);
+      if (h) parts.push(h.name);
+    }
+    if (mod === "trips") {
+      const trip = (trips || []).find(x => x.id === tx.tripId);
+      if (trip) parts.push(trip.name);
+      if (tx.amount < 0) parts.push(getLocalCat(tx.cat).label);
+    }
+    return { mod, text: parts.join(" · ") };
+  };
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
-      {/* Free tier limit warning */}
-      {!proStatus?.isPro && tierCheck.count >= 30 && (
-        <div style={{
-          background: tierCheck.warning || !tierCheck.allowed
-            ? "linear-gradient(135deg,#7f1d1d,#991b1b)"
-            : "linear-gradient(135deg,#1e3a8a,#312e81)",
-          border: "1px solid " + (tierCheck.warning || !tierCheck.allowed ? "#ef444444" : "#3b82f644"),
-          borderRadius: 14, padding: "12px 14px", marginTop: 10, marginBottom: 4,
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 2 }}>
-              {tierCheck.allowed
-                ? `${tierCheck.count} / ${tierCheck.limit} ${t("tx.tier.txInMonth", "transakcji w tym miesiącu")}`
-                : `${t("tx.tier.limitReached", "Limit")} ${tierCheck.limit} ${t("tx.tier.txReached", "transakcji osiągnięty")}`}
-            </div>
-            <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-              {tierCheck.allowed ? t("tx.tier.remaining", "Pozostało") + " " + tierCheck.remaining : t("tx.tier.upgrade", "Upgrade aby dodawać dalej")}
-            </div>
-          </div>
-          <button onClick={() => openUpgrade && openUpgrade("limit")} style={{
-            background: "white", color: "#1e40af", border: "none",
-            borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 800,
-            cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
-          }}>
-            Upgrade
-          </button>
-        </div>
-      )}
-
       <div style={{ paddingTop: 4, paddingBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", gap: 6 }}>
@@ -378,17 +343,9 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             />
             {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2 }}>✕</button>}
           </div>
-            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-              <button onClick={() => setFilterCat("all")} style={{ background: filterCat === "all" ? "#1e3a5f" : "#0d1628", border: `1px solid ${filterCat === "all" ? "#2563eb" : "#1a2744"}`, color: filterCat === "all" ? "#60a5fa" : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{t("tx.all")}</button>
-              {(allCats||CATEGORIES).map(c => (
-                <button key={c.id} onClick={() => setFilterCat(c.id)} style={{ background: filterCat === c.id ? c.color+"33" : "#0d1628", border: `1px solid ${filterCat === c.id ? c.color : "#1a2744"}`, color: filterCat === c.id ? c.color : "#64748b", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
         </div>
 
-        {(search || filterCat !== "all") && (
+        {search && (
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>
             {t("tx.foundCount")}: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{filtered.length}</span>
           </div>
@@ -400,20 +357,20 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           <div style={{ textAlign: "center", padding: "48px 16px" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>💸</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>
-              {search || filterCat !== "all" ? t("tx.empty.noResults", "Brak wyników") : t("tx.empty.noTx", "Brak transakcji")}
+              {search ? t("tx.empty.noResults", "Brak wyników") : t("tx.empty.noTx", "Brak wpisów")}
             </div>
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 20 }}>
-              {search || filterCat !== "all"
+              {search
                 ? t("tx.empty.tryFilters", "Spróbuj zmienić filtry wyszukiwania")
                 : t("tx.empty.addFirst", "Dodaj pierwszy wpis przyciskiem poniżej")}
             </div>
-            {!search && filterCat === "all" && (
+            {!search && (
               <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
                 background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
                 borderRadius: 12, padding: "12px 24px", color: "white",
                 fontWeight: 700, fontSize: 14, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",
-              }}>+ {t("tx.add", "Dodaj transakcję")}</button>
+              }}>{t("tx.add", "+ Dodaj wpis")}</button>
             )}
           </div>
         )}
@@ -436,9 +393,9 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
             })()}
             <Card style={{ padding: "4px 16px" }}>
               {txs.map((tx, i) => {
-                const cat = getLocalCat(tx.cat);
-                const Icon = cat.icon;
-                const acc = accounts.find(a => a.id === tx.acc);
+                const meta = rowMeta(tx);
+                const mdef = MODULES[meta.mod] || MODULES.personal;
+                const Icon = mdef.icon;
                 // Kwota w walucie głównej; gdy wpis był w tej walucie — dokładnie ta kwota (bez dryfu kursu).
                 // Oryginalna waluta pod spodem tylko gdy różni się od głównej.
                 const dispCur = getDisplayCurrency();
@@ -465,16 +422,15 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                     }}
                   >
                     {/* Icon */}
-                    <div style={{ background: cat.color+"1a", borderRadius: 10, padding: 8, flexShrink: 0 }}>
-                      <Icon size={14} color={cat.color}/>
+                    <div style={{ background: mdef.color+"1a", borderRadius: 10, padding: 8, flexShrink: 0 }}>
+                      <Icon size={14} color={mdef.color}/>
                     </div>
 
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.desc}</div>
                       <div style={{ fontSize: 11, color: "#475569", marginTop: 2, display: "flex", alignItems: "center", gap: 5, overflow: "hidden", whiteSpace: "nowrap" }}>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{cat.label}</span>
-                        {acc && <><span>·</span><span style={{ color: acc.color, overflow: "hidden", textOverflow: "ellipsis" }}>{acc.name}</span></>}
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{meta.text}</span>
                       </div>
                     </div>
 
@@ -529,10 +485,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                           // Copy: nowa tx z dzisiejszą datą + tych samych pól.
                           // editingId=null żeby zapis był jako NOWA, nie nadpisywał oryginału.
                           setEditingId(null);
-                          setForm({ date: todayLocal(), desc: tx.desc,
-                            amount: String(Math.abs(tx.amount)), cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense",
-                            currency: "PLN", tripId: null, module: tx.module || null, hobbyId: tx.hobbyId ?? null });
+                          setForm(formFromTx(tx, true));
                           setModal(true);
                         }}
                         title={t("tx.copy", "Kopiuj")}
@@ -543,19 +496,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       <button
                         onClick={() => {
                           setEditingId(tx.id);
-                          // v1.4.1: jeśli tx walutowa, wczytaj orig kwotę + walutę
-                          // żeby user edytował w oryginalnej walucie, nie w PLN
-                          const hasFx = tx.origCurrency && tx.origCurrency !== "PLN" && tx.origAmount != null;
-                          setForm({
-                            date: tx.date, desc: tx.desc,
-                            amount: String(Math.abs(hasFx ? tx.origAmount : tx.amount)),
-                            cat: tx.cat, acc: tx.acc,
-                            type: tx.amount > 0 ? "income" : "expense",
-                            currency: hasFx ? tx.origCurrency : "PLN",
-                            tripId: tx.tripId || null,
-                            module: tx.module || null,
-                            hobbyId: tx.hobbyId ?? null,
-                          });
+                          setForm(formFromTx(tx, false));
                           setModal(true);
                         }}
                         title={t("common.edit", "Edytuj")}
@@ -598,91 +539,93 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
         // i kolejny klik "+" jest no-op (state już true → useEffect nie reaguje).
         if (_onModalClose) _onModalClose();
         if (_onClose) _onClose();
-      }} title={editingId ? t("tx.editTitle", "Edytuj transakcję") : t("tx.newTitle", "Nowa transakcja")}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[
-            ["expense",  "📤 " + t("tx.type.expense",  "Wydatek"),  "#ef4444"],
-            ["income",   "📥 " + t("tx.type.income",   "Przychód"), "#10b981"],
-            ["transfer", "🔄 " + t("tx.type.transfer", "Przelew"),  "#60a5fa"],
-          ].map(([v,l,c]) => (
-            <button key={v} onClick={() => setForm(f => {
-              // v1.2.8: przy zmianie type ustaw sensowny default kategorii.
-              // Inaczej user przełącza na "Przychód" a w dropdownie ma "Jedzenie".
-              const incomeCatsList = (allCats || CATEGORIES).filter(cat => cat.group === "income");
-              const expenseCatsList = (allCats || CATEGORIES).filter(cat => cat.group === "essential" || cat.group === "lifestyle");
-              let nextCat = f.cat;
-              if (v === "income" && !incomeCatsList.find(cat => cat.id === f.cat)) {
-                nextCat = incomeCatsList[0]?.id || "przychód";
-              } else if (v === "expense" && !expenseCatsList.find(cat => cat.id === f.cat)) {
-                nextCat = "jedzenie";
-              }
-              // Wybrany moduł ma swoją kategorię dla danego typu (np. Zakłady: stawka / wygrana)
-              const modCat = f.module && MODULE_DEFAULT_CAT[f.module] && MODULE_DEFAULT_CAT[f.module][v];
-              if (modCat) nextCat = modCat;
-              return { ...f, type: v, cat: nextCat };
-            })} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 12, fontFamily: "'Space Grotesk', sans-serif" }}>
-              {l}
-            </button>
-          ))}
-        </div>
-        {/* Moduł Sidegig (bez przelewów — te zawsze są neutralne) */}
-        {form.type !== "transfer" && formModules.length > 0 && (
+      }} title={editingId ? t("tx.editTitle", "Edytuj wpis") : t("tx.newTitle", "Nowy wpis")}>
+        {formModules.length === 0 ? (
+          <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 14 }}>
+            {t("tx.noModules", "Włącz moduł w Więcej → Moduły, żeby dodawać wpisy.")}
+          </div>
+        ) : (
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {t("tx.module.label", "Moduł")}
-            </div>
+            <div style={labelStyle}>{t("tx.module.label", "Moduł")}</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {[null, ...formModules].map(id => {
-                const on = (form.module || null) === id;
-                const color = id ? MODULES[id].color : "#94a3b8";
+              {(formModules.includes(form.module) || !form.module ? formModules : [form.module, ...formModules]).map(id => {
+                const on = form.module === id;
+                const color = MODULES[id].color;
                 return (
-                  <button key={id || "auto"} type="button" aria-pressed={on} onClick={() => setForm(f => {
-                    const cat = id && MODULE_DEFAULT_CAT[id] && MODULE_DEFAULT_CAT[id][f.type];
-                    const hobbyId = id === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null;
-                    return { ...f, module: id, cat: cat || f.cat, hobbyId };
-                  })} style={{
-                    padding: "6px 11px", borderRadius: 9, cursor: "pointer",
-                    fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
-                    background: on ? color + "22" : "#060b14",
-                    border: `1px solid ${on ? color : "#1a2744"}`,
-                    color: on ? color : "#64748b",
-                  }}>
-                    {id ? moduleLabel(id, lang) : t("tx.module.auto", "Auto")}
+                  <button key={id} type="button" aria-pressed={on} onClick={() => setForm(f => f.module === id ? f : { ...f, ...moduleFields(id, f) })} style={chip(on, color)}>
+                    {moduleLabel(id, lang)}
                   </button>
                 );
               })}
             </div>
-            {!form.module && (
-              <div style={{ fontSize: 10, color: "#475569", marginTop: 5 }}>
-                {t("tx.module.autoHint", "Auto: moduł dobierany z kategorii (np. Zakłady → Zakłady, Sprzedaż → Odsprzedaż).")}
-              </div>
-            )}
-            {form.module === "collections" && (
-              activeCollections.length > 0 ? (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {t("tx.collection.label", "Kolekcja")}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {activeCollections.map(h => {
-                      const on = form.hobbyId === h.id;
-                      return (
-                        <button key={h.id} type="button" aria-pressed={on} onClick={() => setForm(f => ({ ...f, hobbyId: h.id }))} style={{
-                          padding: "6px 11px", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
-                          background: on ? h.color + "22" : "#060b14", border: `1px solid ${on ? h.color : "#1a2744"}`, color: on ? h.color : "#64748b",
-                        }}>{h.name}</button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 10, color: "#475569", marginTop: 5 }}>
-                  {t("tx.collection.none", "Załóż kolekcję w module Kolekcje, żeby wpis trafił do niej.")}
-                </div>
-              )
-            )}
           </div>
         )}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {[
+            ["expense", t("tx.type.expense", "Wydatek"), "#ef4444"],
+            ["income",  t("tx.type.income", "Przychód"), "#10b981"],
+          ].map(([v, l, c]) => (
+            <button key={v} type="button" onClick={() => setForm(f => ({ ...f, type: v }))} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif" }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {form.module === "collections" && (
+          activeCollections.length > 0 ? (
+            <div style={{ marginBottom: 14 }}>
+              <div style={labelStyle}>{t("tx.collection.label", "Kolekcja")}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {activeCollections.map(h => (
+                  <button key={h.id} type="button" aria-pressed={form.hobbyId === h.id} onClick={() => setForm(f => ({ ...f, hobbyId: h.id }))} style={chip(form.hobbyId === h.id, h.color)}>{h.name}</button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 14px" }}>
+              {t("tx.collection.none", "Załóż kolekcję w module Kolekcje, żeby wpis trafił do niej.")}
+            </div>
+          )
+        )}
+
+        {form.module === "trips" && (() => {
+          // Do wyboru: wyjazdy trwające, nadchodzące i niedawno zakończone (+ ten edytowanego wpisu)
+          const options = [...selectableTrips];
+          if (form.tripId != null && !options.some(x => x.id === form.tripId)) {
+            const orphan = (trips || []).find(x => x.id === form.tripId);
+            if (orphan) options.unshift(orphan);
+          }
+          const activeIds = new Set(getActiveTrips(trips || []).map(x => x.id));
+          return <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={labelStyle}>{t("tx.trip.label", "Wyjazd")}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {options.map(trip => (
+                  <button key={trip.id} type="button" aria-pressed={form.tripId === trip.id} onClick={() => setForm(f => ({
+                    ...f, tripId: trip.id,
+                    // Waluta wyjazdu, chyba że ktoś świadomie wybrał inną
+                    currency: trip.defaultCurrency && f.currency === getDisplayCurrency() ? trip.defaultCurrency : f.currency,
+                  }))} style={{ ...chip(form.tripId === trip.id, trip.color), display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    {activeIds.has(trip.id) && <span style={{ color: "#10b981", fontSize: 8 }}>●</span>}
+                    {trip.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {form.type === "expense" && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={labelStyle}>{t("tx.trip.category", "Na co")}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {TRIP_CATS.map(id => {
+                    const c = getLocalCat(id);
+                    return <button key={id} type="button" aria-pressed={form.tripCat === id} onClick={() => setForm(f => ({ ...f, tripCat: id }))} style={chip(form.tripCat === id, c.color)}>{c.label}</button>;
+                  })}
+                </div>
+              </div>
+            )}
+          </>;
+        })()}
 
         {/* Description with autocomplete */}
         <div style={{ marginBottom: 14, position: "relative" }}>
@@ -759,12 +702,17 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       // więc na pewno zdąży się wybrać sugestia.
                       onMouseDown={e => {
                         e.preventDefault();
-                        setForm(f => ({
-                          ...f, desc: s,
-                          cat: (prev ? prev.cat : null) || f.cat,
-                          acc: (prev ? prev.acc : null) || f.acc,
-                          type: prev ? (prev.amount > 0 ? "income" : "expense") : f.type,
-                        }));
+                        setForm(f => {
+                          if (!prev) return { ...f, desc: s };
+                          const prevMod = prev.module || getModule(prev, hobbies);
+                          const sameMod = formModules.includes(prevMod) ? prevMod : f.module;
+                          return {
+                            ...f, ...(sameMod !== f.module ? moduleFields(sameMod, f) : {}), desc: s,
+                            type: prev.amount > 0 ? "income" : "expense",
+                            hobbyId: sameMod === "collections" ? (prev.hobbyId ?? f.hobbyId) : null,
+                            tripCat: TRIP_CATS.includes(prev.cat) ? prev.cat : f.tripCat,
+                          };
+                        });
                         setShowDescSuggestions(false);
                       }}
                       style={{
@@ -776,7 +724,7 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
                       onMouseEnter={e => e.currentTarget.style.background = "#1a2744"}
                       onMouseLeave={e => e.currentTarget.style.background = "none"}>
                       <span style={{ fontSize: 14, color: "#e2e8f0" }}>{s}</span>
-                      {prev && <span style={{ fontSize: 11, color: "#475569" }}>{getLocalCat(prev.cat).label}</span>}
+                      {prev && <span style={{ fontSize: 11, color: "#475569" }}>{moduleLabel(prev.module || getModule(prev, hobbies), lang)}</span>}
                     </button>
                   );
                 })}
@@ -836,106 +784,8 @@ function TransactionsView({ proStatus, openUpgrade, transactions, setTransaction
           })()}
         </div>
         <Input label={t("tx.date", "Data")} type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))}/>
-        {form.type === "expense" && (
-          <Select label={t("tx.category", "Kategoria")} value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
-            <option disabled>── {t("tx.cat.essential", "Ważne")}</option>
-            {(allCats||CATEGORIES).filter(c => c.group === "essential" && c.id !== "przychód").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            <option disabled>── {t("tx.cat.extra", "Dodatkowe")}</option>
-            {(allCats||CATEGORIES).filter(c => (c.group === "lifestyle" || !c.group) && c.id !== "przychód" && c.id !== "inne").map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            <option disabled>── {t("tx.cat.other", "Inne")}</option>
-            <option value="inne">{t("tx.other", "Inne")}</option>
-          </Select>
-        )}
-        {form.type === "income" && (
-          // v1.2.8: picker kategorii dla przychodów. Wcześniej brakował — wszystko leciało jako "przychód".
-          // Pokazuje BASE income kategorie + custom z group === "income".
-          <Select label={t("tx.incomeCategory", "Kategoria przychodu")} value={form.cat} onChange={e => setForm(f => ({...f, cat: e.target.value}))}>
-            {(allCats||CATEGORIES).filter(c => c.group === "income").map(c => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </Select>
-        )}
-        <Select label={form.type === "transfer" ? "Z konta" : "Konto"} value={form.acc} onChange={e => setForm(f => ({...f, acc: e.target.value}))}>
-          {[...accounts].sort((a,b) => {
-            const order = { checking: 0, savings: 1, invest: 2 };
-            return (order[a.type]||1) - (order[b.type]||1);
-          }).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </Select>
-        {form.type === "transfer" && (
-          <Select label={t("tx.toAccount", "Na konto")} value={form.toAcc} onChange={e => setForm(f => ({...f, toAcc: e.target.value}))}>
-            {[...accounts].filter(a => a.id !== parseInt(form.acc)).sort((a,b) => {
-              const order = { checking: 0, savings: 1, invest: 2 };
-              return (order[a.type]||1) - (order[b.type]||1);
-            }).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </Select>
-        )}
-
-        {/* Trip selector — pokazuje aktywne (preselect) + nadchodzące do 90 dni
-            + niedawno zakończone do 14 dni. Pre-trip wydatki tagowalne (np. rezerwacja
-            hotelu na Serbię 2 miesiące przed wyjazdem). */}
-        {form.type === "expense" && (() => {
-          const selectable = getSelectableTrips(trips || []);
-          const active = getActiveTrips(trips || []);
-          const activeIds = new Set(active.map(t => t.id));
-          const editingHasTrip = editingId && form.tripId != null;
-          if (selectable.length === 0 && !editingHasTrip) return null;
-          // Jeśli edytujemy tx z tripId którego nie ma w selectable - dodaj
-          const allOptions = [...selectable];
-          if (editingHasTrip && !selectable.find(t => t.id === form.tripId)) {
-            const orphan = (trips || []).find(t => t.id === form.tripId);
-            if (orphan) allOptions.unshift(orphan);
-          }
-          return (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11,
-                fontWeight: 700, color: "#64748b", textTransform: "uppercase",
-                letterSpacing: "0.08em", marginBottom: 6 }}>
-                <Plane size={11}/> Przypisz do wyjazdu
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button onClick={() => setForm(f => ({ ...f, tripId: null }))} style={{
-                  padding: "6px 12px", borderRadius: 8, cursor: "pointer",
-                  fontSize: 12, fontWeight: 600,
-                  background: form.tripId == null ? "#1a2744" : "#060b14",
-                  border: `1px solid ${form.tripId == null ? "#475569" : "#1a2744"}`,
-                  color: form.tripId == null ? "#cbd5e1" : "#475569",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}>
-                  Bez tagu
-                </button>
-                {allOptions.map(trip => {
-                  const selected = form.tripId === trip.id;
-                  const isActive = activeIds.has(trip.id);
-                  return (
-                    <button key={trip.id} onClick={() => setForm(f => ({
-                      ...f,
-                      tripId: trip.id,
-                      // v1.4.1: wybór wyjazdu z defaultCurrency → preset waluty
-                      // (tylko gdy user dotąd miał PLN — nie nadpisuj świadomego wyboru)
-                      currency: (f.currency === "PLN" && trip.defaultCurrency)
-                        ? trip.defaultCurrency
-                        : f.currency,
-                    }))} style={{
-                      padding: "6px 12px", borderRadius: 8, cursor: "pointer",
-                      fontSize: 12, fontWeight: 600,
-                      background: selected ? trip.color + "33" : "#060b14",
-                      border: `1px solid ${selected ? trip.color : "#1a2744"}`,
-                      color: selected ? trip.color : (isActive ? "#cbd5e1" : "#64748b"),
-                      fontFamily: "'Space Grotesk', sans-serif",
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                    }}>
-                      {isActive && <span style={{ color: "#10b981", fontSize: 8 }}>●</span>}
-                      {trip.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
         <button onClick={addTx} disabled={saving} style={{ width: "100%", background: saving ? "#1e3a5f" : "linear-gradient(135deg, #1e40af, #3b82f6)", border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "'Space Grotesk', sans-serif", opacity: saving ? 0.7 : 1 }}>
-          {saving ? "Pobieram kurs NBP…" : (editingId ? t("tx.saveChanges", "Zapisz zmiany") : t("tx.save", "Zapisz transakcję"))}
+          {saving ? t("tx.fetchingRate", "Pobieram kurs…") : (editingId ? t("tx.saveChanges", "Zapisz zmiany") : t("tx.save", "Zapisz"))}
         </button>
       </Modal>
     </div>

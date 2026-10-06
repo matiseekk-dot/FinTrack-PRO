@@ -11,26 +11,21 @@ import { positionValues } from "../lib/accountTypes.js";
 import { SUPPORTED_CURRENCIES } from "../lib/fx.js";
 import { useToast } from "../hooks/useToast.js";
 import { useBackHandler } from "../lib/backButton.js";
-function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
-  const ACCOUNT_TYPES = ["Zwykłe", "IKZE", "IKE", "PPK"];
-  const accLabel = (a) => a === "Zwykłe" ? t("inv.acc.regular", "Zwykłe") : a;
+import { ModuleHeader } from "../components/ModuleUI.jsx";
+import { MODULES, moduleLabel } from "../lib/modules.js";
+
+// Pozycje portfela (ETF-y, akcje, krypto). Dawne typy rachunków (PPK/IKE/IKZE) zostają
+// w danych pozycji, ale nie dzielą już listy.
+function InvestmentsView({ portfolio, setPortfolio, onBack }) {
   const COLORS = ["#8b5cf6","#f59e0b","#10b981","#3b82f6","#ef4444","#06b6d4","#ec4899","#a3e635"];
-  const { toast, showToast } = useToast();
+  const { toast } = useToast();
   const [modal, setModal] = useState(false);
-  const [importModal, setImportModal] = useState(false);
   useBackHandler(modal, () => setModal(false));
-  useBackHandler(importModal, () => setImportModal(false));
-
-  // Konta inwestycyjne które nie mają jeszcze pozycji w portfelu
-  const investAccounts = accounts.filter(a => a.type === "invest");
-  const unlinkedInvestAccounts = investAccounts.filter(acc =>
-    !portfolio.some(p => p.linkedAccId === acc.id)
-  );
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ ticker:"", name:"", qty:"", avgPrice:"", currentPrice:"", account:"Zwykłe", currency:"PLN" });
+  const [form, setForm] = useState({ ticker:"", name:"", qty:"", avgPrice:"", currentPrice:"", currency:"PLN" });
 
-  const openAdd  = () => { setEditItem(null); setForm({ ticker:"", name:"", qty:"", avgPrice:"", currentPrice:"", account:"Zwykłe", currency:"PLN" }); setModal(true); };
-  const openEdit = (p) => { setEditItem(p); setForm({ ticker:p.ticker, name:p.name, qty:String(p.qty), avgPrice:String(p.avgPrice), currentPrice:String(p.currentPrice), account:p.account, currency:p.currency||"PLN" }); setModal(true); };
+  const openAdd  = () => { setEditItem(null); setForm({ ticker:"", name:"", qty:"", avgPrice:"", currentPrice:"", currency:"PLN" }); setModal(true); };
+  const openEdit = (p) => { setEditItem(p); setForm({ ticker:p.ticker, name:p.name, qty:String(p.qty), avgPrice:String(p.avgPrice), currentPrice:String(p.currentPrice), currency:p.currency||"PLN" }); setModal(true); };
 
   const save = () => {
     if (!form.ticker || !form.currentPrice) return;
@@ -40,11 +35,9 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
     // Wartość w PLN po bieżącym kursie waluty pozycji (fmt pokazuje ją w walucie głównej)
     const { valuePLN: val, pnlPLN: pnl } = positionValues({ qty, currentPrice: cur, avgPrice: avg, currency: form.currency });
     const pnlPct = avg > 0 ? ((cur - avg) / avg * 100) : 0;
-    // Spread editItem żeby zachować pola spoza form (np. linkedAccId z "Dodaj z konta").
-    // Bez tego edycja gubi link do konta i Dashboard przestaje pokazywać aktualną wycenę
-    // → fallback do frozen acc.balance.
+    // Spread editItem: zachowuje pola spoza formularza (np. dawne account / linkedAccId)
     const base = editItem ? { ...editItem } : { id: Date.now() };
-    const item  = { ...base, ticker: form.ticker.toUpperCase(), name: form.name, qty, avgPrice: avg, currentPrice: cur, valuePLN: val, pnlPLN: pnl, pnlPct, account: form.account, currency: form.currency };
+    const item  = { ...base, ticker: form.ticker.toUpperCase(), name: form.name, qty, avgPrice: avg, currentPrice: cur, valuePLN: val, pnlPLN: pnl, pnlPct, currency: form.currency };
     if (editItem) setPortfolio(p => p.map(x => x.id === editItem.id ? item : x));
     else          setPortfolio(p => [...p, item]);
     setModal(false);
@@ -58,68 +51,28 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
   const totalInv   = totalValue - totalPnL;
   const totalPct   = totalInv > 0 ? (totalPnL / totalInv * 100) : 0;
 
-  const byAccount = ACCOUNT_TYPES.map(acc => ({
-    acc,
-    items: portfolio.filter(p => p.account === acc),
-    val:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+positionValues(p).valuePLN, 0),
-    pnl:   portfolio.filter(p => p.account === acc).reduce((s,p) => s+positionValues(p).pnlPLN, 0),
-  })).filter(g => g.items.length > 0);
 
   const colorFor = (ticker) => COLORS[portfolio.findIndex(p => p.ticker === ticker) % COLORS.length];
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
       <Toast message={toast.message} type={toast.type} visible={toast.visible}/>
-      <div style={{ paddingTop: 8, paddingBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>{t("inv.title", "Portfel inwestycyjny")}</div>
-          {portfolio.length > 0 ? (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 26, fontWeight: 500 }}>{fmt(totalValue)}</span>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: totalPnL >= 0 ? "#10b981" : "#ef4444" }}>
-                {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)} ({totalPct >= 0 ? "+" : ""}{totalPct.toFixed(2)}%)
-              </span>
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{t("inv.noPositions", "Brak pozycji")}</div>
-          )}
-        </div>
-        <button onClick={openAdd} style={{ background: "linear-gradient(135deg,#059669,#10b981)", border: "none", borderRadius: 10, padding: "8px 14px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
-          + {t("common.add", "Dodaj")}
-        </button>
-      </div>
+      <ModuleHeader Icon={MODULES.investments.icon} color={MODULES.investments.color} title={moduleLabel("investments")}
+        onBack={onBack} addLabel={t("inv.position", "Pozycja")} onAdd={openAdd}/>
 
-      {/* Sugestia importu kont inwestycyjnych */}
-      {unlinkedInvestAccounts.length > 0 && portfolio.length === 0 && (
-        <Card style={{ marginBottom: 12, padding: "14px 16px", background: "#0a1e3a", border: "1px solid #1e40af44" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-            💡 {t("inv.haveAccounts", "Masz konta inwestycyjne")}
-          </div>
-          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
-            {t("inv.found", "Znalezione konta inwestycyjne:")}{" "}
-            <strong style={{ color: "#e2e8f0" }}>{unlinkedInvestAccounts.map(a => a.name).join(", ")}</strong>.{" "}
-            {t("inv.addAsPositions", "Dodać je jako pozycje w portfelu?")}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setImportModal(true)} style={{
-              flex: 1, background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
-              borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700,
-              fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
-            }}>
-              {t("inv.addFromAccounts", "Dodaj z kont")}
-            </button>
-            <button onClick={openAdd} style={{
-              flex: 1, background: "#0d1628", border: "1px solid #1a2744",
-              borderRadius: 10, padding: "9px 0", color: "#64748b", fontWeight: 600,
-              fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
-            }}>
-              {t("inv.addManually", "Dodaj ręcznie")}
-            </button>
+      {portfolio.length > 0 && (
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>{t("inv.title", "Portfel inwestycyjny")}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 26, fontWeight: 500 }}>{fmt(totalValue)}</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: totalPnL >= 0 ? "#10b981" : "#ef4444" }}>
+              {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)} ({totalPct >= 0 ? "+" : ""}{totalPct.toFixed(2)}%)
+            </span>
           </div>
         </Card>
       )}
 
-      {portfolio.length === 0 && unlinkedInvestAccounts.length === 0 && (
+      {portfolio.length === 0 && (
         <Card style={{ textAlign: "center", padding: "32px 16px" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📈</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>{t("inv.emptyTitle", "Dodaj swoje inwestycje")}</div>
@@ -155,35 +108,15 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
             </div>
           </Card>
 
-          {/* Konta summary */}
-          {byAccount.length > 1 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-              {byAccount.map(({ acc, val, pnl }, i) => (
-                <Card key={acc} style={{ padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{accLabel(acc)}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 600, color: COLORS[i % COLORS.length] }}>{fmt(val)}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: pnl >= 0 ? "#10b981" : "#ef4444", marginTop: 3 }}>
-                    {pnl >= 0 ? "+" : ""}{fmt(pnl)}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
 
-          {/* Positions by account */}
-          {byAccount.map(({ acc, items, val }, gi) => (
-            <div key={acc}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS[gi % COLORS.length], marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {accLabel(acc)} · {fmt(val)}
-              </div>
+          <div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                {items.map(p => (
+                {portfolio.map(p => (
                   <Card key={p.id} style={{ padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color: colorFor(p.ticker), background: colorFor(p.ticker) + "22", borderRadius: 5, padding: "1px 7px", fontFamily: "'DM Mono', monospace" }}>{p.ticker}</span>
-                          <span style={{ fontSize: 10, background: "#1e3a5f33", color: "#60a5fa", border: "1px solid #2563eb44", borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>{accLabel(p.account)}</span>
                         </div>
                         {p.name && <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 3 }}>{p.name}</div>}
                         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#334155" }}>
@@ -205,77 +138,7 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
                 ))}
               </div>
             </div>
-          ))}
         </>
-      )}
-
-      {/* Modal: importuj z kont inwestycyjnych */}
-      {importModal && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 200,
-          display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div style={{ background: "#0a1120", borderRadius: "20px 20px 0 0",
-            padding: "24px 20px 40px", width: "min(100vw,480px)", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <span style={{ fontSize: 17, fontWeight: 700 }}>{t("inv.importTitle", "Dodaj z kont")}</span>
-              <button onClick={() => setImportModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569" }}><X size={20}/></button>
-            </div>
-            <div style={{ fontSize: 13, color: "#475569", marginBottom: 16, lineHeight: 1.6 }}>
-              {t("inv.importDesc", "Wybierz konta do dodania. Wartość weźmiemy z salda konta — ticker i ilość możesz później zmienić.")}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {unlinkedInvestAccounts.map(acc => (
-                <div key={acc.id} style={{
-                  background: "#060b14", borderRadius: 12, padding: "14px 16px",
-                  border: `1px solid ${acc.color}44`,
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: acc.color }}/>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{acc.name}</div>
-                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{acc.bank || t("inv.investments", "Inwestycje")} · {fmt(acc.balance)}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const item = {
-                        id: Date.now() + acc.id,
-                        ticker: acc.name.toUpperCase().replace(/\s+/g, "").slice(0, 6),
-                        name: acc.name,
-                        qty: 1,
-                        avgPrice: acc.balance,
-                        currentPrice: acc.balance,
-                        valuePLN: acc.balance,
-                        pnlPLN: 0,
-                        pnlPct: 0,
-                        account: "Zwykłe",
-                        currency: "PLN",
-                        linkedAccId: acc.id,
-                      };
-                      setPortfolio(p => [...p, item]);
-                      showToast(`${acc.name} — ${t("inv.added", "dodane do portfela ✓")}`);
-                    }}
-                    style={{
-                      background: "linear-gradient(135deg,#059669,#10b981)", border: "none",
-                      borderRadius: 8, padding: "7px 14px", color: "white",
-                      fontWeight: 700, fontSize: 12, cursor: "pointer",
-                      fontFamily: "'Space Grotesk', sans-serif",
-                    }}>
-                    {t("common.add", "Dodaj")}
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setImportModal(false)} style={{
-              width: "100%", background: "#0d1628", border: "1px solid #1a2744",
-              borderRadius: 12, padding: "12px 0", color: "#64748b",
-              fontWeight: 700, fontSize: 14, cursor: "pointer",
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}>
-              {t("common.done", "Gotowe")}
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Modal dodaj/edytuj */}
@@ -298,14 +161,6 @@ function InvestmentsView({ portfolio, setPortfolio, accounts = [] }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Input label={t("inv.avgPrice", "Śr. cena zakupu")} type="number" inputMode="decimal" value={form.avgPrice} onChange={e => setForm(f => ({...f, avgPrice: e.target.value}))} placeholder="0.00"/>
                 <Input label={t("inv.curPrice", "Aktualna cena")} type="number" inputMode="decimal" value={form.currentPrice} onChange={e => setForm(f => ({...f, currentPrice: e.target.value}))} placeholder="0.00"/>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{t("inv.accountType", "Rachunek")}</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {ACCOUNT_TYPES.map(at => (
-                    <button key={at} onClick={() => setForm(f => ({...f, account: at}))} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${form.account === at ? "#2563eb" : "#1a2744"}`, background: form.account === at ? "#1e3a5f" : "#060b14", color: form.account === at ? "#60a5fa" : "#475569", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{accLabel(at)}</button>
-                  ))}
-                </div>
               </div>
               {form.qty && form.currentPrice && (
                 <div style={{ background: "#060b14", borderRadius: 10, padding: "10px 14px", border: "1px solid #1a2744" }}>

@@ -12,7 +12,6 @@ import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t } from "../i18n.js";
 import { getModule } from "../lib/modules.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { canAddTransaction } from "../lib/tier.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import {
   getTaxReservePct, setTaxReservePct, addDays, isOverdue, buildGigTx, freelanceStats,
@@ -24,8 +23,8 @@ const ACCENT = "#06b6d4";
  * Freelance: zlecenia od wykonania do zapłaty. Niezapłacone nie ruszają salda;
  * „Opłacone” tworzy przychód w Wpisach, więc Start pokazuje tylko realne wpływy.
  */
-function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, accounts, setAccounts, defaultAcc = 1, hobbies = [],
-  proStatus, openUpgrade, onBack, addSignal = 0, focusGigId = null, onFocusHandled }) {
+function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setAccounts, defaultAcc = 1, hobbies = [],
+  onBack, addSignal = 0, focusGigId = null, onFocusHandled }) {
   const { toast, showToast } = useToast();
   const today = todayLocal();
   const [period, setPeriod] = useState("month");
@@ -86,7 +85,6 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, acco
     const old = f.editingId != null ? gigs.find(x => x.id === f.editingId) : null;
     const oldTx = old?.txId != null ? transactions.find(tx => tx.id === old.txId) : null;
     const isPaid = f.status === "paid";
-    if (isPaid && !oldTx && !canAddTransaction(transactions, proStatus?.isPro).allowed) { if (openUpgrade) openUpgrade("limit"); return false; }
 
     const gig = {
       ...(old || {}),
@@ -286,11 +284,6 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, acco
               ? <div style={{ flex: 1 }}><Input label={t("gig.dueDate", "Termin płatności")} type="date" value={form.dueDate} onChange={e => setF({ dueDate: e.target.value })}/></div>
               : <div style={{ flex: 1 }}><Input label={t("gig.paidOn", "Zapłacone")} type="date" value={form.paidDate} onChange={e => setF({ paidDate: e.target.value })}/></div>}
           </div>
-          {form.status === "paid" && (
-            <Select label={t("tx.account", "Konto")} value={form.acc} onChange={e => setF({ acc: parseInt(e.target.value) })}>
-              {accounts.filter(a => a.type !== "invest").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </Select>
-          )}
 
           <button onClick={save} disabled={saving} style={{ ...primaryBtn, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? t("common.saving", "Zapisuję…") : t("common.save", "Zapisz")}

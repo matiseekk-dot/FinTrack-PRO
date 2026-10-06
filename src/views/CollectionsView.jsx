@@ -12,7 +12,6 @@ import { HobbyDetails, HobbyModal } from "./HobbyView.jsx";
 import { fmtDisplay, fmtCurrency, todayLocal, cycleTxs } from "../utils.js";
 import { t, getLang } from "../i18n.js";
 import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
-import { canAddTransaction } from "../lib/tier.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
 import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby } from "../lib/hobby.js";
 import { getModule } from "../lib/modules.js";
@@ -30,8 +29,8 @@ const STATE_COLORS = { owned: "#34d399", wishlist: "#f59e0b", selling: "#ec4899"
  * Sprzedaż pozycji przechodzi do modułu Sprzedaż z kosztem zakupu z katalogu.
  */
 function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resaleItems = [], setResaleItems,
-  transactions, setTransactions, accounts, setAccounts, defaultAcc = 1, allCats, month, cycleDay,
-  proStatus, openUpgrade, onBack, onOpenResale, addSignal = 0, focusItemId = null, onFocusHandled }) {
+  transactions, setTransactions, setAccounts, defaultAcc = 1, allCats, month, cycleDay,
+  onBack, onOpenResale, addSignal = 0, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
   const today = todayLocal();
@@ -195,7 +194,6 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     };
 
     const oldOwnedTx = old?.buyTxOwned ? transactions.find(tx => tx.id === old.buyTxId) : null;
-    if (item.buyTxOwned && !oldOwnedTx && !canAddTransaction(transactions, proStatus?.isPro).allowed) { if (openUpgrade) openUpgrade("limit"); return; }
 
     setSaving(true);
     try {
@@ -530,11 +528,6 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
 
               <Input label={t("coll.estValue", "Szacowana wartość dziś")} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.value} onChange={e => setF({ value: e.target.value })}/>
 
-              {form.buyMode === "new" && (
-                <Select label={t("tx.account", "Konto")} value={form.acc} onChange={e => setF({ acc: parseInt(e.target.value) })}>
-                  {accounts.filter(a => a.type !== "invest").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </Select>
-              )}
             </> : (
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1.3 }}><Input label={t("coll.targetPrice", "Kupię do")} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.targetPrice} onChange={e => setF({ targetPrice: e.target.value })}/></div>

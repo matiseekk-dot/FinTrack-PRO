@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { List, Landmark, SlidersHorizontal, Settings, ChevronRight, PanelBottom, Pin } from "lucide-react";
+import { List, SlidersHorizontal, Settings, ChevronRight, PanelBottom, Pin } from "lucide-react";
 import { t, getLang } from "../i18n.js";
 import { MODULES, moduleLabel, moduleDesc } from "../lib/modules.js";
 import { NAV_SLOTS, navCandidates, defaultNavTabs, navItem } from "../lib/nav.js";
@@ -31,8 +31,8 @@ function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onO
     {
       title: t("more.money", "Pieniądze"),
       items: [
-        { id: "transactions", nav: "transactions", Icon: List, color: "#94a3b8", label: t("nav.ledger", "Wpisy"), desc: t("more.ledgerDesc", "Wszystkie wpisy, filtry, wydatki osobiste") },
-        { id: "portfolio", nav: "portfolio", Icon: Landmark, color: "#60a5fa", label: t("more.accounts", "Konta"), desc: t("more.accountsDesc", "Salda, waluty kont, inwestycje") },
+        { id: "transactions", nav: "transactions", Icon: List, color: "#94a3b8", label: t("nav.ledger", "Wpisy"), desc: t("more.ledgerDesc", "Wszystkie wpisy ze wszystkich modułów") },
+        ...(modules.includes("investments") ? [{ id: "portfolio", nav: "portfolio", Icon: MODULES.investments.icon, color: MODULES.investments.color, label: moduleLabel("investments", lang), desc: t("more.investmentsDesc", "Pozycje, wycena i wynik portfela") }] : []),
       ],
     },
     {

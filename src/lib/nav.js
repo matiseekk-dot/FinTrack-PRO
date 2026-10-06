@@ -2,7 +2,7 @@
 // The choice is a per-device preference (like the PIN), so it lives in
 // localStorage and is not synced.
 
-import { Home, List, Landmark, Menu } from "lucide-react";
+import { Home, List, Menu } from "lucide-react";
 import { MODULES, moduleLabel } from "./modules.js";
 import { t, getLang } from "../i18n.js";
 
@@ -14,13 +14,14 @@ const NAV_MODULE_SCREENS = ["reselling", "betting", "freelance", "collections", 
 
 /** Destinations that may be pinned to the bar for the given enabled modules. */
 function navCandidates(modules = []) {
-  return [...NAV_MODULE_SCREENS.filter(id => modules.includes(id)), "transactions", "portfolio"];
+  return [...NAV_MODULE_SCREENS.filter(id => modules.includes(id)), "transactions",
+    ...(modules.includes("investments") ? ["portfolio"] : [])];
 }
 
 /** Two busiest-looking module screens first, then the ledger, then accounts. */
 function defaultNavTabs(modules = []) {
   const screens = NAV_MODULE_SCREENS.filter(id => modules.includes(id)).slice(0, 2);
-  return [...screens, "transactions", "portfolio"].slice(0, NAV_SLOTS);
+  return [...screens, "transactions", ...(modules.includes("investments") ? ["portfolio"] : [])].slice(0, NAV_SLOTS);
 }
 
 function readStored() {
@@ -67,7 +68,8 @@ function navItem(id, lang = getLang()) {
   if (id === "home") return { id, label: t("nav.home", "Start"), Icon: Home, color: "#34d399" };
   if (id === "more") return { id, label: t("nav.more", "Więcej"), Icon: Menu, color: "#64748b" };
   if (id === "transactions") return { id, label: t("nav.ledger", "Wpisy"), Icon: List, color: "#94a3b8" };
-  if (id === "portfolio") return { id, label: t("nav.accounts", "Konta"), Icon: Landmark, color: "#60a5fa" };
+  // "portfolio" = ekran Inwestycji (id zostaje, bo jest zapisany w ft_nav_tabs)
+  if (id === "portfolio") return { id, label: moduleLabel("investments", lang), Icon: MODULES.investments.icon, color: MODULES.investments.color };
   const m = MODULES[id];
   const short = SHORT_LABELS[id];
   return { id, label: (short && (short[lang] || short.en)) || moduleLabel(id, lang), Icon: m.icon, color: m.color };
