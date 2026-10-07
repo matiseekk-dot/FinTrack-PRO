@@ -1,7 +1,7 @@
 {
   "name": "fintrack-pro",
   "private": true,
-  "version": "2.14.0",
+  "version": "2.15.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/share": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capawesome/capacitor-app-shortcuts": "^8.0.2",

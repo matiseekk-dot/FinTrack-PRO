@@ -5,6 +5,8 @@ import {
 import { todayLocal } from "../utils.js";
 import { PinSettings } from "./PinLock.jsx";
 import { holdingStats, kindOf, modeOf } from "../lib/investments.js";
+import { requestReminderPermission } from "../lib/reminders.js";
+import { CheckRow } from "./ModuleUI.jsx";
 import { getLang, setLang, t, getLocale, LANGUAGES } from "../i18n.js";
 import { useBackHandler } from "../lib/backButton.js";
 import { isNative, sitePage, linkProps, shareFile } from "../lib/native.js";
@@ -28,7 +30,9 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          // v2.2.0: katalog Kolekcji i zlecenia Freelance
                          collectionItems = [], gigs = [],
                          // v2.7.0: cel miesięczny i limit strat (trafiają do kopii)
-                         prefs = {}, subscriptions = [], rentals = [] }) {
+                         prefs = {}, subscriptions = [], rentals = [],
+                         // v2.15.0: przypomnienia (Android)
+                         remPrefs = null, onRemPrefsChange }) {
   const [importStatus, setImportStatus] = useState(null); // null | "ok" | "err" | "loading"
   const [importMsg, setImportMsg]       = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -735,6 +739,35 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
         <Divider/>
 
         {/* PIN Lock */}
+        {/* Przypomnienia */}
+        <SectionTitle>🔔 {t("settings.rem.title", "Przypomnienia")}</SectionTitle>
+        {!isNative || !remPrefs ? (
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
+            {t("settings.rem.web2", "Powiadomienia o subskrypcjach, fakturach i czynszu działają w aplikacji na Androida. Tutaj te same sprawy widzisz na Starcie, nad listą modułów.")}
+          </p>
+        ) : <>
+          <CheckRow checked={!!remPrefs.enabled} onChange={async (v) => {
+            if (v && !(await requestReminderPermission())) { alert(t("settings.rem.denied", "Zezwól Sidegig na powiadomienia w ustawieniach telefonu.")); return; }
+            onRemPrefsChange({ ...remPrefs, enabled: v });
+          }}>
+            {t("settings.rem.enable", "Przypominaj o płatnościach i terminach")}
+          </CheckRow>
+          {remPrefs.enabled && <>
+            {[["subs", t("settings.rem.subs", "Subskrypcje — dzień przed płatnością, okres próbny 2 dni wcześniej")],
+              ["invoices", t("settings.rem.invoices", "Faktury — w dniu terminu i gdy klient się spóźnia")],
+              ["rent", t("settings.rem.rent", "Czynsz — w dniu terminu i 3 dni po, jeśli nie wpłynął")]].map(([k, label]) => (
+              <CheckRow key={k} checked={remPrefs[k] !== false} onChange={(v) => onRemPrefsChange({ ...remPrefs, [k]: v })} style={{ marginBottom: 8 }}>{label}</CheckRow>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 14px" }}>
+              <span style={{ fontSize: 13, color: "#94a3b8", flex: 1 }}>{t("settings.rem.hour", "O której godzinie")}</span>
+              <select value={remPrefs.hour} onChange={e => onRemPrefsChange({ ...remPrefs, hour: Number(e.target.value) })} style={{ background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "8px 12px", color: "#e2e8f0", fontSize: 15, fontFamily: "inherit" }}>
+                {Array.from({ length: 15 }, (_, i) => i + 7).map(h => <option key={h} value={h}>{`${h}:00`}</option>)}
+              </select>
+            </div>
+          </>}
+        </>}
+        <Divider/>
+
         <SectionTitle>🔒 {t("settings.security.title", "Bezpieczeństwo")}</SectionTitle>
         <PinSettings/>
         <Divider/>

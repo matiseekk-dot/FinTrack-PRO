@@ -34,7 +34,8 @@ import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
 import { t, getLang } from "./i18n.js";
 import { getNavTabs, setNavTabs, navItem } from "./lib/nav.js";
-import { initNative, setAppShortcuts } from "./lib/native.js";
+import { initNative, setAppShortcuts, isNative } from "./lib/native.js";
+import { getReminderPrefs, setReminderPrefs, buildReminders, syncReminders, onReminderTap } from "./lib/reminders.js";
 import { sanitizePrefs, withPref } from "./lib/prefs.js";
 import { closeTopOverlay } from "./lib/backButton.js";
 
@@ -536,6 +537,23 @@ export default function App() {
   };
   useEffect(() => { initNative({ onBack: () => backRef.current(), onShortcut: (id) => setPendingAction(id) }); }, []);
 
+  // Przypomnienia (Android): po każdej zmianie danych planujemy powiadomienia na nowo
+  const [remPrefs, setRemPrefsState] = useState(getReminderPrefs);
+  const updateRemPrefs = (p) => { setReminderPrefs(p); setRemPrefsState(p); };
+  useEffect(() => {
+    if (!isNative || !loaded) return;
+    const tm = setTimeout(() => {
+      const list = remPrefs.enabled ? buildReminders({ subscriptions, gigs, rentals, transactions, prefs: remPrefs }) : [];
+      syncReminders(list).catch(e => console.warn("[reminders]", e));
+    }, 2000);
+    return () => clearTimeout(tm);
+  }, [loaded, remPrefs, subscriptions, gigs, rentals, transactions]);
+  useEffect(() => {
+    let off = () => {};
+    onReminderTap((id) => { if (id) setTab(id); }).then(f => { off = f; }).catch(() => {});
+    return () => off();
+  }, []);
+
   useEffect(() => {
     if (!pendingAction || !loaded || (!user && !guest) || !modules || pinLocked || setupOpen) return;
     const action = pendingAction;
@@ -766,6 +784,7 @@ export default function App() {
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
         prefs={prefs} subscriptions={subscriptions} rentals={rentals}
+        remPrefs={remPrefs} onRemPrefsChange={updateRemPrefs}
       />
       </ErrorBoundary>
 
