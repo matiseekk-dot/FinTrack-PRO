@@ -124,10 +124,12 @@ function toResaleItem(item, hobby, today) {
 /**
  * Statystyki per kolekcja (hobbyId) i łącznie. Kwoty w PLN-ekwiwalencie dla fmtDisplay.
  * Wartość = szacowana wartość, a bez niej koszt zakupu (liczymy „bez wyceny” osobno).
+ * Zmiana (paidValue − paidCost) tylko z pozycji, które mają i cenę zakupu, i wycenę —
+ * płyta z wyceną, ale bez ceny zakupu, nie jest „zyskiem”.
  */
 function collectionStats(items, resaleItems) {
   const resaleById = new Map(resaleItems.map(r => [r.id, r]));
-  const blank = () => ({ owned: 0, wishlist: 0, selling: 0, sold: 0, cost: 0, value: 0, unvalued: 0, realized: 0, wishlistCost: 0 });
+  const blank = () => ({ owned: 0, wishlist: 0, selling: 0, sold: 0, cost: 0, value: 0, unvalued: 0, realized: 0, wishlistCost: 0, paired: 0, paidCost: 0, paidValue: 0 });
   const by = {};
   const total = blank();
   for (const it of items) {
@@ -146,10 +148,19 @@ function collectionStats(items, resaleItems) {
         s.cost += cost;
         s.value += it.value != null ? amountForDisplay(it.value, it.currency) : cost;
         if (it.value == null) s.unvalued += 1;
+        if (it.value != null && it.buyPrice != null) {
+          s.paired += 1; s.paidCost += cost; s.paidValue += amountForDisplay(it.value, it.currency);
+        }
       }
     }
   }
   return { by, total, resaleById };
+}
+
+/** Zysk „na papierze” pozycji: wycena − cena zakupu (w walucie pozycji) albo null. */
+function itemGain(it) {
+  if (it.value == null || it.buyPrice == null) return null;
+  return Math.round((Number(it.value) - Number(it.buyPrice)) * 100) / 100;
 }
 
 function sanitizeCollectionItems(value) {
@@ -160,5 +171,5 @@ function sanitizeCollectionItems(value) {
 export {
   KINDS, CONDITIONS,
   collectionKind, conditionLabel, itemTitle, itemState,
-  buildPurchaseTx, toResaleItem, collectionStats, sanitizeCollectionItems,
+  buildPurchaseTx, toResaleItem, collectionStats, itemGain, sanitizeCollectionItems,
 };

@@ -17,7 +17,7 @@ import { t } from "../i18n.js";
 // Lista hobby z dawnych Planów została zastąpiona ekranem Kolekcji (v2.2.0).
 
 // embedded: osadzone w ekranie Kolekcji (v2.2.0) — bez własnego „Wstecz” i przycisków edycji
-function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit, onDelete, embedded = false }) {
+function HobbyDetails({ hobby, transactions, cyclePool, periodLabel = null, allCats, onBack, onEdit, onDelete, embedded = false }) {
   const stats = useMemo(() => getHobbyStats(transactions, hobby, { cycleTxs: cyclePool }),
     [transactions, hobby, cyclePool]);
   // v1.3.2: zamiast samych wydatków, pokazujemy mieszane (wydatki + przychody)
@@ -66,7 +66,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
           {t("hobby.expensesLabel", "Wydatki")}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-          <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.thisMonth)} color="#f43f5e"/>
+          <Stat label={periodLabel || t("hobby.thisMonth", "Ten miesiąc")} value={fmt(periodLabel ? stats.thisCycle : stats.thisMonth)} color="#f43f5e"/>
           <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.thisYear)} color="#8b5cf6"/>
           <Stat label={t("hobby.total", "Łącznie")}          value={fmt(stats.allTime)}     color="#64748b"/>
         </div>
@@ -79,7 +79,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, allCats, onBack, onEdit,
               💰 {t("hobby.incomeLabel", "Sprzedaż / przychody")}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <Stat label={t("hobby.thisMonth", "Ten miesiąc")} value={fmt(stats.incomeThisMonth)} color="#10b981"/>
+              <Stat label={periodLabel || t("hobby.thisMonth", "Ten miesiąc")} value={fmt(periodLabel ? stats.incomeThisCycle : stats.incomeThisMonth)} color="#10b981"/>
               <Stat label={t("hobby.thisYearShort", "Ten rok")} value={fmt(stats.incomeThisYear)} color="#10b981"/>
               <Stat label={t("hobby.total", "Łącznie")}      value={fmt(stats.incomeAllTime)} color="#10b981"/>
             </div>

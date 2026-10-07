@@ -1,26 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink } from "lucide-react";
+import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink, Link2 } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import {
   card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, heroValue, actionBtn,
-  Chip, Stat, ModuleHeader, EmptyCard, num,
+  Chip, Stat, ModuleHeader, EmptyCard, PeriodChips, CheckRow, num,
 } from "../components/ModuleUI.jsx";
 import { HobbyDetails, HobbyModal } from "./HobbyView.jsx";
-import { fmtDisplay, fmtCurrency, todayLocal, cycleTxs } from "../utils.js";
+import { fmtDisplay, fmtCurrency, todayLocal, monthName } from "../utils.js";
 import { t, getLang } from "../i18n.js";
-import { getDisplayCurrency, SUPPORTED_CURRENCIES } from "../lib/fx.js";
+import { getDisplayCurrency, SUPPORTED_CURRENCIES, amountForDisplay, txAmountForDisplay } from "../lib/fx.js";
 import { newId, rateOnDate, commitTxChanges } from "../lib/ledger.js";
-import { getHobbyStats, getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere } from "../lib/hobby.js";
+import { getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere } from "../lib/hobby.js";
 import { getModule } from "../lib/modules.js";
 import { guessHobby } from "../lib/hobbyMove.js";
-import { DiscogsModal } from "../components/DiscogsModal.jsx";
+import { DiscogsModal, shiftDays } from "../components/DiscogsModal.jsx";
+import { getSaved as getDiscogsSaved, needsPricing } from "../lib/discogs.js";
+import { matchPurchases, matchDuplicates, linkPurchase, mergeDuplicate, convertValue } from "../lib/collectionMatch.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
-  buildPurchaseTx, toResaleItem, collectionStats,
+  buildPurchaseTx, toResaleItem, collectionStats, itemGain,
 } from "../lib/collections.js";
 
 const ACCENT = "#34d399";
@@ -31,7 +33,7 @@ const STATE_COLORS = { owned: "#34d399", wishlist: "#f59e0b", selling: "#ec4899"
  * Sprzedaż pozycji przechodzi do modułu Sprzedaż z kosztem zakupu z katalogu.
  */
 function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resaleItems = [], setResaleItems,
-  transactions, setTransactions, setAccounts, defaultAcc = 1, allCats, month, cycleDay,
+  transactions, setTransactions, setAccounts, defaultAcc = 1, allCats, month = null, onMonthChange,
   onBack, onOpenResale, onMoveToHobby, addSignal = 0, openAdd = false, focusItemId = null, onFocusHandled }) {
   const lang = getLang();
   const { toast, showToast } = useToast();
@@ -39,6 +41,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   const [openId, setOpenId] = useState(null);       // otwarta kolekcja (hobby.id)
   const [detailTab, setDetailTab] = useState("catalog");
   const [shelf, setShelf] = useState("owned");     // owned | wishlist | sold
+  const [sortBy, setSortBy] = useState("recent");  // recent | value | gain
   const [form, setForm] = useState(null);
   const [hobbyForm, setHobbyForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -58,12 +61,45 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     () => collectionStats(items, resaleItems),
     [items, resaleItems, getDisplayCurrency()]
   );
-  const yearSpend = useMemo(() => {
-    const m = {};
-    for (const h of hobbies) m[h.id] = getHobbyStats(transactions, h).thisYear || 0;
-    return m;
-  }, [hobbies, transactions]);
-  const cyclePool = useMemo(() => cycleTxs(transactions || [], month, cycleDay), [transactions, month, cycleDay]);
+  // Wybrany miesiąc (ten sam co na Starcie i w innych modułach, ze strzałkami)
+  const ym = month || today.slice(0, 7);
+  const monthPool = useMemo(() => (transactions || []).filter(tx => (tx.date || "").startsWith(ym)), [transactions, ym]);
+  const monthLabel = ym === today.slice(0, 7) ? t("period.month", "Ten miesiąc") : `${monthName(Number(ym.slice(5)) - 1)} ${ym.slice(0, 4)}`;
+  // Wydatki kolekcji w miesiącu i w roku — każdy wpis liczony raz, nawet gdy pasuje do dwóch kolekcji
+  const spend = useMemo(() => {
+    const by = {}, byYear = {};
+    const seenMonth = new Set(), seenYear = new Set();
+    let monthTotal = 0, yearTotal = 0;
+    for (const h of hobbies) {
+      if (h.archived || !isCollection(h)) continue;
+      let m = 0, y = 0;
+      for (const tx of getHobbyExpenses(transactions, h)) {
+        const d = tx.date || "";
+        if (!d.startsWith(ym.slice(0, 4))) continue;
+        const amt = Math.abs(txAmountForDisplay(tx));
+        y += amt;
+        if (!seenYear.has(tx.id)) { seenYear.add(tx.id); yearTotal += amt; }
+        if (d.startsWith(ym)) { m += amt; if (!seenMonth.has(tx.id)) { seenMonth.add(tx.id); monthTotal += amt; } }
+      }
+      by[h.id] = m; byYear[h.id] = y;
+    }
+    return { by, byYear, monthTotal, yearTotal };
+  }, [hobbies, transactions, ym, items]);
+
+  // Wyceny z Discogs (EUR) zaimportowane przed 2.10.1 — przeliczamy na walutę aplikacji,
+  // żeby w kolekcji nie mieszały się euro i złotówki. Tylko pozycje bez ceny zakupu.
+  useEffect(() => {
+    const disp = getDisplayCurrency();
+    const fix = new Set(items.filter(it => it.discogs && it.currency === "EUR" && disp !== "EUR"
+      && it.buyPrice == null && it.buyTxId == null && it.resaleItemId == null).map(it => it.id));
+    if (!fix.size) return;
+    // Warunek sprawdzany jeszcze raz na aktualnych danych — drugie wywołanie nie przelicza drugi raz
+    setItems(prev => prev.map(it => !fix.has(it.id) || it.currency !== "EUR" ? it : {
+      ...it, currency: disp,
+      value: convertValue(it.value, "EUR", disp), targetPrice: convertValue(it.targetPrice, "EUR", disp),
+      ...(it.value != null && it.valueSource === "discogs" ? { valueCur: disp } : {}),
+    }));
+  }, []);
 
   // ── Kolekcje (hobby) ────────────────────────────────────────────────
   const newCollection = () => setHobbyForm({
@@ -117,11 +153,40 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     ? getHobbyExpenses(transactions, open).filter(tx => !linkedTxIds.has(tx.id))
     : [], [open, transactions, linkedTxIds]);
 
+  // Stare wpisy pasujące do pozycji (np. zakupy i ręczne pozycje sprzed importu z Discogs)
+  const linkSuggestions = useMemo(() => {
+    if (!open) return { dups: [], buys: [] };
+    const mineHere = items.filter(it => it.hobbyId === open.id);
+    const dups = matchDuplicates(mineHere);
+    const dupIds = new Set(dups.map(p => p.dup.id));
+    const pool = [...offCatalog, ...unassigned.filter(tx => tx.amount < 0 && !linkedTxIds.has(tx.id))];
+    return { dups, buys: matchPurchases(mineHere.filter(it => !dupIds.has(it.id)), pool) };
+  }, [open, items, offCatalog, unassigned, linkedTxIds]);
+  const [linkPicks, setLinkPicks] = useState(null); // otwarte okno: { [klucz]: false = odznaczone }
+  const linkChosen = linkPicks ? {
+    dups: linkSuggestions.dups.filter(p => linkPicks["d" + p.dup.id] !== false),
+    buys: linkSuggestions.buys.filter(p => linkPicks["b" + p.tx.id] !== false),
+  } : { dups: [], buys: [] };
+  const applyLinks = () => {
+    const { dups, buys } = linkChosen;
+    if (!open || (!dups.length && !buys.length)) return;
+    const patch = new Map();
+    const drop = new Set();
+    for (const p of dups) { patch.set(p.item.id, mergeDuplicate(p.item, p.dup)); drop.add(p.dup.id); }
+    for (const p of buys) patch.set(p.item.id, linkPurchase(patch.get(p.item.id) || p.item, p.tx));
+    setItems(prev => prev.filter(it => !drop.has(it.id)).map(it => patch.get(it.id) || it));
+    // Zakup podpięty z Wpisów liczy się w wydatkach tej kolekcji (jak przy ręcznym podpięciu)
+    const txIds = new Set(buys.map(p => p.tx.id));
+    if (txIds.size) setTransactions(prev => prev.map(x => txIds.has(x.id) ? { ...x, module: "collections", hobbyId: open.id } : x));
+    setLinkPicks(null);
+    showToast(t("coll.link.done", "Połączone: {n} ✓").replace("{n}", dups.length + buys.length));
+  };
+
   const blankItem = (hobbyId, patch = {}) => ({
     editingId: null, hobbyId, status: "owned", title: "", creator: "", format: "", condition: "mint",
     currency: getDisplayCurrency(), acc: defaultAcc,
     buyMode: "new", buyPrice: "", buyDate: today, buyTxId: null,
-    value: "", targetPrice: "", ...patch,
+    value: "", targetPrice: "", valueSource: null, valueAt: null, valueTouched: false, ...patch,
   });
   const formFromItem = (it) => ({
     editingId: it.id, hobbyId: it.hobbyId, status: it.status, title: it.title, creator: it.creator || "",
@@ -130,6 +195,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     buyMode: it.buyTxOwned ? "new" : it.buyTxId != null ? "ledger" : "none",
     buyPrice: it.buyPrice != null ? String(it.buyPrice) : "", buyDate: it.buyDate || today, buyTxId: it.buyTxId ?? null,
     value: it.value != null ? String(it.value) : "", targetPrice: it.targetPrice != null ? String(it.targetPrice) : "",
+    valueSource: it.valueSource || null, valueAt: it.valueAt || null, valueTouched: false,
   });
 
   const startFromTx = (tx, hobbyId) => {
@@ -159,6 +225,11 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   }, [focusItemId]);
 
   const setF = (patch) => setForm(f => ({ ...f, ...patch }));
+  // Zmiana waluty pozycji przelicza wycenę z Discogs (wpisanej ręcznie nie ruszamy)
+  const setCurrency = (cur) => setForm(f => {
+    const auto = !f.valueTouched && f.valueSource === "discogs" && isFinite(num(f.value));
+    return { ...f, currency: cur, ...(auto ? { value: String(convertValue(num(f.value), f.currency, cur)) } : {}) };
+  });
   const formHobby = form ? hobbies.find(h => h.id === form.hobbyId) : null;
   const kind = collectionKind(formHobby);
 
@@ -196,6 +267,10 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       title, creator: form.creator.trim(), format: form.format.trim(), condition: owned ? form.condition : null,
       currency: form.currency, acc: parseInt(form.acc) || defaultAcc,
       value: isFinite(num(form.value)) && num(form.value) > 0 ? num(form.value) : null,
+      // Wycena wpisana ręcznie nie jest nadpisywana przez Discogs; wyczyszczona — można wycenić znowu
+      ...(form.valueTouched
+        ? (isFinite(num(form.value)) && num(form.value) > 0 ? { valueSource: "manual", valueAt: today, valueCur: form.currency } : { valueSource: null, valueAt: null })
+        : old && old.value != null && old.valueSource === "discogs" && form.currency !== (old.currency || "PLN") ? { valueCur: form.currency } : {}),
       targetPrice: !owned && isFinite(num(form.targetPrice)) && num(form.targetPrice) > 0 ? num(form.targetPrice) : null,
       buyPrice: owned && isFinite(price) && price > 0 ? price : null,
       buyDate: owned ? form.buyDate : null,
@@ -251,8 +326,25 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   };
 
   // ── Widoki ─────────────────────────────────────────────────────────
-  const valueChange = total.value - total.cost;
-  const fmtItem = (amount, it) => fmtCurrency(amount, it.currency || "PLN");
+  // Zmiana tylko z pozycji z ceną zakupu i wyceną (płyta bez ceny zakupu to nie „zysk”)
+  const changeOf = (s) => s.paidValue - s.paidCost;
+  const changeColor = (v) => v > 0 ? "#34d399" : v < 0 ? "#f87171" : "#e2e8f0";
+  const pairedNote = (s) => s.paired > 0 && s.paired < s.owned + s.selling && (
+    <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
+      {t("coll.pairedNote", "Zmiana liczona z pozycji, które mają cenę zakupu i wycenę: {n} z {all}.").replace("{n}", s.paired).replace("{all}", s.owned + s.selling)}
+    </div>
+  );
+  const spendRow = (amount, yearAmount, one = false) => (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a2744" }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#94a3b8" }}>
+        {(one ? t("coll.spentPeriodOne", "Wydane · {period}") : t("coll.spentPeriod", "Wydane na kolekcje · {period}")).replace("{period}", monthLabel.toLowerCase())}
+        {yearAmount != null && <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+          {t("coll.spentYearLine", "w roku {year}: {amount}").replace("{year}", ym.slice(0, 4)).replace("{amount}", fmtDisplay(yearAmount))}
+        </span>}
+      </span>
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 800, color: amount > 0 ? "#f87171" : "#e2e8f0" }}>{fmtDisplay(amount)}</span>
+    </div>
+  );
   const txLabel = (tx) => tx.origCurrency && tx.origAmount != null
     ? fmtCurrency(Math.sign(tx.amount) * Math.abs(tx.origAmount), tx.origCurrency, true)
     : fmtCurrency(tx.amount, "PLN", true);
@@ -265,6 +357,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       `${owned} ${t("coll.itemsShort", "poz.")}`,
       s && s.value > 0 ? `${t("coll.worth", "wartość")} ${fmtDisplay(s.value)}` : null,
       s && s.wishlist > 0 ? `${s.wishlist} ${t("coll.onWishlist", "na liście")}` : null,
+      spend.byYear[h.id] > 0 ? t("coll.yearSpendShort", "{year}: {amount}").replace("{year}", ym.slice(0, 4)).replace("{amount}", fmtDisplay(spend.byYear[h.id])) : null,
     ].filter(Boolean);
     return (
       <button key={h.id} onClick={() => { setOpenId(h.id); setDetailTab("catalog"); setShelf("owned"); }} style={{
@@ -279,23 +372,35 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{parts.join(" · ")}</span>
         </span>
         <span style={{ textAlign: "right", flexShrink: 0 }}>
-          <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("coll.spentYear", "wydane w tym roku")}</span>
-          <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700 }}>{fmtDisplay(yearSpend[h.id] || 0)}</span>
+          <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("coll.spentIn", "wydane · {period}").replace("{period}", monthLabel.toLowerCase())}</span>
+          <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: spend.by[h.id] > 0 ? "#f87171" : "#475569" }}>{fmtDisplay(spend.by[h.id] || 0)}</span>
         </span>
         <ChevronRight size={14} color="#334155"/>
       </button>
     );
   };
 
+  const recent = (a, b) => (b.it.buyDate || b.it.createdAt || "").localeCompare(a.it.buyDate || a.it.createdAt || "");
+  const dispValue = (it) => it.value != null ? amountForDisplay(it.value, it.currency) : -Infinity;
+  const dispGain = (it) => { const g = itemGain(it); return g == null ? -Infinity : amountForDisplay(g, it.currency); };
+  const byNumber = (f) => (a, b) => {
+    const x = f(a.it), y = f(b.it);
+    return x === y ? recent(a, b) : y > x ? 1 : -1;
+  };
+  const sorter = shelf === "owned" && sortBy === "value" ? byNumber(dispValue)
+    : shelf === "owned" && sortBy === "gain" ? byNumber(dispGain)
+    : recent;
   const shelfItems = open ? items.filter(it => it.hobbyId === open.id).map(it => ({ it, ...itemState(it, resaleById) }))
     .filter(x => shelf === "owned" ? (x.state === "owned" || x.state === "selling") : x.state === shelf)
-    .sort((a, b) => (b.it.buyDate || b.it.createdAt || "").localeCompare(a.it.buyDate || a.it.createdAt || "")) : [];
+    .sort(sorter) : [];
+  const money = (amount, cur, sign = false) => fmtDisplay(amountForDisplay(amount, cur), sign ? { showSign: true } : undefined);
 
   return (
     <div style={{ padding: "0 16px" }}>
       {!open ? <>
         <ModuleHeader Icon={Disc3} color={ACCENT} title={t("coll.title", "Kolekcje")} onBack={onBack}
           addLabel={active.length ? t("coll.addItem", "Pozycja") : t("coll.addCollection", "Kolekcja")} onAdd={startAdd}/>
+        {active.length > 0 && <PeriodChips monthOnly month={ym} onMonthChange={onMonthChange}/>}
 
         {active.length > 0 && (
           <div style={heroCard}>
@@ -304,10 +409,11 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
               <Stat label={t("coll.items", "Pozycje")} value={String(total.owned + total.selling)}/>
               <Stat label={t("coll.cost", "Koszt")} value={fmtDisplay(total.cost)}/>
-              <Stat label={t("coll.change", "Zmiana")} value={total.cost > 0 ? fmtDisplay(valueChange, { showSign: true }) : "—"}
-                color={valueChange > 0 ? "#34d399" : valueChange < 0 ? "#f87171" : "#e2e8f0"}/>
+              <Stat label={t("coll.change", "Zmiana")} value={total.paired > 0 ? fmtDisplay(changeOf(total), { showSign: true }) : "—"}
+                color={changeColor(changeOf(total))}/>
               <Stat label={t("coll.wishlist", "Lista życzeń")} value={String(total.wishlist)}/>
             </div>
+            {pairedNote(total)}
             {total.sold > 0 && (
               <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 12 }}>
                 {t("coll.soldLine", "Sprzedane z kolekcji: {n} · zysk {amount}").replace("{n}", total.sold).replace("{amount}", fmtDisplay(total.realized, { showSign: true }))}
@@ -318,6 +424,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 {t("coll.unvaluedNote", "Bez wyceny: {n} — liczone po cenie zakupu.").replace("{n}", total.unvalued)}
               </div>
             )}
+            {spendRow(spend.monthTotal, spend.yearTotal)}
           </div>
         )}
 
@@ -388,6 +495,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           <Chip on={detailTab === "catalog"} color={ACCENT} onClick={() => setDetailTab("catalog")}>{t("coll.tab.catalog", "Katalog")}</Chip>
           <Chip on={detailTab === "spending"} color={ACCENT} onClick={() => setDetailTab("spending")}>{t("coll.tab.spending", "Wydatki")}</Chip>
         </div>
+        <PeriodChips monthOnly month={ym} onMonthChange={onMonthChange}/>
 
         {onMoveToHobby && looksLikeHobby(open) && (
           <button onClick={() => onMoveToHobby(open.id)} style={{
@@ -400,22 +508,33 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
         )}
 
         {detailTab === "spending" ? (
-          <HobbyDetails embedded hobby={open} transactions={transactions} cyclePool={cyclePool} allCats={allCats}/>
+          <HobbyDetails embedded hobby={open} transactions={transactions} cyclePool={monthPool} periodLabel={monthLabel} allCats={allCats}/>
         ) : <>
           {(() => {
-            const s = by[open.id] || { owned: 0, selling: 0, wishlist: 0, sold: 0, cost: 0, value: 0, realized: 0 };
+            const s = by[open.id] || { owned: 0, selling: 0, wishlist: 0, sold: 0, cost: 0, value: 0, realized: 0, paired: 0, paidCost: 0, paidValue: 0 };
             return (
-              <div style={{ ...heroCard, padding: "12px 16px", display: "flex", gap: 10 }}>
-                <Stat label={t("coll.value", "Wartość kolekcji")} value={fmtDisplay(s.value)}/>
-                <Stat label={t("coll.cost", "Koszt")} value={fmtDisplay(s.cost)}/>
-                <Stat label={t("coll.items", "Pozycje")} value={String(s.owned + s.selling)}/>
-                {s.sold > 0 && <Stat label={t("coll.soldProfit", "Zysk ze sprzedaży")} value={fmtDisplay(s.realized, { showSign: true })} color={s.realized >= 0 ? "#34d399" : "#f87171"}/>}
+              <div style={{ ...heroCard, padding: "12px 16px" }}>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Stat label={t("coll.value", "Wartość kolekcji")} value={fmtDisplay(s.value)}/>
+                  <Stat label={t("coll.cost", "Koszt")} value={fmtDisplay(s.cost)}/>
+                  <Stat label={t("coll.change", "Zmiana")} value={s.paired > 0 ? fmtDisplay(changeOf(s), { showSign: true }) : "—"} color={changeColor(changeOf(s))}/>
+                </div>
+                {s.sold > 0 && (
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 10 }}>
+                    {t("coll.soldLine", "Sprzedane z kolekcji: {n} · zysk {amount}").replace("{n}", s.sold).replace("{amount}", fmtDisplay(s.realized, { showSign: true }))}
+                  </div>
+                )}
+                {pairedNote(s)}
+                {spendRow(spend.by[open.id] || 0, null, true)}
               </div>
             );
           })()}
 
           {collectionKind(open) === "vinyl" && (() => {
-            const fromDiscogs = items.filter(it => it.hobbyId === open.id && it.discogs).length;
+            const mineHere = items.filter(it => it.hobbyId === open.id);
+            const fromDiscogs = mineHere.filter(it => it.discogs).length;
+            const stale = mineHere.filter(it => needsPricing(it, shiftDays(today, -30))).length;
+            const synced = getDiscogsSaved().syncedAt;
             return (
               <button onClick={() => setDiscogsOpen(true)} style={{
                 all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
@@ -426,11 +545,29 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                   {fromDiscogs > 0
                     ? t("discogs.cardSynced", "Z Discogs: {n} · dociągnij nowe płyty i wyceny").replace("{n}", fromDiscogs)
                     : t("discogs.card", "Masz kolekcję na Discogs? Zaimportuj ją razem z wycenami")}
+                  {fromDiscogs > 0 && (stale > 0 || synced) && (
+                    <span style={{ display: "block", fontSize: 11, marginTop: 2, color: stale > 0 ? "#f59e0b" : "#64748b" }}>
+                      {stale > 0
+                        ? t("discogs.staleCard", "Wyceny do odświeżenia: {n}").replace("{n}", stale)
+                        : t("discogs.lastSync", "Ostatnio: {date}.").replace("{date}", synced)}
+                    </span>
+                  )}
                 </span>
                 <ChevronRight size={14} color="#334155"/>
               </button>
             );
           })()}
+
+          {linkSuggestions.dups.length + linkSuggestions.buys.length > 0 && (
+            <button onClick={() => setLinkPicks({})} style={{
+              all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
+              background: "#f59e0b14", border: "1px solid #f59e0b55", display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1", lineHeight: 1.45,
+            }}>
+              <Link2 size={15} color="#f59e0b"/>
+              <span style={{ flex: 1 }}>{t("coll.link.card", "Stare wpisy pasują do pozycji w katalogu: {n}. Połącz je — cena zakupu trafi do pozycji, bez duplikatów.").replace("{n}", linkSuggestions.dups.length + linkSuggestions.buys.length)}</span>
+              <ChevronRight size={14} color="#f59e0b"/>
+            </button>
+          )}
 
           {offCatalog.length > 0 && (
             <button onClick={() => setPickFromLedger(true)} style={{
@@ -449,6 +586,14 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
               return <Chip key={id} on={shelf === id} color={ACCENT} onClick={() => setShelf(id)}>{label} · {n}</Chip>;
             })}
           </div>
+          {shelf === "owned" && shelfItems.length >= 3 && (
+            <div style={{ display: "flex", gap: 6, margin: "-2px 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#64748b", marginRight: 2 }}>{t("coll.sort", "Sortuj:")}</span>
+              {[["recent", t("coll.sort.recent", "Najnowsze")], ["value", t("coll.sort.value", "Najcenniejsze")], ["gain", t("coll.sort.gain", "Największy zysk")]].map(([id, label]) => (
+                <Chip key={id} on={sortBy === id} color={ACCENT} onClick={() => setSortBy(id)}>{label}</Chip>
+              ))}
+            </div>
+          )}
 
           {shelfItems.length === 0 ? (
             <div style={{ fontSize: 13, color: "#64748b", padding: "8px 2px", lineHeight: 1.5 }}>
@@ -459,16 +604,25 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           ) : (
             <div style={{ ...card, padding: "2px 14px" }}>
               {shelfItems.map(({ it, state, resale }, i) => {
-                const meta = [it.creator, it.format, it.condition ? conditionLabel(it.condition, lang) : null].filter(Boolean).join(" · ");
-                let right, rightLabel, rightColor = "#e2e8f0";
+                const owned = state === "owned" || state === "selling";
+                const gain = owned ? itemGain(it) : null;
+                const meta = [it.creator, it.format, it.condition ? conditionLabel(it.condition, lang) : null,
+                  owned && it.value != null && it.buyPrice != null ? `${t("coll.paid", "kupione")} ${money(it.buyPrice, it.currency)}` : null,
+                ].filter(Boolean).join(" · ");
+                let right, rightLabel, rightColor = "#e2e8f0", sub = null;
                 if (state === "sold") {
                   const p = itemProfit(resale);
-                  right = fmtCurrency(p, resale.currency || "PLN", true); rightLabel = t("coll.profit", "zysk"); rightColor = p >= 0 ? "#34d399" : "#f87171";
+                  right = fmtDisplay(amountForDisplay(p, resale.currency, resale.sellFxRate), { showSign: true }); rightLabel = t("coll.profit", "zysk"); rightColor = p >= 0 ? "#34d399" : "#f87171";
                 } else if (state === "wishlist") {
-                  right = it.targetPrice ? fmtItem(it.targetPrice, it) : "—"; rightLabel = t("coll.target", "kupię do");
+                  right = it.targetPrice ? money(it.targetPrice, it.currency) : "—"; rightLabel = t("coll.target", "kupię do");
                 } else {
-                  right = it.value != null ? fmtItem(it.value, it) : it.buyPrice != null ? fmtItem(it.buyPrice, it) : "—";
+                  right = it.value != null ? money(it.value, it.currency) : it.buyPrice != null ? money(it.buyPrice, it.currency) : "—";
                   rightLabel = it.value != null ? t("coll.worthShort", "wartość") : t("coll.paid", "kupione");
+                  if (gain != null) sub = (
+                    <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, marginTop: 1, color: gain >= 0 ? "#34d399" : "#f87171" }}>
+                      {money(gain, it.currency, true)}{it.buyPrice > 0 ? ` (${gain >= 0 ? "+" : ""}${Math.round(gain / it.buyPrice * 100)}%)` : ""}
+                    </span>
+                  );
                 }
                 return (
                   <button key={it.id} onClick={() => setForm(formFromItem(it))} style={{
@@ -486,6 +640,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                     <span style={{ textAlign: "right", flexShrink: 0 }}>
                       <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{rightLabel}</span>
                       <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: rightColor }}>{right}</span>
+                      {sub}
                     </span>
                   </button>
                 );
@@ -578,7 +733,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ flex: 1.3 }}><Input label={t("coll.price", "Cena")} type="number" inputMode="decimal" step="0.01" placeholder={form.buyMode === "none" ? t("common.optional", "opcjonalnie") : "0"} value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
                   <div style={{ flex: 0.9 }}>
-                    <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
+                    <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setCurrency(e.target.value)}>
                       {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
                     </Select>
                   </div>
@@ -586,13 +741,27 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 </div>
               )}
 
-              <Input label={t("coll.estValue", "Szacowana wartość dziś")} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.value} onChange={e => setF({ value: e.target.value })}/>
+              <Input label={`${t("coll.estValue", "Szacowana wartość dziś")} · ${form.currency}`} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.value} onChange={e => setF({ value: e.target.value, valueTouched: true })}/>
+              {(() => {
+                const v = num(form.value), p = num(form.buyPrice);
+                const fromDiscogs = !form.valueTouched && form.valueSource === "discogs" && form.valueAt;
+                const gain = isFinite(v) && v > 0 && isFinite(p) && p > 0 ? v - p : null;
+                if (gain == null && !fromDiscogs) return null;
+                return (
+                  <div style={{ fontSize: 12, color: "#94a3b8", margin: "-6px 0 14px", lineHeight: 1.5 }}>
+                    {gain != null && <span style={{ display: "block", color: gain >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>
+                      {t("coll.paperGain", "Na papierze: {amount} ({pct})").replace("{amount}", fmtCurrency(gain, form.currency, true)).replace("{pct}", `${gain >= 0 ? "+" : ""}${Math.round(gain / p * 100)}%`)}
+                    </span>}
+                    {fromDiscogs && <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>{t("coll.valueFromDiscogs", "Wycena z Discogs z {date} (najniższa oferta).").replace("{date}", form.valueAt)}</span>}
+                  </div>
+                );
+              })()}
 
             </> : (
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1.3 }}><Input label={t("coll.targetPrice", "Kupię do")} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.targetPrice} onChange={e => setF({ targetPrice: e.target.value })}/></div>
                 <div style={{ flex: 0.9 }}>
-                  <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
+                  <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setCurrency(e.target.value)}>
                     {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </div>
@@ -665,6 +834,48 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             </button>
           ))}
         </div>
+      </Modal>
+
+      <Modal open={!!linkPicks} onClose={() => setLinkPicks(null)} title={t("coll.link.title", "Połącz stare wpisy")}>
+        {linkPicks && <>
+          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12 }}>
+            {t("coll.link.desc", "Te wpisy pasują do pozycji w katalogu. Zaznaczone połączymy — nic nie znika z Wpisów i nic się nie dubluje.")}
+          </div>
+          {linkSuggestions.dups.length > 0 && <>
+            <div style={fieldLabel}>{t("coll.link.dups", "Ta sama pozycja dodana dwa razy")}</div>
+            <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.45, marginBottom: 8 }}>
+              {t("coll.link.dupsHint", "Zostaje Twoja pozycja (z ceną zakupu), dostaje numer i wycenę z Discogs; kopia z importu znika.")}
+            </div>
+            {linkSuggestions.dups.map(p => {
+              const key = "d" + p.dup.id;
+              return (
+                <CheckRow key={key} checked={linkPicks[key] !== false} onChange={(v) => setLinkPicks(m => ({ ...m, [key]: v }))} style={{ marginBottom: 6 }}>
+                  <span style={{ display: "block", fontWeight: 700 }}>{itemTitle(p.item)}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>= {itemTitle(p.dup)} · Discogs</span>
+                </CheckRow>
+              );
+            })}
+          </>}
+          {linkSuggestions.buys.length > 0 && <>
+            <div style={{ ...fieldLabel, marginTop: 10 }}>{t("coll.link.buys", "Zakupy z Wpisów")}</div>
+            <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.45, marginBottom: 8 }}>
+              {t("coll.link.buysHint", "Pozycja dostanie cenę i datę zakupu z wpisu — zobaczysz, ile zyskała.")}
+            </div>
+            {linkSuggestions.buys.map(p => {
+              const key = "b" + p.tx.id;
+              return (
+                <CheckRow key={key} checked={linkPicks[key] !== false} onChange={(v) => setLinkPicks(m => ({ ...m, [key]: v }))} style={{ marginBottom: 6 }}>
+                  <span style={{ display: "block", fontWeight: 700 }}>{itemTitle(p.item)}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>← {p.tx.desc || "—"} · {p.tx.date} · {txLabel(p.tx)}</span>
+                </CheckRow>
+              );
+            })}
+          </>}
+          <button onClick={applyLinks} disabled={!linkChosen.dups.length && !linkChosen.buys.length}
+            style={{ ...primaryBtn, marginTop: 8, opacity: linkChosen.dups.length + linkChosen.buys.length ? 1 : 0.5 }}>
+            {t("coll.link.apply", "Połącz zaznaczone ({n})").replace("{n}", linkChosen.dups.length + linkChosen.buys.length)}
+          </button>
+        </>}
       </Modal>
 
       {discogsOpen && open && (

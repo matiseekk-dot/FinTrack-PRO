@@ -9,10 +9,21 @@ import { KINDS } from "./collections.js";
 const API = "https://api.discogs.com";
 const TOKEN_KEY = "ft_discogs_token";
 const USER_KEY = "ft_discogs_user";
+const FOLDER_KEY = "ft_discogs_folder";
+const SYNC_KEY = "ft_discogs_synced";
 
 function getSaved() {
-  try { return { user: localStorage.getItem(USER_KEY) || "", token: localStorage.getItem(TOKEN_KEY) || "" }; }
-  catch { return { user: "", token: "" }; }
+  try {
+    return {
+      user: localStorage.getItem(USER_KEY) || "", token: localStorage.getItem(TOKEN_KEY) || "",
+      folder: Number(localStorage.getItem(FOLDER_KEY)) || 0, syncedAt: localStorage.getItem(SYNC_KEY) || "",
+    };
+  } catch { return { user: "", token: "", folder: 0, syncedAt: "" }; }
+}
+/** Ostatni import: folder i data — do „Odśwież” jednym stuknięciem. */
+function markSynced(folder, date) {
+  try { localStorage.setItem(FOLDER_KEY, String(folder || 0)); localStorage.setItem(SYNC_KEY, date); }
+  catch { /* prywatny tryb */ }
 }
 function save(user, token) {
   try {
@@ -71,6 +82,17 @@ async function lowestPrice(releaseId, token, currency = "EUR") {
   return r && r.lowest_price && typeof r.lowest_price.value === "number" ? r.lowest_price.value : null;
 }
 
+/**
+ * Pozycje do (ponownej) wyceny: z Discogs, bez wyceny wpisanej ręcznie, a wycena brakuje,
+ * jest starsza niż 30 dni albo była liczona w innej walucie niż pozycja ma teraz.
+ * Wycena bez źródła przy pozycji z Discogs = wpisana ręcznie przed 2.10.1 — też jej nie ruszamy.
+ */
+function needsPricing(it, staleBefore) {
+  if (it.status !== "owned" || !it.discogs || !it.discogs.r || it.resaleItemId != null) return false;
+  if (it.valueSource === "manual" || (it.value != null && !it.valueSource)) return false;
+  return it.value == null || !it.valueAt || it.valueAt < staleBefore || it.valueCur !== (it.currency || "EUR");
+}
+
 /** Wartość całej kolekcji wg Discogs (min / mediana / max) — tylko z tokenem właściciela. */
 async function collectionValue(user, token) {
   if (!token) return null;
@@ -114,4 +136,4 @@ function mapRelease(entry, lang) {
   };
 }
 
-export { getSaved, save, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease, DISCOGS_CURRENCIES };
+export { getSaved, save, markSynced, needsPricing, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease, DISCOGS_CURRENCIES };
