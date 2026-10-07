@@ -4,13 +4,17 @@
 // aplikacja na Androida, komputer) — ZXing w WebAssembly, ładowany dopiero przy pierwszym
 // skanowaniu z plików aplikacji (bez zewnętrznego CDN, w aplikacji działa też offline).
 //
-// Bazy (bez kluczy, prosto z telefonu):
-//   książki — Open Library, potem Google Books;
+// Bazy:
+//   książki — Open Library, Google Books (klucz projektu Firebase, gdy Books API jest na nim włączone),
+//             Biblioteka Narodowa dla polskich ISBN (978-83…, aplikacja / serwer pośredniczący);
 //   płyty — Discogs (gdy zapisany jest token), inaczej MusicBrainz + numer wydania Discogs do wyceny;
-//   gry i reszta — Open Products Facts (społecznościowa, sporo braków — wtedy wpisujesz tytuł).
+//   gry i reszta — Open Products Facts, potem UPCitemdb (aplikacja / serwer pośredniczący).
+// Serwisy bez CORS idą przez lib/net.js; w zwykłej przeglądarce są pomijane.
 
 import { KINDS } from "./collections.js";
 import { getSaved as getDiscogsSaved, searchBarcode, mapSearchResult } from "./discogs.js";
+import { canReachRestricted, getRestricted } from "./net.js";
+import { auth } from "../firebase.js";
 
 const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e"];
 let detectorPromise = null;
@@ -93,15 +97,34 @@ async function fetchJson(url, ms = 10000) {
 }
 
 async function lookupBook(isbn) {
+  // Polskie wydania: najpierw Biblioteka Narodowa — ma praktycznie wszystkie i z poprawnymi znakami
+  if (canReachRestricted && /^97[89]83/.test(isbn)) {
+    try {
+      const bn = await getRestricted(`https://data.bn.org.pl/api/institutions/bibs.json?isbnIssn=${isbn}&limit=1`);
+      const r = bn && (bn.bibs || [])[0];
+      if (r && r.title) return { title: bnTitle(r.title), creator: bnAuthor(r.author), year: yearOf(r.publicationYear) };
+    } catch { /* niżej Open Library */ }
+  }
   const ol = await fetchJson(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
   const b = ol && ol[`ISBN:${isbn}`];
   if (b && b.title) {
     return { title: clean(b.title), creator: (b.authors || []).map(a => clean(a.name)).filter(Boolean).join(", "), year: yearOf(b.publish_date) };
   }
-  const gb = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+  // Google Books: bez klucza wspólny limit jest zawsze wyczerpany — używamy klucza projektu
+  const key = auth && auth.app && auth.app.options && auth.app.options.apiKey;
+  const gb = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}${key ? `&key=${key}` : ""}`);
   const v = gb && gb.items && gb.items[0] && gb.items[0].volumeInfo;
   if (v && v.title) return { title: clean(v.title), creator: (v.authors || []).map(clean).join(", "), year: yearOf(v.publishedDate) };
   return null;
+}
+
+// Biblioteka Narodowa: „Ostatnie życzenie / Wiedźmin Wiedźmin” → „Ostatnie życzenie”
+function bnTitle(s) { return clean(String(s).split(" / ")[0]).replace(/[\s,;:/.]+$/, ""); }
+// „Sapkowski, Andrzej (1948- ) SuperNowa …” → „Andrzej Sapkowski”
+function bnAuthor(s) {
+  const first = clean(String(s || "").split(" (")[0]).replace(/[\s,;:]+$/, "");
+  const m = first.match(/^([^,]+),\s*(.+)$/);
+  return m ? `${m[2]} ${m[1]}` : first;
 }
 
 // MusicBrainz prosi o najwyżej 1 zapytanie na sekundę
@@ -167,19 +190,38 @@ const PLATFORMS = [
   [/xbox/i, "Xbox"], [/switch/i, "Switch"], [/\bpc\b|windows/i, "PC"],
 ];
 
+/** „The Witcher 3 Brand & Sealed - UK PAL” → „The Witcher 3” (dopiski sprzedawców z baz kodów). */
+function stripSellerNoise(name) {
+  return clean(String(name)
+    .replace(/\s*[-–|]\s*(uk|eu|us|usa|pal|ntsc|import|region free)\b[^-–|]*$/i, "")
+    .replace(/\b(brand\s*&\s*sealed|brand\s*new|new\s*&\s*sealed|factory\s*sealed|sealed|new\s+in\s+box)\b/ig, "")
+    .replace(/\b(uk|eu)?\s*pal\s*(version)?\b/ig, "")
+    .replace(/\(\s*\)|\[\s*\]/g, "")
+    .replace(/[\s,;:-]+$/, ""));
+}
+
+/** Nazwa produktu → tytuł bez platformy („Zelda (Nintendo Switch)” → „Zelda”), platforma jako format. */
+function productFromName(rawName, brand) {
+  const name = stripSellerNoise(rawName) || clean(rawName);
+  const plat = PLATFORMS.find(([re]) => re.test(name));
+  return {
+    title: plat ? clean(name.replace(/\s*[([][^)\]]*(ps[45]|playstation|xbox|switch|nintendo|\bpc\b)[^)\]]*[)\]]/i, "")) || name : name,
+    creator: clean(String(brand || "").split(",")[0]),
+    format: plat ? plat[1] : "",
+  };
+}
+
 async function lookupProduct(code, lang) {
   const p = await fetchJson(`https://world.openproductsfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_${lang},product_name_en,brands`);
   const prod = p && p.status === 1 && p.product;
-  if (!prod) return null;
-  const name = clean(prod[`product_name_${lang}`] || prod.product_name || prod.product_name_en);
-  if (!name) return null;
-  const plat = PLATFORMS.find(([re]) => re.test(name));
-  return {
-    // „Zelda: Breath of the Wild (Nintendo Switch)” → tytuł bez platformy, platforma jako format
-    title: plat ? clean(name.replace(/\s*[([][^)\]]*(ps[45]|playstation|xbox|switch|nintendo|\bpc\b)[^)\]]*[)\]]/i, "")) || name : name,
-    creator: clean(String(prod.brands || "").split(",")[0]),
-    format: plat ? plat[1] : "",
-  };
+  const name = prod && clean(prod[`product_name_${lang}`] || prod.product_name || prod.product_name_en);
+  if (name) return productFromName(name, prod.brands);
+  // UPCitemdb: duża baza kodów (gry, filmy, gadżety) — bez CORS, więc tylko w aplikacji / przez serwer
+  if (!canReachRestricted) return null;
+  const u = await getRestricted(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
+  const it = u && (u.items || [])[0];
+  if (!it || !it.title) return null;
+  return productFromName(clean(it.title), it.brand);
 }
 
 /**
@@ -219,4 +261,4 @@ function scanFeedback() {
   } catch { /* bez dźwięku */ }
 }
 
-export { getDetector, normalizeCode, gtinValid, isBookCode, lookupCode, scanFeedback };
+export { getDetector, normalizeCode, gtinValid, isBookCode, lookupCode, scanFeedback, bnTitle, bnAuthor };

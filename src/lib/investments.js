@@ -8,11 +8,13 @@
 //   value — wpłacono / wartość teraz (lokata, obligacje, PPK/IKE, P2P, mieszkanie…);
 //           z oprocentowaniem wartość rośnie sama (szacunek, odsetki proste od ostatniej wyceny).
 //
-// Ceny na żywo bez klucza i bez serwera: krypto i złoto z CoinGecko (złoto = PAX Gold, 1 uncja).
-// Akcji i ETF-ów żadne darmowe źródło nie udostępnia przeglądarce — cenę aktualizuje się ręcznie.
+// Ceny na żywo bez klucza: krypto i złoto z CoinGecko (złoto = PAX Gold, 1 uncja) — wszędzie;
+// ETF-y i akcje z Yahoo Finance (pozycja z wybranym notowaniem h.quote) — Yahoo nie wpuszcza
+// przeglądarki, więc tylko w aplikacji albo przez serwer pośredniczący (lib/net.js). Inaczej ręcznie.
 
 import { PieChart, CandlestickChart, Bitcoin, Coins, Landmark, PiggyBank, Umbrella, Handshake, Building2, Briefcase } from "lucide-react";
-import { amountForDisplay, convert } from "./fx.js";
+import { amountForDisplay, convert, getRate } from "./fx.js";
+import { canReachRestricted, getRestricted } from "./net.js";
 
 const KINDS = {
   etf:        { mode: "units", color: "#8b5cf6", icon: PieChart },
@@ -91,7 +93,7 @@ function holdingStats(h, today) {
     value = v.value; estimated = v.estimated;
   }
   const gain = value - cost;
-  const live = h.priceSource === "coingecko" || estimated;
+  const live = h.priceSource === "coingecko" || h.priceSource === "yahoo" || estimated;
   const stale = !h.closed && !live && (!h.priceAt || (today && daysBetween(h.priceAt, today) > 30));
   return {
     value, cost, gain, gainPct: cost > 0 ? gain / cost * 100 : null,
@@ -222,22 +224,67 @@ async function searchCoins(query) {
   return (r.coins || []).slice(0, 8).map(c => ({ id: c.id, name: c.name, symbol: String(c.symbol || "").toUpperCase(), thumb: c.thumb }));
 }
 
-/** Pozycje z ceną na żywo: krypto z wybraną monetą i złoto. */
-const isLive = (h) => !h.closed && ((kindOf(h) === "crypto" && h.coinId) || kindOf(h) === "gold") && modeOf(h) === "units";
+/** Pozycje z ceną na żywo: krypto z wybraną monetą, złoto, ETF/akcja z notowaniem (gdy da się sięgnąć do Yahoo). */
+const isQuoted = (h) => (kindOf(h) === "etf" || kindOf(h) === "stock") && !!(h.quote && h.quote.sym);
+const isLive = (h) => !h.closed && modeOf(h) === "units"
+  && ((kindOf(h) === "crypto" && !!h.coinId) || kindOf(h) === "gold" || (isQuoted(h) && canReachRestricted));
+/** Skąd pochodzi cena na żywo pozycji (do zapisu priceSource). */
+const liveSourceOf = (h) => (isQuoted(h) ? "yahoo" : "coingecko");
+
+/** Notowanie z Yahoo Finance: cena i waluta (pensy/centy → funty/randy). null, gdy brak. */
+async function yahooQuote(sym) {
+  const j = await getRestricted(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`);
+  const m = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+  if (!m || !(m.regularMarketPrice > 0)) return null;
+  let price = m.regularMarketPrice, cur = String(m.currency || "");
+  if (cur === "GBp" || cur === "GBX") { price /= 100; cur = "GBP"; }
+  else if (cur === "ZAc") { price /= 100; cur = "ZAR"; }
+  else if (cur === "ILA") { price /= 100; cur = "ILS"; }
+  return { price, cur: cur.toUpperCase(), name: m.longName || m.shortName || sym, exch: m.exchangeName || "" };
+}
+
+/** Wyszukiwanie ETF/akcji po nazwie, tickerze albo ISIN (Yahoo) — z aktualną ceną. */
+async function searchQuotes(query) {
+  const q = String(query || "").trim();
+  if (q.length < 2 || !canReachRestricted) return [];
+  const j = await getRestricted(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
+  const list = ((j && j.quotes) || [])
+    .filter(x => x.symbol && ["ETF", "EQUITY", "MUTUALFUND"].includes(x.quoteType))
+    .slice(0, 6)
+    .map(x => ({ sym: x.symbol, name: x.shortname || x.longname || x.symbol, exch: x.exchDisp || x.exchange || "", type: x.quoteType }));
+  const priced = await Promise.all(list.map(async (x) => { try { const qd = await yahooQuote(x.sym); return qd ? { ...x, price: qd.price, cur: qd.cur } : x; } catch { return x; } }));
+  return priced;
+}
 
 /**
  * Aktualne ceny dla pozycji krypto i złota. Zwraca { [holdingId]: cena za jednostkę w walucie pozycji }.
  * Złoto: cena uncji (PAX Gold) → za gram, gdy pozycja liczona w gramach.
  */
 async function fetchLivePrices(holdings) {
-  const live = holdings.filter(isLive);
-  if (!live.length) return {};
+  const all = holdings.filter(isLive);
+  const out = {};
+  // ETF-y i akcje z notowaniem (Yahoo), przeliczone na walutę pozycji
+  const quoted = all.filter(isQuoted);
+  if (quoted.length) {
+    const syms = [...new Set(quoted.map(h => h.quote.sym))];
+    const quotes = {};
+    await Promise.all(syms.map(async (s) => { try { quotes[s] = await yahooQuote(s); } catch { quotes[s] = null; } }));
+    for (const h of quoted) {
+      const q = quotes[h.quote.sym];
+      if (!q) continue;
+      const cur = (h.currency || "PLN").toUpperCase();
+      if (q.cur !== cur && ![q.cur, cur].every(c => c === "PLN" || isFinite(getRate(c)))) continue;
+      const price = q.cur === cur ? q.price : convert(q.price, q.cur, cur);
+      if (isFinite(price) && price > 0) out[h.id] = Math.round(price * 1e6) / 1e6;
+    }
+  }
+  const live = all.filter(h => !isQuoted(h));
+  if (!live.length) return out;
   const coinOf = (h) => (kindOf(h) === "gold" ? GOLD_ID : h.coinId);
   const ids = [...new Set(live.map(coinOf))];
   const vs = new Set(["usd"]);
   for (const h of live) { const c = (h.currency || "PLN").toLowerCase(); if (CG_CURRENCIES.has(c)) vs.add(c); }
   const r = await cgJson(`https://api.coingecko.com/api/v3/simple/price?ids=${ids.map(encodeURIComponent).join(",")}&vs_currencies=${[...vs].join(",")}`);
-  const out = {};
   for (const h of live) {
     const row = r[coinOf(h)];
     if (!row) continue;
@@ -253,4 +300,5 @@ async function fetchLivePrices(holdings) {
 export {
   KINDS, KIND_ORDER, PLATFORMS, kindOf, modeOf, holdingStats, portfolioTotals, valueNow,
   applyBuy, applySell, searchCoins, fetchLivePrices, isLive, fromBroker,
+  isQuoted, liveSourceOf, searchQuotes,
 };

@@ -1,0 +1,7 @@
+# Zależności i build
+node_modules/
+dist/
+
+# Lokalne ustawienia (np. VITE_LOOKUP_PROXY do testów) — nie trafiają do repozytorium
+.env*.local
+*.local

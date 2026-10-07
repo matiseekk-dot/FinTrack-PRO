@@ -15,8 +15,9 @@ import { newId, rateOnDate, makeTx, commitTxChanges } from "../lib/ledger.js";
 import { MODULES, moduleLabel, getModule, isCapitalFlow } from "../lib/modules.js";
 import {
   KINDS, KIND_ORDER, PLATFORMS, kindOf, modeOf, holdingStats, portfolioTotals, valueNow,
-  applyBuy, applySell, searchCoins, fetchLivePrices, isLive, fromBroker,
+  applyBuy, applySell, searchCoins, fetchLivePrices, isLive, fromBroker, liveSourceOf, searchQuotes,
 } from "../lib/investments.js";
+import { canReachRestricted } from "../lib/net.js";
 
 const ACCENT = MODULES.investments.color;
 
@@ -88,7 +89,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
     try {
       const prices = await fetchLivePrices(list);
       const ts = Date.now();
-      setPortfolio(prev => prev.map(h => prices[h.id] != null ? { ...h, currentPrice: prices[h.id], priceAt: today, priceTs: ts, priceSource: "coingecko" } : h));
+      setPortfolio(prev => prev.map(h => prices[h.id] != null ? { ...h, currentPrice: prices[h.id], priceAt: today, priceTs: ts, priceSource: liveSourceOf(h) } : h));
       setLiveAt(ts);
       if (!silent) showToast(t("inv.liveDone", "Ceny zaktualizowane ✓"));
     } catch {
@@ -109,7 +110,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
     id: null, kind, name: "", ticker: "", platform: "", currency: getDisplayCurrency(), coinId: null, unit: "g",
     qty: "", costMode: KINDS[kind].mode === "units" ? "avg" : "invested", avg: "", total: "", pl: "", plPct: false,
     priceMode: "unit", price: "", valueNow: "", livePrice: null, invested: "", value: "", rate: "", startDate: today,
-    pastRealized: "", pastIncome: "",
+    pastRealized: "", pastIncome: "", quote: null,
   });
   const startAdd = (kind) => setForm(blank(kind || "etf"));
   const startEdit = (h) => {
@@ -118,7 +119,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
     setForm({
       ...blank(kindOf(h)),
       id: h.id, kind: kindOf(h), name: h.name || h.ticker || "", ticker: h.ticker || "", platform: h.platform || "",
-      currency: h.currency || "PLN", coinId: h.coinId || null, unit: h.unit || "g",
+      currency: h.currency || "PLN", coinId: h.coinId || null, unit: h.unit || "g", quote: h.quote || null,
       qty: units && h.qty != null ? String(h.qty) : "",
       costMode: units ? "avg" : "invested",
       avg: units && h.avgPrice != null ? String(+Number(h.avgPrice).toPrecision(8)) : "",
@@ -138,11 +139,12 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
     if (!name) { showToast(t("inv.err.name", "Wpisz nazwę"), "error"); return; }
     const old = f.id != null ? portfolio.find(h => h.id === f.id) : null;
     const mode = KINDS[f.kind].mode;
-    const live = (f.kind === "crypto" && f.coinId) || f.kind === "gold";
+    const live = (f.kind === "crypto" && f.coinId) || f.kind === "gold" || ((f.kind === "etf" || f.kind === "stock") && !!f.quote && canReachRestricted);
     const base = {
       ...(old || {}), id: old ? old.id : newId(), kind: f.kind, mode, name,
       ticker: f.ticker.trim().toUpperCase(), platform: f.platform.trim(), currency: f.currency,
       coinId: f.kind === "crypto" ? f.coinId : null, unit: f.kind === "gold" ? f.unit : null,
+      quote: (f.kind === "etf" || f.kind === "stock") && f.quote ? f.quote : null,
       createdAt: old?.createdAt || today, closed: false,
     };
     const r = fromBroker({ ...f, mode, livePrice: live ? f.livePrice : null });
@@ -167,7 +169,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
       h = {
         ...base, qty: r.qty, avgPrice: r.avgPrice, currentPrice: price,
         priceAt: priceChanged || !old ? today : old.priceAt,
-        priceSource: fromLive ? "coingecko" : live ? (old?.priceSource || "manual") : "manual",
+        priceSource: fromLive ? liveSourceOf({ kind: f.kind, quote: f.quote }) : live ? (old?.priceSource || "manual") : "manual",
         ...(fromLive ? { priceTs: Date.now() } : {}),
         invested: null, value: null, rate: null,
       };
@@ -331,8 +333,8 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
               <button onClick={() => refreshLive(false)} disabled={liveBusy} style={{ ...actionBtn(ACCENT), padding: "9px 8px", fontSize: 12, borderRadius: 12 }}>
                 <RefreshCw size={13} style={liveBusy ? { animation: "spin 1s linear infinite" } : undefined}/>
                 {liveBusy ? t("inv.liveBusy", "Pobieram ceny…")
-                  : liveAt ? t("inv.liveAt", "Krypto i złoto · {time}").replace("{time}", new Date(liveAt).toLocaleTimeString(getLocale(), { hour: "2-digit", minute: "2-digit" }))
-                  : t("inv.liveRefresh", "Odśwież ceny krypto i złota")}
+                  : liveAt ? t("inv.liveAt2", "Ceny na żywo · {time}").replace("{time}", new Date(liveAt).toLocaleTimeString(getLocale(), { hour: "2-digit", minute: "2-digit" }))
+                  : t("inv.liveRefresh2", "Odśwież ceny na żywo")}
               </button>
             )}
             {manualOpen.length > 0 && (
@@ -400,17 +402,30 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
   };
 
   // Cena na żywo (krypto, złoto) już w formularzu — żeby od razu policzyć wynik z zysku brokera
-  const live = (form.kind === "crypto" && !!form.coinId) || form.kind === "gold";
+  const quoted = (form.kind === "etf" || form.kind === "stock") && !!(form.quote && form.quote.sym) && canReachRestricted;
+  const live = (form.kind === "crypto" && !!form.coinId) || form.kind === "gold" || quoted;
+  const liveSrc = quoted ? "Yahoo Finance" : "CoinGecko";
+  // Wyszukiwanie notowania (ETF, akcje) — nazwa, ticker albo ISIN
+  const [quoteQ, setQuoteQ] = useState("");
+  const [quotes, setQuotes] = useState([]);
+  const [quoteBusy, setQuoteBusy] = useState(false);
+  const [quoteErr, setQuoteErr] = useState("");
+  const findQuote = async () => {
+    setQuoteBusy(true); setQuoteErr("");
+    try { const r = await searchQuotes(quoteQ); setQuotes(r); if (!r.length) setQuoteErr(t("inv.quoteNone", "Nic nie znaleziono — spróbuj tickera albo numeru ISIN.")); }
+    catch { setQuoteErr(t("inv.liveErr", "Nie udało się pobrać cen. Spróbuj za chwilę.")); }
+    setQuoteBusy(false);
+  };
   const [liveState, setLiveState] = useState("idle"); // idle | busy | ok | err
   useEffect(() => {
     if (!live) { if (form.livePrice != null) set({ livePrice: null }); setLiveState("idle"); return undefined; }
     let cancelled = false;
     setLiveState("busy");
-    fetchLivePrices([{ id: "form", kind: form.kind, mode: "units", coinId: form.coinId, unit: form.unit, currency: form.currency }])
+    fetchLivePrices([{ id: "form", kind: form.kind, mode: "units", coinId: form.coinId, unit: form.unit, currency: form.currency, quote: form.quote || null }])
       .then(r => { if (cancelled) return; set({ livePrice: r.form ?? null }); setLiveState(r.form != null ? "ok" : "err"); })
       .catch(() => { if (!cancelled) { set({ livePrice: null }); setLiveState("err"); } });
     return () => { cancelled = true; };
-  }, [live, form.kind, form.coinId, form.unit, form.currency]);
+  }, [live, form.kind, form.coinId, form.unit, form.currency, form.quote && form.quote.sym]);
 
   const unitLabel = form.kind === "gold" ? (form.unit === "oz" ? "oz" : "g") : t("inv.pcs", "szt.");
   const platforms = PLATFORMS[form.kind] || [];
@@ -495,7 +510,56 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
         <Input label={t("inv.nameLabel", "Nazwa")} value={form.name} onChange={e => set({ name: e.target.value })}
           placeholder={t(`inv.namePh.${form.kind}`, NAME_PH_PL[form.kind])}/>
       )}
-      {units && form.kind !== "crypto" && form.kind !== "gold" && (
+      {(form.kind === "etf" || form.kind === "stock") && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={fieldLabel}>{t("inv.quote", "Notowanie na żywo (opcjonalnie)")}</div>
+          {!canReachRestricted ? (
+            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+              {t("inv.quoteApp", "Ceny ETF-ów i akcji pobierają się same w aplikacji na Androida. Tutaj aktualizujesz je ręcznie (jeden ekran dla wszystkich).")}
+            </div>
+          ) : form.quote ? (
+            <div style={{ ...card, background: "#060b14", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {form.quote.sym} <span style={{ color: "#64748b", fontWeight: 600 }}>{form.quote.exch}</span>
+              </span>
+              <span style={{ fontSize: 11, color: "#34d399", flexShrink: 0 }}>{t("inv.livePrice", "cena na żywo")}</span>
+              <button type="button" onClick={() => set({ quote: null })} style={{ background: "none", border: "none", color: "#64748b", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>{t("inv.change", "zmień")}</button>
+            </div>
+          ) : <>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={quoteQ} onChange={e => setQuoteQ(e.target.value)} onKeyDown={e => { if (e.key === "Enter") findQuote(); }}
+                placeholder={t("inv.quotePh", "np. VWCE, IWDA, CD Projekt, ISIN")} aria-label={t("inv.quote", "Notowanie na żywo (opcjonalnie)")}
+                style={{ flex: 1, minWidth: 0, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "11px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "inherit", outline: "none" }}/>
+              <button type="button" onClick={findQuote} disabled={quoteBusy || quoteQ.trim().length < 2} aria-label={t("scan.find", "Szukaj")}
+                style={{ flex: "none", background: ACCENT + "18", border: `1px solid ${ACCENT}55`, color: ACCENT, borderRadius: 10, padding: "0 14px", cursor: "pointer", display: "grid", placeItems: "center", opacity: quoteQ.trim().length < 2 ? 0.5 : 1 }}>
+                <Search size={16}/>
+              </button>
+            </div>
+            {quotes.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                {quotes.map(x => (
+                  <button key={x.sym} type="button" onClick={() => {
+                    set({ quote: { sym: x.sym, exch: x.exch, cur: x.cur || null }, name: form.name || x.name, ticker: form.ticker || x.sym.split(".")[0],
+                      ...(x.cur && form.id == null && [cur, x.cur].every(c => c === "PLN" || SUPPORTED_CURRENCIES.includes(c)) ? { currency: x.cur } : {}) });
+                    setQuotes([]);
+                  }} style={{
+                    display: "flex", alignItems: "center", gap: 10, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "8px 10px",
+                    color: "#cbd5e1", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                  }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.name}</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>{x.sym} · {x.exch}</span>
+                    </span>
+                    {x.price != null && <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, flexShrink: 0 }}>{fmtCurrency(x.price, x.cur || "USD")}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {quoteErr && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>{quoteErr}</div>}
+          </>}
+        </div>
+      )}
+      {units && form.kind !== "crypto" && form.kind !== "gold" && !form.quote && (
         <Input label={t("inv.tickerOpt", "Ticker (opcjonalnie)")} value={form.ticker} onChange={e => set({ ticker: e.target.value })} placeholder="VWCE, AAPL"/>
       )}
       <Input label={t("inv.platform", "Gdzie (opcjonalnie)")} value={form.platform} onChange={e => set({ platform: e.target.value })}
@@ -525,7 +589,7 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
           {live && liveState !== "err" ? (
             <div style={{ fontSize: 12, color: "#94a3b8", margin: "-4px 0 14px" }}>
               {liveState === "busy" ? t("inv.liveBusy", "Pobieram ceny…")
-                : t("inv.livePriceNow", "Cena teraz: {price} za {unit} (CoinGecko)").replace("{price}", fmtCurrency(form.livePrice, cur)).replace("{unit}", unitLabel)}
+                : t("inv.livePriceNow2", "Cena teraz: {price} za {unit} ({source})").replace("{price}", fmtCurrency(form.livePrice, cur)).replace("{unit}", unitLabel).replace("{source}", liveSrc)}
             </div>
           ) : <>
             <div style={fieldLabel}>{t("inv.nowLabel", "Ile to jest warte teraz")}</div>
@@ -685,7 +749,9 @@ function HoldingSheet({ h, today, income, onClose, onEdit, onDelete, setPortfoli
               .replace("{avg}", fmtCurrency(h.avgPrice || 0, cur)).replace("{price}", h.currentPrice != null ? fmtCurrency(h.currentPrice, cur) : "—")
             : h.rate ? t("inv.rateLine", "{rate}% rocznie · wartość rośnie o odsetki (szacunek)").replace("{rate}", String(h.rate).replace(".", ",")) : null}
           {h.priceAt && <span style={{ display: "block", color: s.stale ? "#f59e0b" : "#64748b" }}>
-            {h.priceSource === "coingecko" ? t("inv.priceLive", "Cena z CoinGecko · {date}").replace("{date}", h.priceAt) : t("inv.priceManual", "Cena/wartość z {date}").replace("{date}", h.priceAt)}
+            {h.priceSource === "coingecko" || h.priceSource === "yahoo"
+              ? t("inv.priceLive2", "Cena z {source} · {date}").replace("{source}", h.priceSource === "yahoo" ? `Yahoo Finance (${(h.quote && h.quote.sym) || ""})` : "CoinGecko").replace("{date}", h.priceAt)
+              : t("inv.priceManual", "Cena/wartość z {date}").replace("{date}", h.priceAt)}
           </span>}
           {(income !== 0 || h.realized) && <span style={{ display: "block", color: "#94a3b8" }}>
             {t("inv.incomeLine", "Dochód z tej pozycji: {amount}").replace("{amount}", fmtDisplay(income, { showSign: true }))}

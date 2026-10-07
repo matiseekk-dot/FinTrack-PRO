@@ -8,6 +8,7 @@ import { getDisplayCurrency } from "../lib/fx.js";
 import { fmtCurrency } from "../utils.js";
 import { KINDS, collectionKind, itemTitle } from "../lib/collections.js";
 import { getDetector, normalizeCode, lookupCode, scanFeedback } from "../lib/barcode.js";
+import { canReachRestricted } from "../lib/net.js";
 
 const ACCENT = "#34d399";
 
@@ -291,6 +292,11 @@ function ScanModal({ hobby, items, setItems, today, mode = "batch", initialStatu
           </div>
         </>}
 
+        {!canReachRestricted && rows.some(r => r.status === "notfound" || r.status === "error") && (
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.5, margin: "-4px 0 12px" }}>
+            {t("scan.webLimit", "Wiele gier i polskich książek nie ma w bazach dostępnych z przeglądarki. W aplikacji na Androida szukamy też w Bibliotece Narodowej i w dużej bazie kodów produktów. Wpisz tytuł — kod zapiszemy.")}
+          </div>
+        )}
         {status === "owned" && salesHint && rows.length > 0 && (
           <CheckRow checked={useMedian} onChange={setUseMedian}>
             {t("scan.median", "Wpisz wartość {amount} — medianę Twoich sprzedaży ({n}) — pozycjom bez wyceny. Zmienisz ją w każdej chwili.")
