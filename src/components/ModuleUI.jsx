@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { t } from "../i18n.js";
+import { t, getLang } from "../i18n.js";
 import { monthName, todayLocal } from "../utils.js";
 
 // Wspólne klocki ekranów modułów (Zakłady, Sprzedaż, Kolekcje, Freelance).
@@ -120,6 +120,22 @@ function PeriodChips({ value, onChange, month, onMonthChange, monthOnly = false 
   );
 }
 
+/** Nazwa miesiąca w środku zdania: „październik 2026” (po angielsku i niemiecku z wielkiej litery). */
+function monthInSentence(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const name = `${monthName(m - 1)} ${y}`;
+  return ["en", "de"].includes(getLang()) ? name : name.charAt(0).toLowerCase() + name.slice(1);
+}
+
+/** Wybrany miesiąc w środku zdania: „ten miesiąc” albo „październik 2026”. */
+function periodInSentence(ym) {
+  if (ym === todayLocal().slice(0, 7)) {
+    const s = t("period.month", "Ten miesiąc");
+    return s.charAt(0).toLowerCase() + s.slice(1);
+  }
+  return monthInSentence(ym);
+}
+
 /** Czy data (YYYY-MM-DD) mieści się w okresie month | year | all; ref = data albo "YYYY-MM". */
 function inPeriodFn(period, ref) {
   return (date) => period === "all" || (date || "").startsWith(period === "year" ? ref.slice(0, 4) : ref.slice(0, 7));
@@ -142,6 +158,7 @@ function EmptyCard({ title, desc, cta, onCta }) {
 const num = (v) => parseFloat(String(v ?? "").replace(",", "."));
 
 export {
+  monthInSentence, periodInSentence,
   BRAND, card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, heroValue, actionBtn,
   Chip, Stat, CheckRow, ModuleHeader, PeriodChips, EmptyCard, inPeriodFn, num,
 };

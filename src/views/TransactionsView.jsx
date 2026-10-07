@@ -44,7 +44,7 @@ const catFor = (module, type, pickedCat) =>
 const invKindOf = (type, picked) => picked || (type === "income" ? "result" : "capital");
 const invCat = (type, picked) => invKindOf(type, picked) === "capital" ? "inwestycje" : (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], holdings = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], holdings = [], rentals = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -93,6 +93,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       type: INCOME_FIRST.includes(module) ? "income" : "expense",
       hobbyId: module === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null,
       holdingId: module === "investments" ? (f.holdingId ?? null) : null, invKind: null,
+      rentalId: module === "rental" ? (f.rentalId ?? null) : null,
       tripId: trip ? trip.id : null,
       currency: trip && trip.defaultCurrency && (!f.currency || f.currency === getDisplayCurrency()) ? trip.defaultCurrency : (f.currency || getDisplayCurrency()),
     };
@@ -113,7 +114,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       type: tx.amount > 0 ? "income" : "expense",
       currency: hasFx ? tx.origCurrency : "PLN",
       module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null, tripSplit: Array.isArray(tx.tripSplit) ? tx.tripSplit : null,
-      holdingId: tx.holdingId ?? null, invKind: module === "investments" ? (tx.cat === "inwestycje" ? "capital" : "result") : null,
+      holdingId: tx.holdingId ?? null, rentalId: tx.rentalId ?? null, invKind: module === "investments" ? (tx.cat === "inwestycje" ? "capital" : "result") : null,
       tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
       hobbyCat: HOBBY_CATS.includes(tx.cat) ? tx.cat : "wydarzenia",
     };
@@ -206,6 +207,8 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
     else if (editingId) txData.hobbyId = null;
     if (form.module === "investments" && form.holdingId != null) txData.holdingId = form.holdingId;
     else if (editingId) txData.holdingId = null;
+    if (form.module === "rental" && form.rentalId != null) txData.rentalId = form.rentalId;
+    else if (editingId) txData.rentalId = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
     // (oszczędność miejsca + backward compat — stare tx czytane jako PLN).
     // Edge case: edit walutowej → PLN MUSI explicit-null'ować stare pola,
@@ -699,6 +702,17 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
             )}
           </>;
         })()}
+
+        {form.module === "rental" && (rentals || []).some(p => !p.archived) && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={labelStyle}>{t("tx.rental.place", "Miejsce (opcjonalnie)")}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(rentals || []).filter(p => !p.archived).map(p => (
+                <button key={p.id} type="button" aria-pressed={form.rentalId === p.id} onClick={() => setForm(f => ({ ...f, rentalId: f.rentalId === p.id ? null : p.id }))} style={chip(form.rentalId === p.id, MODULES.rental.color)}>{p.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {form.module === "hobby" && form.type === "expense" && (
           <div style={{ marginBottom: 14 }}>

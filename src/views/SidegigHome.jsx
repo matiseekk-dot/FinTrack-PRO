@@ -12,6 +12,7 @@ import { moneyForDisplay } from "../lib/prefs.js";
 import { subscriptionState, monthlyCost, daysUntil } from "../lib/subscriptions.js";
 import { AmountModal } from "../components/AmountModal.jsx";
 import { portfolioTotals } from "../lib/investments.js";
+import { arrears, rentStatus } from "../lib/rental.js";
 import { t, getLang } from "../i18n.js";
 
 const BRAND = "linear-gradient(135deg,#059669,#10b981)";
@@ -27,7 +28,7 @@ const shiftMonth = ({ y, m }, delta) => {
  * side module. Personal spending and trips are shown as separate cards, outside the
  * side-income total, because they are not income streams.
  */
-function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], month = null, onMonthChange, onEnableModule, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
+function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = [], gigs = [], resaleItems = [], collectionItems = [], rentals = [], modules = [], prefs = {}, onPrefChange, subscriptions = [], month = null, onMonthChange, onEnableModule, onOpenModule, onAddTx, onOpenTrips, onManageModules }) {
   const lang = getLang();
   const now = new Date();
   const current = { y: now.getFullYear(), m: now.getMonth() };
@@ -43,9 +44,18 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
   const isCurrent = period.y === current.y && period.m === current.m;
   const [goalOpen, setGoalOpen] = useState(false);
   // Nowy moduł, którego użytkownik jeszcze nie włączył — jednorazowa karta „Nowość”
-  const [promoHidden, setPromoHidden] = useState(() => { try { return localStorage.getItem("ft_promo_hobby") === "1"; } catch { return false; } });
-  const showPromo = !promoHidden && !modules.includes("hobby") && !!onEnableModule;
-  const hidePromo = () => { setPromoHidden(true); try { localStorage.setItem("ft_promo_hobby", "1"); } catch { /* bez pamięci */ } };
+  // Kolejno: Hobby (2.8.0), Najem z własnym ekranem (2.14.0); każda karta raz, klucz ft_promo_<moduł>
+  const PROMOS = {
+    hobby: () => t("home.promo.hobby", "Netflix, Spotify, AI, siłownia, koncerty — przypomnimy o płatnościach i końcu okresu próbnego. Osobno od dochodu pobocznego."),
+    rental: () => t("home.promo.rental", "Wynajmujesz mieszkanie, pokój, parking albo na Airbnb? Czynsz z terminem i przypomnieniem o zaległościach, koszty i rentowność."),
+  };
+  const [promoTick, setPromoTick] = useState(0);
+  const promoId = useMemo(() => Object.keys(PROMOS).find(id => {
+    if (modules.includes(id)) return false;
+    try { return localStorage.getItem(`ft_promo_${id}`) !== "1"; } catch { return false; }
+  }) || null, [modules.join(","), promoTick]);
+  const showPromo = !!promoId && !!onEnableModule;
+  const hidePromo = () => { try { localStorage.setItem(`ft_promo_${promoId}`, "1"); } catch { /* bez pamięci */ } setPromoTick(x => x + 1); };
 
   const sideEnabled = SIDE_MODULES.filter(id => modules.includes(id));
 
@@ -125,12 +135,23 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
         }
       }
     }
+    // Najem: zaległy czynsz i czynsz z terminem w ciągu 5 dni
+    if (modules.includes("rental")) {
+      for (const p of rentals) {
+        if (p.archived) continue;
+        const late = arrears(p, transactions, today);
+        const missing = late.reduce((s, m) => s + amountForDisplay(m.missing, p.currency), 0);
+        if (late.length) { out.push({ id: "rental", tone: "#f87171", text: t("home.att.rentLate", "Zaległy czynsz: {name} · {amount}").replace("{name}", p.name).replace("{amount}", fmtDisplay(missing)) }); continue; }
+        const st = rentStatus(p, today.slice(0, 7), transactions, today);
+        if (st.state === "due") out.push({ id: "rental", tone: "#fbbf24", text: (st.days === 0 ? t("home.att.rentToday", "Czynsz dziś: {name}") : t("home.att.rentSoon", "Czynsz za {n} dni: {name}").replace("{n}", st.days)).replace("{name}", p.name) });
+      }
+    }
     if (modules.includes("reselling")) {
       const stale = resaleItems.filter(r => r.status !== "sold" && (daysBetween(r.buyDate || r.createdAt, today) || 0) > 30);
       if (stale.length) out.push({ id: "reselling", tone: "#ec4899", text: t("home.att.stale", "Na stanie dłużej niż 30 dni: {n}").replace("{n}", stale.length) });
     }
     return out;
-  }, [modules, gigs, transactions, resaleItems, today, resolved, prefs.betLossLimit, subscriptions, getDisplayCurrency()]);
+  }, [modules, gigs, transactions, resaleItems, rentals, today, resolved, prefs.betLossLimit, subscriptions, getDisplayCurrency()]);
 
   // Dodatkowa informacja w wierszu modułu (ROI, stan magazynu, wartość kolekcji, zaległe)
   const extras = useMemo(() => {
@@ -278,21 +299,21 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
 
       {/* NOWOŚĆ: moduł Hobby i subskrypcje */}
       {showPromo && (
-        <div style={{ background: MODULES.hobby.color + "12", border: `1px solid ${MODULES.hobby.color}55`, borderRadius: 16, padding: "14px 16px" }}>
+        <div style={{ background: MODULES[promoId].color + "12", border: `1px solid ${MODULES[promoId].color}55`, borderRadius: 16, padding: "14px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: MODULES.hobby.color + "22", display: "grid", placeItems: "center" }}>
-              <MODULES.hobby.icon size={16} color={MODULES.hobby.color}/>
+            <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: MODULES[promoId].color + "22", display: "grid", placeItems: "center" }}>
+              {(() => { const I = MODULES[promoId].icon; return <I size={16} color={MODULES[promoId].color}/>; })()}
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: MODULES.hobby.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("home.promo.new", "Nowość")}</span>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginTop: 1 }}>{moduleLabel("hobby", lang)}</span>
+              <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: MODULES[promoId].color, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("home.promo.new", "Nowość")}</span>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginTop: 1 }}>{moduleLabel(promoId, lang)}</span>
             </span>
           </div>
           <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: "8px 0 12px" }}>
-            {t("home.promo.hobby", "Netflix, Spotify, AI, siłownia, koncerty — przypomnimy o płatnościach i końcu okresu próbnego. Osobno od dochodu pobocznego.")}
+            {PROMOS[promoId]()}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { hidePromo(); onEnableModule("hobby"); }} style={{ flex: 1, background: BRAND, border: "none", borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={() => { const id = promoId; hidePromo(); onEnableModule(id); }} style={{ flex: 1, background: BRAND, border: "none", borderRadius: 10, padding: "9px 0", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
               {t("home.promo.enable", "Włącz")}
             </button>
             <button onClick={hidePromo} style={{ flex: 1, background: "none", border: "1px solid #1a2744", borderRadius: 10, padding: "9px 0", color: "#64748b", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>

@@ -74,7 +74,7 @@ function getModule(tx, hobbies = []) {
  * Which modules to pre-tick for an existing user, based on what their data already contains.
  * A brand-new user (no data) gets DEFAULT_MODULES.
  */
-function inferEnabledModules({ transactions = [], hobbies = [], trips = [], portfolio = [], payments = [] } = {}) {
+function inferEnabledModules({ transactions = [], hobbies = [], trips = [], portfolio = [], payments = [], rentals = [] } = {}) {
   const hasData = transactions.length > 0 || hobbies.length > 0 || trips.length > 0;
   if (!hasData) return [...DEFAULT_MODULES];
 
@@ -82,6 +82,7 @@ function inferEnabledModules({ transactions = [], hobbies = [], trips = [], port
   if (hobbies.length > 0) found.add("collections");
   if (trips.length > 0) found.add("trips");
   if (portfolio.length > 0) found.add("investments");
+  if (rentals.length > 0) found.add("rental");
   for (const tx of transactions) {
     found.add(getModule(tx, hobbies));
   }

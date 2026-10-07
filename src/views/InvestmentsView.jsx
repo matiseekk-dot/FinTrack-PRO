@@ -6,9 +6,9 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import {
   card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, heroValue, actionBtn,
-  Chip, Stat, ModuleHeader, PeriodChips, CheckRow, num,
+  Chip, Stat, ModuleHeader, PeriodChips, CheckRow, num, periodInSentence,
 } from "../components/ModuleUI.jsx";
-import { fmtDisplay, fmtCurrency, todayLocal, monthName } from "../utils.js";
+import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLocale } from "../i18n.js";
 import { SUPPORTED_CURRENCIES, getDisplayCurrency, txAmountForDisplay } from "../lib/fx.js";
 import { newId, rateOnDate, makeTx, commitTxChanges } from "../lib/ledger.js";
@@ -44,7 +44,6 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
   const { toast, showToast } = useToast();
   const today = todayLocal();
   const ym = month || today.slice(0, 7);
-  const monthLabel = ym === today.slice(0, 7) ? t("period.month", "Ten miesiąc") : `${monthName(Number(ym.slice(5)) - 1)} ${ym.slice(0, 4)}`;
   const [form, setForm] = useState(null);       // dodawanie / edycja pozycji
   const [openId, setOpenId] = useState(null);   // szczegóły pozycji
   const [updating, setUpdating] = useState(null); // { [id]: "cena" } — szybka aktualizacja cen
@@ -274,7 +273,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a2744" }}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#94a3b8" }}>
-              {t("inv.monthResult", "Dochód · {period}").replace("{period}", monthLabel.toLowerCase())}
+              {t("inv.monthResult", "Dochód · {period}").replace("{period}", periodInSentence(ym))}
               <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
                 {monthStats.deposits > 0 || monthStats.withdrawals > 0
                   ? t("inv.monthFlows", "wpłaty {in} · wypłaty {out}").replace("{in}", fmtDisplay(monthStats.deposits)).replace("{out}", fmtDisplay(monthStats.withdrawals))

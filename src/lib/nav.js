@@ -10,7 +10,7 @@ const NAV_KEY = "ft_nav_tabs";
 const NAV_SLOTS = 3;
 
 // Module screens in the order they are offered as default shortcuts.
-const NAV_MODULE_SCREENS = ["reselling", "betting", "freelance", "collections", "hobby", "trips"];
+const NAV_MODULE_SCREENS = ["reselling", "betting", "freelance", "collections", "rental", "hobby", "trips"];
 
 /** Destinations that may be pinned to the bar for the given enabled modules. */
 function navCandidates(modules = []) {

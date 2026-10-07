@@ -6,7 +6,7 @@ import { Toast } from "../components/ui/Toast.jsx";
 import { useToast } from "../hooks/useToast.js";
 import {
   card, heroCard, sectionTitle, fieldLabel, heroLabel, primaryBtn, dangerBtn, heroValue, actionBtn,
-  Chip, Stat, ModuleHeader, EmptyCard, PeriodChips, CheckRow, num,
+  Chip, Stat, ModuleHeader, EmptyCard, PeriodChips, CheckRow, num, periodInSentence,
 } from "../components/ModuleUI.jsx";
 import { HobbyDetails, HobbyModal } from "./HobbyView.jsx";
 import { fmtDisplay, fmtCurrency, todayLocal, monthName } from "../utils.js";
@@ -342,7 +342,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   const spendRow = (amount, yearAmount, one = false) => (
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a2744" }}>
       <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#94a3b8" }}>
-        {(one ? t("coll.spentPeriodOne", "Wydane · {period}") : t("coll.spentPeriod", "Wydane na kolekcje · {period}")).replace("{period}", monthLabel.toLowerCase())}
+        {(one ? t("coll.spentPeriodOne", "Wydane · {period}") : t("coll.spentPeriod", "Wydane na kolekcje · {period}")).replace("{period}", periodInSentence(ym))}
         {yearAmount != null && <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
           {t("coll.spentYearLine", "w roku {year}: {amount}").replace("{year}", ym.slice(0, 4)).replace("{amount}", fmtDisplay(yearAmount))}
         </span>}
@@ -377,7 +377,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{parts.join(" · ")}</span>
         </span>
         <span style={{ textAlign: "right", flexShrink: 0 }}>
-          <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("coll.spentIn", "wydane · {period}").replace("{period}", monthLabel.toLowerCase())}</span>
+          <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("coll.spentIn", "wydane · {period}").replace("{period}", periodInSentence(ym))}</span>
           <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: spend.by[h.id] > 0 ? "#f87171" : "#475569" }}>{fmtDisplay(spend.by[h.id] || 0)}</span>
         </span>
         <ChevronRight size={14} color="#334155"/>
