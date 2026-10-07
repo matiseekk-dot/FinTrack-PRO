@@ -124,40 +124,6 @@ function getTripSpending(transactions, tripId) {
 }
 
 /**
- * Breakdown wydatków per oryginalna waluta (v1.4.1).
- *
- * Zwraca: {
- *   byCurrency: { EUR: { orig: 850, pln: 3638 }, PLN: { orig: 320, pln: 320 }, ... },
- *   totalPLN:   4822 (suma wszystkich pln)
- * }
- *
- * Tx z `origCurrency` agregowane per waluta. Tx bez `origCurrency` (stare lub PLN)
- * idą do kategorii "PLN". Pomijamy transfery (cat === "inne") i przychody (amount > 0).
- */
-function getTripSpendingByCurrency(transactions, tripId) {
-  if (!Array.isArray(transactions) || tripId == null) {
-    return { byCurrency: {}, totalPLN: 0 };
-  }
-  const txs = transactions.filter(t =>
-    t.tripId === tripId && t.amount < 0 && t.cat !== "inne"
-  );
-  const byCurrency = {};
-  let totalPLN = 0;
-  for (const t of txs) {
-    const pln = Math.abs(t.amount);
-    totalPLN += pln;
-    const cur = t.origCurrency || "PLN";
-    const orig = t.origCurrency && typeof t.origAmount === "number"
-      ? Math.abs(t.origAmount)
-      : pln; // dla PLN tx orig === pln
-    if (!byCurrency[cur]) byCurrency[cur] = { orig: 0, pln: 0 };
-    byCurrency[cur].orig += orig;
-    byCurrency[cur].pln  += pln;
-  }
-  return { byCurrency, totalPLN };
-}
-
-/**
  * Sumy roczne wszystkich wyjazdów. Trip jest "w roku" jeśli dateFrom lub dateTo
  * mieszczą się w roku. Wydatki przypisywane do roku według daty TX (nie daty wyjazdu),
  * żeby tx zarezerwowane pre-trip (np. lot kupiony rok wcześniej) liczyły się
@@ -187,26 +153,6 @@ function getYearlyTripsSummary(trips, transactions, year) {
   });
 
   return { trips: tripDetails, totalSpent, totalBudget };
-}
-
-/**
- * Zwraca rok-do-rokowe sumy wydatków na wszystkie wyjazdy.
- * Output: [{ year: 2024, total: 12400 }, { year: 2025, total: 18900 }, ...]
- */
-function getTripsTrendYoY(trips, transactions) {
-  if (!Array.isArray(transactions)) return [];
-  const tripIds = new Set((trips || []).map(t => t.id));
-  const yearMap = {};
-  for (const t of transactions) {
-    if (t.tripId == null || !tripIds.has(t.tripId)) continue;
-    if (t.amount >= 0 || t.cat === "inne") continue;
-    const yr = (t.date || "").slice(0, 4);
-    if (!yr) continue;
-    yearMap[yr] = (yearMap[yr] || 0) + Math.abs(t.amount);
-  }
-  return Object.entries(yearMap)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([year, total]) => ({ year: parseInt(year, 10), total: Math.round(total) }));
 }
 
 /**
@@ -382,9 +328,7 @@ export {
   getActiveTrips,
   getSelectableTrips,
   getTripSpending,
-  getTripSpendingByCurrency,
   getYearlyTripsSummary,
-  getTripsTrendYoY,
   groupTrips,
   pickTripColor,
   migrateLegacyVacations,

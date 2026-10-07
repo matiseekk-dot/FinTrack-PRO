@@ -26,7 +26,6 @@ import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMEN
 import { useFirebase } from "./hooks/useFirebase.js";
 import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { FeedbackButton } from "./components/FeedbackButton.jsx";
 import { getProStatusRaw, setProStatusFromRemote } from "./lib/tier.js";
 import { getDisplayCurrency, setDisplayCurrency, guessCurrency } from "./lib/fx.js";
 import { sanitizeModules, inferEnabledModules } from "./lib/modules.js";
@@ -733,7 +732,6 @@ export default function App() {
 
       {fabMenu && <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, minHeight: "100dvh", zIndex: 99 }} onClick={() => setFabMenu(false)}/>}
 
-      <FeedbackButton/>
 
       {quickAddOpen && (
         <TransactionsView

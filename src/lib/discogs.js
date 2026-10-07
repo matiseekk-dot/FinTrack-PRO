@@ -128,9 +128,6 @@ async function collectionValue(user, token) {
   catch { return null; }
 }
 
-// Waluty, w których Discogs podaje ceny
-const DISCOGS_CURRENCIES = ["USD", "GBP", "EUR", "CAD", "AUD", "JPY", "CHF", "MXN", "BRL", "NZD", "SEK", "ZAR"];
-
 const CONDITION_MAP = [
   [/^mint|\(m\)/i, "new"],
   [/near mint|nm|m-/i, "mint"],
@@ -164,4 +161,4 @@ function mapRelease(entry, lang) {
   };
 }
 
-export { getSaved, save, markSynced, needsPricing, searchBarcode, mapSearchResult, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease, DISCOGS_CURRENCIES };
+export { getSaved, save, markSynced, needsPricing, searchBarcode, mapSearchResult, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease };

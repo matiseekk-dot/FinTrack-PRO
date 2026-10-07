@@ -40,10 +40,8 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           // React + ReactDOM — stabilny, rzadko się zmienia, dobry cache
           'react-vendor': ['react', 'react-dom'],
-          // Recharts — duży ~300KB, ładowany tylko gdy user wchodzi na Analizę
-          'recharts': ['recharts'],
           // Firebase — ~400KB, ładowane przy logowaniu
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/messaging'],
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           // Lucide icons — ~150KB, ładowane zawsze
           'icons': ['lucide-react'],
           // XLSX — ~200KB, używane tylko przy import/export

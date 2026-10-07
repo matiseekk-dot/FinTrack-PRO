@@ -282,7 +282,6 @@ const TRANSLATIONS = {
     // Limits (v1.3.1)
     "common.add": "Add",
     "common.delete": "Delete",
-    "feedback.button": "Report a problem",
     "feedback.title": "Report a problem",
     "feedback.body.message": "Message:",
     "feedback.body.empty": "(empty)",
@@ -368,7 +367,6 @@ const TRANSLATIONS = {
     "settings.reset.wipe": "Wipe all data",
     "settings.privacy": "Privacy policy",
     "settings.wipe.title": "Wipe all data?",
-    "settings.wipe.desc": "This can't be undone. All your entries, accounts and module data will be deleted.",
     "settings.wipe.confirm": "Delete everything",
 
     // Hobby income (v1.3.2)
@@ -430,6 +428,9 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "more.feedback": "Report a problem or idea",
+    "more.feedbackDesc": "Tell us what doesn't work or what's missing",
+    "settings.wipe.desc2": "This can't be undone. All entries and module data will be deleted from this device and from the cloud.",
     "inv.kind.etf": "ETFs & funds",
     "inv.kind.stock": "Stocks",
     "inv.kind.crypto": "Crypto",
@@ -939,10 +940,6 @@ const TRANSLATIONS = {
     "pin.offDesc": "Protect the app with a 4-digit code",
     "pin.turnOff": "Turn off",
     "pin.turnOn": "Turn on PIN",
-    "catTx.total": "Total",
-    "catTx.count": "Entries",
-    "catTx.avg": "Average",
-    "catTx.hint": "To edit or delete, open the Ledger tab.",
     "trips.byCurrency": "Spending by currency",
     "trips.entries": "Entries",
     "trips.namePh": "e.g. Lisbon with friends",
@@ -1233,10 +1230,4 @@ function t(key, fallback) {
   return fallback || TRANSLATIONS.pl[key] || key;
 }
 
-/** Etykieta z obiektu { en, pl, de, ... } w bieżącym języku (dane modułów, sporty itd.). */
-function tl(labels) {
-  if (!labels) return "";
-  return labels[currentLang] || labels.en || labels.pl || "";
-}
-
-export { t, tl, getLang, setLang, getLocale, loadLanguage, LANGUAGES };
+export { t, getLang, setLang, getLocale, loadLanguage, LANGUAGES };

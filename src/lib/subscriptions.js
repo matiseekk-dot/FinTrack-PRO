@@ -28,7 +28,6 @@ function subKindLabel(id, lang = getLang()) {
   return k.label[lang] || k.label.en;
 }
 
-const CYCLES = ["month", "year", "week"];
 
 /** Następny termin: ten sam dzień miesiąca (31 stycznia → 28/29 lutego), za rok albo za tydzień. */
 function addCycle(dateStr, cycle) {
@@ -85,6 +84,6 @@ function sanitizeSubscriptions(value) {
 }
 
 export {
-  SUB_KINDS, CYCLES, subKind, subKindLabel, addCycle, monthlyCost, daysUntil,
+  SUB_KINDS, subKind, subKindLabel, addCycle, monthlyCost, daysUntil,
   subscriptionState, buildSubscriptionTx, sanitizeSubscriptions,
 };

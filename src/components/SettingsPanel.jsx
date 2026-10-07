@@ -742,7 +742,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#e2e8f0", textAlign: "center", marginBottom: 8 }}>{t("settings.wipe.title", "Wyczyścić wszystkie dane?")}</div>
             <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
-              {t("settings.wipe.desc", "Tej operacji nie można cofnąć. Wszystkie transakcje, konta, cele i płatności zostaną usunięte.")}
+              {t("settings.wipe.desc2", "Tej operacji nie można cofnąć. Wszystkie wpisy i dane modułów zostaną usunięte z tego urządzenia i z chmury.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmClear(false)} style={{ flex: 1, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 12, padding: "12px 0", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>

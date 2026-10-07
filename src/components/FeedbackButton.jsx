@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { MessageCircle, X, Send, Check } from "lucide-react";
+import { X, Send, Check } from "lucide-react";
 import { exportErrorsForSupport, clearLocalErrors } from "../lib/errorTracking.js";
 import { t } from "../i18n.js";
 import { useBackHandler } from "../lib/backButton.js";
 
 const SUPPORT_EMAIL = "matiseekk@gmail.com";
 
-function FeedbackButton() {
-  const [open, setOpen] = useState(false);
+// Okno „Zgłoś problem lub pomysł” (otwierane z Więcej). Wcześniej pływający przycisk na każdym
+// ekranie — zasłaniał kwoty na listach.
+function FeedbackSheet({ open, onClose }) {
+  const setOpen = (v) => { if (!v && onClose) onClose(); };
   const [message, setMessage] = useState("");
   const [includeErrors, setIncludeErrors] = useState(true);
   const [sent, setSent] = useState(false);
@@ -21,7 +23,7 @@ function FeedbackButton() {
       message || t("feedback.body.empty", "(brak)"),
       "",
       "---",
-      `${t("feedback.body.version", "Wersja")}: ${import.meta.env.MODE || "production"}`,
+      `${t("feedback.body.version", "Wersja")}: ${typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "?"}`,
       `URL: ${window.location.href}`,
       `${t("feedback.body.date", "Data")}: ${new Date().toISOString()}`,
       `${t("feedback.body.browser", "Przeglądarka")}: ${navigator.userAgent.substring(0, 100)}`,
@@ -48,24 +50,7 @@ function FeedbackButton() {
     }, 2000);
   };
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} style={{
-        position: "fixed",
-        bottom: "calc(80px + env(safe-area-inset-bottom, 0px))",
-        right: 16,
-        width: 44, height: 44,
-        borderRadius: 22,
-        background: "#0d1628",
-        border: "1px solid #1e3a5f",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", zIndex: 50,
-        boxShadow: "0 4px 12px #0008",
-      }} title={t("feedback.button", "Zgłoś problem")}>
-        <MessageCircle size={18} color="#94a3b8"/>
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div style={{
@@ -156,4 +141,4 @@ function FeedbackButton() {
   );
 }
 
-export { FeedbackButton };
+export { FeedbackSheet };

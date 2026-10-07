@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { List, SlidersHorizontal, Settings, ChevronRight, PanelBottom, Pin } from "lucide-react";
+import { List, SlidersHorizontal, Settings, ChevronRight, PanelBottom, Pin, MessageCircle } from "lucide-react";
 import { t, getLang } from "../i18n.js";
 import { MODULES, moduleLabel, moduleDesc } from "../lib/modules.js";
 import { NAV_SLOTS, navCandidates, defaultNavTabs, navItem } from "../lib/nav.js";
 import { Modal } from "../components/ui/Modal.jsx";
 import { primaryBtn } from "../components/ModuleUI.jsx";
+import { FeedbackSheet } from "../components/FeedbackButton.jsx";
 
 /**
  * "More" tab: every destination of the app in one list, plus the editor for
@@ -13,6 +14,7 @@ import { primaryBtn } from "../components/ModuleUI.jsx";
 function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onOpenModule, onManageModules, onOpenSettings }) {
   const lang = getLang();
   const [editNav, setEditNav] = useState(false);
+  const [feedback, setFeedback] = useState(false);
 
   // Moduły z własnym ekranem (pozostałe są dostępne jako filtr w Wpisach)
   const screens = [
@@ -42,6 +44,7 @@ function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onO
         { id: "__nav",      Icon: PanelBottom,       color: "#10b981", label: t("more.navTitle", "Dolny pasek"), desc: t("more.navDesc", "Wybierz skróty na pasku na dole") },
         { id: "__modules",  Icon: SlidersHorizontal, color: "#34d399", label: t("more.modules", "Moduły"), desc: t("more.modulesDesc", "Wybierz, co śledzisz, i walutę główną") },
         { id: "__settings", Icon: Settings,          color: "#64748b", label: t("more.settings", "Ustawienia"), desc: t("more.settingsDesc", "Eksport, import, PIN, kursy walut") },
+        { id: "__feedback", Icon: MessageCircle,     color: "#60a5fa", label: t("more.feedback", "Zgłoś problem lub pomysł"), desc: t("more.feedbackDesc", "Napisz, co nie działa albo czego brakuje") },
       ],
     },
   ];
@@ -50,6 +53,7 @@ function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onO
     if (id === "__nav") return setEditNav(true);
     if (id === "__modules") return onManageModules && onManageModules();
     if (id === "__settings") return onOpenSettings && onOpenSettings();
+    if (id === "__feedback") return setFeedback(true);
     if (id.startsWith("__mod_")) {
       const mod = id.slice(6);
       // Wyjazdy to zwykła zakładka, nie ekran modułu
@@ -91,6 +95,7 @@ function MoreView({ modules = [], navTabs = [], onNavTabsChange, onNavigate, onO
       </div>
 
       {editNav && <NavEditor onClose={() => setEditNav(false)} modules={modules} value={navTabs} onChange={onNavTabsChange}/>}
+      <FeedbackSheet open={feedback} onClose={() => setFeedback(false)}/>
     </div>
   );
 }

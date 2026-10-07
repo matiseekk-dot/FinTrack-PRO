@@ -1,111 +1,176 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polityka Prywatności — Sidegig</title>
+<title>Privacy Policy — Sidegig</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #1e293b; background: #f8fafc; }
   h1 { color: #1e40af; margin-top: 0; }
   h2 { color: #0f172a; margin-top: 32px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
   h3 { color: #334155; margin-top: 20px; }
-  .meta { color: #64748b; font-size: 13px; margin-bottom: 32px; }
+  .meta { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  .lang { margin-bottom: 24px; font-size: 14px; }
   .highlight { background: #dbeafe; padding: 16px; border-radius: 8px; border-left: 4px solid #1e40af; margin: 16px 0; }
   a { color: #1e40af; }
   ul { padding-left: 24px; }
   li { margin-bottom: 6px; }
-  code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  hr { border: none; border-top: 2px solid #cbd5e1; margin: 48px 0; }
 </style>
 </head>
 <body>
-<h1>Polityka Prywatności</h1>
-<p class="meta">Sidegig · Ostatnia aktualizacja: 17 kwietnia 2026</p>
+<div class="lang"><a href="#en">English</a> · <a href="#pl">Polski</a></div>
+
+<section id="en" lang="en">
+<h1>Privacy Policy</h1>
+<p class="meta">Sidegig · Last updated: 7 October 2026</p>
 
 <div class="highlight">
-<strong>W skrócie:</strong> Twoje dane finansowe są przechowywane lokalnie na Twoim urządzeniu. Opcjonalnie synchronizujemy je z Twoim kontem Google przez Firebase — w takim przypadku tylko Ty masz do nich dostęp. Nie sprzedajemy, nie udostępniamy i nie analizujemy Twoich transakcji.
+<strong>In short:</strong> Sidegig stores what you enter on your device and syncs it to your own space in Google Firebase, so you can use it on several devices. We don't sell, share or analyse your data, there are no ads and no analytics trackers.
 </div>
 
-<h2>1. Administrator danych</h2>
-<p>Administratorem danych osobowych jest twórca aplikacji Sidegig (dalej "Administrator"). Kontakt: <strong>matiseekk@gmail.com</strong>.</p>
+<h2>1. Who is responsible</h2>
+<p>The controller of your personal data is the creator of Sidegig ("we"). Contact: <a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a>.</p>
 
-<h2>2. Jakie dane zbieramy</h2>
+<h2>2. What data we process</h2>
+<h3>2.1 Account</h3>
+<p>You sign in with Google. From Google we receive your user ID (UID), email address and, optionally, your name and profile picture. We never see your Google password.</p>
 
-<h3>2.1 Dane przechowywane lokalnie</h3>
-<p>Wszystkie dane finansowe (transakcje, konta, kategorie, budżety, cele, płatności cykliczne) są zapisywane w pamięci <code>localStorage</code> Twojej przeglądarki. Nie są wysyłane na żaden serwer dopóki nie włączysz synchronizacji z chmurą.</p>
+<h3>2.2 What you enter</h3>
+<p>Everything you type into the app: entries (amounts, dates, descriptions, currency), and the data of the modules you use — items you resell, gigs and clients, collections and their catalogue, bets, investment positions, trips (including names of travel companions you add), hobbies and subscriptions, goals and settings. It is stored on your device (encrypted in the browser storage) and synced to Google Firebase Firestore under your account.</p>
+<p>We do not ask for and do not store bank logins, card numbers, account numbers or government ID numbers. Please don't type them into descriptions.</p>
+<p>If you add other people (e.g. trip companions), enter only what you need — usually a first name.</p>
 
-<h3>2.2 Dane synchronizowane z chmurą (opcjonalnie)</h3>
-<p>Jeśli zalogujesz się przez Google, Twoje dane zostaną zsynchronizowane z Firebase Firestore (Google Cloud, region europe-west3). Obejmuje to:</p>
+<h3>2.3 Services the app contacts for you</h3>
+<p>Some features fetch public information directly from your device. These services see your IP address and the request itself, not your financial data:</p>
 <ul>
-  <li>Transakcje (kwoty, daty, opisy, kategorie)</li>
-  <li>Konta bankowe (nazwy, salda — bez numerów IBAN ani danych logowania do banków)</li>
-  <li>Budżety, cele oszczędnościowe, płatności cykliczne</li>
-  <li>Ustawienia aplikacji (cykl rozliczeniowy, preferencje)</li>
-</ul>
-<p><strong>Nie zbieramy:</strong> haseł do banków, numerów kart kredytowych, danych logowania do kont bankowych, numerów PESEL, NIP, ani innych danych identyfikacyjnych.</p>
-
-<h3>2.3 Dane uwierzytelniania</h3>
-<p>Używamy Google Sign-In. Otrzymujemy od Google tylko: Twój identyfikator użytkownika (UID), adres email i opcjonalnie imię/awatar. Nie mamy dostępu do Twojego hasła Google.</p>
-
-<h3>2.4 Dane analityczne</h3>
-<p>Używamy narzędzia GoatCounter do zliczania ruchu na stronie. GoatCounter jest zgodny z RODO, nie używa plików cookies i nie zbiera danych osobowych. Zbieramy tylko:</p>
-<ul>
-  <li>Anonimową informację o odwiedzonej podstronie</li>
-  <li>Przybliżony kraj (na podstawie IP, które NIE jest przechowywane)</li>
-  <li>Typ przeglądarki i system operacyjny</li>
+  <li><strong>NBP (National Bank of Poland)</strong> — exchange rates.</li>
+  <li><strong>CoinGecko</strong> — crypto and gold prices (only the coin names you track).</li>
+  <li><strong>Open Library, Google Books</strong> — book details for the ISBN you scan or type.</li>
+  <li><strong>MusicBrainz, Open Products Facts</strong> — record and product details for the barcode you scan or type.</li>
+  <li><strong>Discogs</strong> — only if you connect it: your Discogs username and, optionally, your personal token, which stay only on your device and are never synced or backed up.</li>
 </ul>
 
-<h2>3. Cele przetwarzania danych</h2>
+<h3>2.4 Camera</h3>
+<p>The camera is used only when you scan barcodes. The video is processed on your device; no image is stored or sent anywhere.</p>
+
+<h3>2.5 No analytics, no ads</h3>
+<p>Sidegig has no advertising and no analytics or tracking tools. If you send us feedback from the app, your email app opens with your message and, if you agree, a list of recent app errors — nothing is sent without you pressing send.</p>
+
+<h2>3. Why we process it</h2>
 <ul>
-  <li>Umożliwienie korzystania z funkcji aplikacji (art. 6 ust. 1 lit. b RODO — wykonanie umowy)</li>
-  <li>Synchronizacja danych między Twoimi urządzeniami (art. 6 ust. 1 lit. a — Twoja zgoda przez zalogowanie)</li>
-  <li>Analiza ruchu (art. 6 ust. 1 lit. f — uzasadniony interes: utrzymanie i rozwój aplikacji)</li>
+  <li>To provide the app and sync it between your devices (performance of the service — Art. 6(1)(b) GDPR).</li>
+  <li>To answer your messages (Art. 6(1)(b) and (f) GDPR).</li>
 </ul>
 
-<h2>4. Kto ma dostęp do Twoich danych</h2>
-<p>Tylko Ty. Konkretnie:</p>
+<h2>4. Who has access</h2>
 <ul>
-  <li><strong>Administrator</strong> — nie ma technicznego dostępu do Twoich danych finansowych. Są przechowywane pod Twoim UID Google w Firestore i nikt poza Tobą ich nie odczyta.</li>
-  <li><strong>Google (Firebase)</strong> — jako podmiot przetwarzający. Firebase jest certyfikowany pod RODO, dane w regionie europe-west3 (Frankfurt). Umowa z Google regulowana przez <a href="https://firebase.google.com/terms/data-processing-terms">Firebase Data Processing Terms</a>.</li>
-  <li><strong>GoatCounter</strong> — tylko anonimowe dane analityczne.</li>
+  <li><strong>You.</strong> Firebase security rules let only your signed-in account read and write your data.</li>
+  <li><strong>Google (Firebase)</strong> as our processor, under the Firebase Data Processing Terms. Data is stored in Google Cloud (region europe-west3, Frankfurt).</li>
+  <li><strong>Us.</strong> As owners of the Firebase project we technically have administrative access to the database. We don't look at your data and use this access only when you ask us to (e.g. to delete your account).</li>
 </ul>
-<p>Nie przekazujemy danych osobom trzecim, reklamodawcom, brokerom danych, ani żadnej innej firmie.</p>
+<p>We don't pass your data to advertisers, data brokers or anyone else.</p>
 
-<h2>5. Jak długo przechowujemy Twoje dane</h2>
-<p>Tak długo jak sam chcesz. Masz pełną kontrolę:</p>
+<h2>5. How long we keep it</h2>
+<p>As long as you use the app. In <em>Settings → Clear all data</em> you delete everything on the device and in the cloud. To also remove your sign-in record, email us — we will do it within 7 days.</p>
+
+<h2>6. Your rights</h2>
+<p>Under the GDPR you have the right to access, correct, delete and port your data, to restrict or object to processing, and to complain to a data protection authority (in Poland: <a href="https://uodo.gov.pl">uodo.gov.pl</a>). You can export everything yourself in <em>Settings → Export to Excel</em>.</p>
+
+<h2>7. Security</h2>
 <ul>
-  <li>Wyczyść dane lokalne — przycisk "Zresetuj dane" w ustawieniach</li>
-  <li>Usuń konto — napisz na email kontaktowy, usuniemy wszystkie Twoje dane z Firebase w ciągu 7 dni</li>
-  <li>Wyloguj się i odinstaluj apkę — dane lokalne pozostają (jeśli nie wyczyściłeś) ale nie są już synchronizowane</li>
+  <li>Encrypted connection (HTTPS/TLS) to the cloud.</li>
+  <li>Data on the device encrypted in the browser storage; optional PIN lock in the app.</li>
+  <li>Firebase security rules: each user can access only their own data.</li>
 </ul>
 
-<h2>6. Twoje prawa (RODO)</h2>
-<p>Masz prawo do:</p>
+<h2>8. Children</h2>
+<p>Sidegig is not intended for children under 16. The Betting module is available only to adults (18+).</p>
+
+<h2>9. Changes</h2>
+<p>We will announce important changes in the app. The current version is always at this address.</p>
+
+<h2>10. Contact</h2>
+<p><a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a></p>
+</section>
+
+<hr>
+
+<section id="pl" lang="pl">
+<h1>Polityka prywatności</h1>
+<p class="meta">Sidegig · Ostatnia aktualizacja: 7 października 2026</p>
+
+<div class="highlight">
+<strong>W skrócie:</strong> Sidegig zapisuje to, co wpisujesz, na Twoim urządzeniu i synchronizuje to z Twoją przestrzenią w Google Firebase, żeby działało na kilku urządzeniach. Nie sprzedajemy, nie udostępniamy i nie analizujemy Twoich danych. Nie ma reklam ani narzędzi analitycznych.
+</div>
+
+<h2>1. Administrator</h2>
+<p>Administratorem danych osobowych jest twórca aplikacji Sidegig. Kontakt: <a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a>.</p>
+
+<h2>2. Jakie dane przetwarzamy</h2>
+<h3>2.1 Konto</h3>
+<p>Logujesz się przez Google. Otrzymujemy od Google identyfikator użytkownika (UID), adres email i opcjonalnie imię oraz zdjęcie profilowe. Nie znamy Twojego hasła Google.</p>
+
+<h3>2.2 To, co wpisujesz</h3>
+<p>Wszystko, co wpiszesz w aplikacji: wpisy (kwoty, daty, opisy, waluta) oraz dane modułów, z których korzystasz — przedmioty na sprzedaż, zlecenia i klienci, kolekcje i ich katalog, kupony, pozycje inwestycyjne, wyjazdy (także imiona dodanych współtowarzyszy), hobby i subskrypcje, cele i ustawienia. Dane są zapisane na Twoim urządzeniu (zaszyfrowane w pamięci przeglądarki) i synchronizowane z Google Firebase Firestore na Twoim koncie.</p>
+<p>Nie prosimy o i nie przechowujemy danych logowania do banków, numerów kart i kont ani numerów dokumentów (np. PESEL). Nie wpisuj ich w opisach.</p>
+<p>Jeśli dodajesz inne osoby (np. współtowarzyszy wyjazdu), wpisz tylko to, co potrzebne — zwykle imię.</p>
+
+<h3>2.3 Usługi, z którymi aplikacja łączy się w Twoim imieniu</h3>
+<p>Niektóre funkcje pobierają publiczne informacje bezpośrednio z Twojego urządzenia. Te usługi widzą Twój adres IP i samo zapytanie, a nie Twoje dane finansowe:</p>
 <ul>
-  <li>Dostępu do swoich danych (art. 15 RODO) — zobaczysz wszystko w aplikacji + opcja "Eksport do Excela" w ustawieniach</li>
-  <li>Sprostowania danych (art. 16)</li>
-  <li>Usunięcia danych ("prawo do bycia zapomnianym", art. 17)</li>
-  <li>Ograniczenia przetwarzania (art. 18)</li>
-  <li>Przenoszenia danych (art. 20) — eksport do Excela i CSV dostępny w apce</li>
-  <li>Wniesienia sprzeciwu (art. 21)</li>
-  <li>Wniesienia skargi do Prezesa Urzędu Ochrony Danych Osobowych (uodo.gov.pl)</li>
+  <li><strong>NBP</strong> — kursy walut.</li>
+  <li><strong>CoinGecko</strong> — ceny kryptowalut i złota (tylko nazwy śledzonych monet).</li>
+  <li><strong>Open Library, Google Books</strong> — dane książki dla zeskanowanego lub wpisanego ISBN.</li>
+  <li><strong>MusicBrainz, Open Products Facts</strong> — dane płyty lub produktu dla zeskanowanego lub wpisanego kodu.</li>
+  <li><strong>Discogs</strong> — tylko jeśli go połączysz: nazwa użytkownika Discogs i opcjonalnie token osobisty, które zostają wyłącznie na Twoim urządzeniu (nie są synchronizowane ani zapisywane w kopii).</li>
 </ul>
+
+<h3>2.4 Aparat</h3>
+<p>Aparat działa tylko podczas skanowania kodów kreskowych. Obraz jest analizowany na urządzeniu — nic nie jest zapisywane ani wysyłane.</p>
+
+<h3>2.5 Bez analityki i reklam</h3>
+<p>Sidegig nie ma reklam ani narzędzi analitycznych i śledzących. Gdy wysyłasz zgłoszenie z aplikacji, otwiera się Twoja poczta z wiadomością i — jeśli się zgodzisz — listą ostatnich błędów aplikacji. Nic nie zostaje wysłane, dopóki sam nie klikniesz „Wyślij”.</p>
+
+<h2>3. Cele i podstawy</h2>
+<ul>
+  <li>Działanie aplikacji i synchronizacja między urządzeniami (wykonanie usługi — art. 6 ust. 1 lit. b RODO).</li>
+  <li>Odpowiedzi na Twoje wiadomości (art. 6 ust. 1 lit. b i f RODO).</li>
+</ul>
+
+<h2>4. Kto ma dostęp</h2>
+<ul>
+  <li><strong>Ty.</strong> Reguły bezpieczeństwa Firebase pozwalają czytać i zapisywać dane tylko Twojemu zalogowanemu kontu.</li>
+  <li><strong>Google (Firebase)</strong> jako podmiot przetwarzający, na podstawie Firebase Data Processing Terms. Dane są w Google Cloud (region europe-west3, Frankfurt).</li>
+  <li><strong>My.</strong> Jako właściciel projektu Firebase mamy technicznie dostęp administracyjny do bazy. Nie przeglądamy Twoich danych i używamy go tylko na Twoją prośbę (np. przy usunięciu konta).</li>
+</ul>
+<p>Nie przekazujemy danych reklamodawcom, brokerom danych ani nikomu innemu.</p>
+
+<h2>5. Jak długo</h2>
+<p>Tak długo, jak korzystasz z aplikacji. W <em>Ustawienia → Wyczyść wszystkie dane</em> usuwasz wszystko z urządzenia i z chmury. Żeby usunąć też zapis logowania, napisz do nas — zrobimy to w ciągu 7 dni.</p>
+
+<h2>6. Twoje prawa</h2>
+<p>Masz prawo dostępu do danych, ich sprostowania, usunięcia i przeniesienia, ograniczenia przetwarzania, sprzeciwu oraz skargi do Prezesa UODO (<a href="https://uodo.gov.pl">uodo.gov.pl</a>). Wszystko możesz sam wyeksportować w <em>Ustawienia → Eksport do Excela</em>.</p>
 
 <h2>7. Bezpieczeństwo</h2>
 <ul>
-  <li>Połączenie z chmurą szyfrowane (HTTPS/TLS)</li>
-  <li>Dane w Firebase chronione przez reguły bezpieczeństwa — każdy użytkownik ma dostęp tylko do własnych danych</li>
-  <li>Opcjonalna blokada PIN w aplikacji</li>
-  <li>Brak przechowywania danych logowania do banków ani numerów kart</li>
+  <li>Szyfrowane połączenie (HTTPS/TLS) z chmurą.</li>
+  <li>Dane na urządzeniu zaszyfrowane w pamięci przeglądarki; opcjonalna blokada PIN.</li>
+  <li>Reguły bezpieczeństwa Firebase: każdy ma dostęp tylko do swoich danych.</li>
 </ul>
 
-<h2>8. Zmiany w polityce</h2>
-<p>O zmianach poinformujemy w aplikacji. Aktualna wersja jest zawsze dostępna pod tym adresem.</p>
+<h2>8. Dzieci</h2>
+<p>Sidegig nie jest przeznaczony dla osób poniżej 16 lat. Moduł Zakłady jest dostępny wyłącznie dla pełnoletnich (18+).</p>
 
-<h2>9. Kontakt</h2>
-<p>W sprawach dotyczących danych osobowych: <strong>matiseekk@gmail.com</strong></p>
+<h2>9. Zmiany</h2>
+<p>O istotnych zmianach poinformujemy w aplikacji. Aktualna wersja jest zawsze pod tym adresem.</p>
 
-<p style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; text-align: center;">
-Sidegig · <a href="/FinTrack-PRO/">Powrót do aplikacji</a> · <a href="terms.html">Regulamin</a>
+<h2>10. Kontakt</h2>
+<p><a href="mailto:matiseekk@gmail.com">matiseekk@gmail.com</a></p>
+</section>
+
+<p style="margin-top:48px; color:#64748b; font-size:13px;">
+Sidegig · <a href="/FinTrack-PRO/">Back to the app / Powrót do aplikacji</a> · <a href="terms.html">Terms / Regulamin</a>
 </p>
 </body>
 </html>
