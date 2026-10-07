@@ -483,7 +483,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
 
           {/* Zakup */}
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1.3 }}><Input label={t("resale.buyPrice", "Koszt zakupu")} type="number" inputMode="decimal" step="0.01" placeholder="0" value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
+            <div style={{ flex: 1.3 }}><Input label={t("resale.buyPrice", "Koszt zakupu")} type="text" inputMode="decimal" step="0.01" placeholder="0" value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
             <div style={{ flex: 0.9 }}>
               <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
@@ -515,20 +515,20 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
           </>}
 
           {form.status === "listed" && (
-            <Input label={t("resale.listPrice", "Cena wystawienia")} type="number" inputMode="decimal" step="0.01" value={form.listPrice} onChange={e => setF({ listPrice: e.target.value })}/>
+            <Input label={t("resale.listPrice", "Cena wystawienia")} type="text" inputMode="decimal" step="0.01" value={form.listPrice} onChange={e => setF({ listPrice: e.target.value })}/>
           )}
 
           {form.status === "sold" && <>
             <div style={{ display: "flex", gap: 8, marginTop: form.customPlatform ? 0 : 6 }}>
-              <div style={{ flex: 1.4 }}><Input label={t("resale.sellPrice", "Cena sprzedaży")} type="number" inputMode="decimal" step="0.01" value={form.sellPrice} onChange={e => setF({ sellPrice: e.target.value })}/></div>
-              <div style={{ flex: 1 }}><Input label={t("resale.feePct", "Prowizja %")} type="number" inputMode="decimal" step="0.1" value={form.feePct} onChange={e => setF({ feePct: e.target.value })}/></div>
-              <div style={{ flex: 1 }}><Input label={t("resale.feeFixed", "+ stała")} type="number" inputMode="decimal" step="0.01" value={form.feeFixed} onChange={e => setF({ feeFixed: e.target.value })}/></div>
+              <div style={{ flex: 1.4 }}><Input label={t("resale.sellPrice", "Cena sprzedaży")} type="text" inputMode="decimal" step="0.01" value={form.sellPrice} onChange={e => setF({ sellPrice: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.feePct", "Prowizja %")} type="text" inputMode="decimal" step="0.1" value={form.feePct} onChange={e => setF({ feePct: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.feeFixed", "+ stała")} type="text" inputMode="decimal" step="0.01" value={form.feeFixed} onChange={e => setF({ feeFixed: e.target.value })}/></div>
             </div>
             <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 14px", lineHeight: 1.45 }}>
               {t("resale.feeHint", "Typowe opłaty sprzedającego — zależą od kraju i kategorii. Zmienione zapamiętamy dla tej platformy.")}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ flex: 1 }}><Input label={t("resale.shipping", "Wysyłka (płacisz Ty)")} type="number" inputMode="decimal" step="0.01" placeholder="0" value={form.shipping} onChange={e => setF({ shipping: e.target.value })}/></div>
+              <div style={{ flex: 1 }}><Input label={t("resale.shipping", "Wysyłka (płacisz Ty)")} type="text" inputMode="decimal" step="0.01" placeholder="0" value={form.shipping} onChange={e => setF({ shipping: e.target.value })}/></div>
               <div style={{ flex: 1 }}><Input label={t("resale.sellDate", "Sprzedane")} type="date" value={form.sellDate} onChange={e => setF({ sellDate: e.target.value })}/></div>
             </div>
             {num(form.sellPrice) > 0 && (
@@ -543,7 +543,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
             )}
           </>}
 
-          <Input label={t("resale.hours", "Czas pracy (h, opcjonalnie)")} type="number" inputMode="decimal" step="0.25" placeholder={t("resale.hoursPh", "szukanie, zdjęcia, wysyłka")}
+          <Input label={t("resale.hours", "Czas pracy (h, opcjonalnie)")} type="text" inputMode="decimal" step="0.25" placeholder={t("resale.hoursPh", "szukanie, zdjęcia, wysyłka")}
             value={form.hours} onChange={e => setF({ hours: e.target.value })}/>
 
           <button onClick={save} disabled={saving} style={{ width: "100%", background: BRAND, border: "none", borderRadius: 12, padding: 14, color: "white", fontWeight: 700, fontSize: 15, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>

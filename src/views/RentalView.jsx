@@ -265,7 +265,7 @@ function PlaceForm({ form, setForm, onSave, onClose, onDelete }) {
 
       {monthly && <>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1.3 }}><Input label={t("rent.rent", "Czynsz miesięcznie")} type="number" inputMode="decimal" step="0.01" value={form.rent} onChange={e => set({ rent: e.target.value })} placeholder="0"/></div>
+          <div style={{ flex: 1.3 }}><Input label={t("rent.rent", "Czynsz miesięcznie")} type="text" inputMode="decimal" step="0.01" value={form.rent} onChange={e => set({ rent: e.target.value })} placeholder="0"/></div>
           <div style={{ flex: 0.9 }}>
             <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => set({ currency: e.target.value })}>
               {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,7 +273,7 @@ function PlaceForm({ form, setForm, onSave, onClose, onDelete }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Input label={t("rent.dueDay", "Płatne do (dzień)")} type="number" inputMode="numeric" min="1" max="28" value={form.dueDay} onChange={e => set({ dueDay: e.target.value })}/></div>
+          <div style={{ flex: 1 }}><Input label={t("rent.dueDay", "Płatne do (dzień)")} type="text" inputMode="numeric" min="1" max="28" value={form.dueDay} onChange={e => set({ dueDay: e.target.value })}/></div>
           <div style={{ flex: 1.3 }}><Input label={t("rent.since", "Najem od")} type="date" value={form.since} onChange={e => set({ since: e.target.value })}/></div>
         </div>
         <Input label={t("rent.tenant", "Najemca (opcjonalnie)")} value={form.tenant} onChange={e => set({ tenant: e.target.value })} placeholder={t("rent.tenantPh", "np. Anna")}/>
@@ -283,7 +283,7 @@ function PlaceForm({ form, setForm, onSave, onClose, onDelete }) {
           {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
         </Select>
       )}
-      <Input label={t("rent.value", "Wartość (opcjonalnie — do rentowności)")} type="number" inputMode="decimal" step="0.01" value={form.value} onChange={e => set({ value: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/>
+      <Input label={t("rent.value", "Wartość (opcjonalnie — do rentowności)")} type="text" inputMode="decimal" step="0.01" value={form.value} onChange={e => set({ value: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/>
 
       {form.id != null && (
         <CheckRow checked={!!form.archived} onChange={(v) => set({ archived: v })}>{t("rent.archiveLabel", "Najem zakończony (zostaje w historii)")}</CheckRow>
@@ -323,11 +323,11 @@ function MoneyForm({ m, setM, today, transactions, onClose, onSave }) {
         </div>
       </>}
       <div style={{ display: "flex", gap: 8 }}>
-        <div style={{ flex: 1.2 }}><Input label={`${t("rent.amount", "Kwota")} · ${cur}`} type="number" inputMode="decimal" step="0.01" value={m.amount} onChange={e => set({ amount: e.target.value })} placeholder="0"/></div>
+        <div style={{ flex: 1.2 }}><Input label={`${t("rent.amount", "Kwota")} · ${cur}`} type="text" inputMode="decimal" step="0.01" value={m.amount} onChange={e => set({ amount: e.target.value })} placeholder="0"/></div>
         <div style={{ flex: 1 }}><Input label={t("rent.date", "Data")} type="date" value={m.date} onChange={e => set({ date: e.target.value })}/></div>
       </div>
       {m.kind === "booking" && (
-        <Input label={t("rent.nights", "Liczba nocy / dni (opcjonalnie)")} type="number" inputMode="numeric" value={m.nights} onChange={e => set({ nights: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/>
+        <Input label={t("rent.nights", "Liczba nocy / dni (opcjonalnie)")} type="text" inputMode="numeric" value={m.nights} onChange={e => set({ nights: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/>
       )}
       {m.kind !== "rent" && (
         <Input label={t("rent.desc", "Opis (opcjonalnie)")} value={m.desc} onChange={e => set({ desc: e.target.value })}

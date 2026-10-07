@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged
+  signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged,
+  deleteUser, reauthenticateWithPopup, reauthenticateWithCredential
 } from "firebase/auth";
 import {
-  doc, getDoc, setDoc, onSnapshot, serverTimestamp
+  doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "firebase/firestore";
 import { auth, db, googleProvider, GOOGLE_WEB_CLIENT_ID } from "../firebase.js";
 import { t } from "../i18n.js";
@@ -199,6 +200,31 @@ export function useFirebase() {
     }
   }, []);
 
+  // Usunięcie konta (wymóg Google Play): dane w chmurze, potem samo konto logowania.
+  // Firebase wymaga świeżego logowania — wtedy prosimy o nie (okno Google) i próbujemy jeszcze raz.
+  const deleteAccount = useCallback(async () => {
+    const u = auth.currentUser;
+    if (!u) return false;
+    if (snapshotUnsubRef.current) { snapshotUnsubRef.current(); snapshotUnsubRef.current = null; }
+    await deleteDoc(doc(db, "users", u.uid, "data", "main"));
+    try {
+      await deleteUser(u);
+    } catch (e) {
+      if (e.code !== "auth/requires-recent-login") throw e;
+      if (isNative) {
+        const res = await (await socialLogin()).login({ provider: "google", options: {} });
+        const idToken = res && res.result && res.result.idToken;
+        if (!idToken) throw e;
+        await reauthenticateWithCredential(u, GoogleAuthProvider.credential(idToken));
+      } else {
+        await reauthenticateWithPopup(u, googleProvider);
+      }
+      await deleteUser(u);
+    }
+    if (isNative) (await socialLogin()).logout({ provider: "google" }).catch(() => {});
+    return true;
+  }, []);
+
   const loadFromFirestore = useCallback(async (uid) => {
     try {
       const snap = await getDoc(doc(db, "users", uid, "data", "main"));
@@ -295,6 +321,7 @@ export function useFirebase() {
     syncError,
     signInGoogle,
     signOutUser,
+    deleteAccount,
     loadFromFirestore,
     saveToFirestore,
     subscribeToUpdates,

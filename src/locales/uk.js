@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "напр. VWCE, IWDA, Apple, ISIN",
   "inv.livePriceNow2": "Ціна зараз: {price} за {unit} ({source})",
   "inv.priceLive2": "Ціна з {source} · {date}",
+  "settings.account.deleteConfirm": "Видалити акаунт? Усі ваші дані зникнуть — у хмарі й на цьому пристрої. Це не можна скасувати. Щоб їх зберегти, спершу експортуйте копію в Excel.",
+  "settings.account.deleteErr": "Не вдалося видалити акаунт. Увійдіть знову й спробуйте ще раз.",
+  "settings.account.delete": "Видалити акаунт і всі дані",
 };

@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "ex.: VWCE, IVVB11, Petrobras, ISIN",
   "inv.livePriceNow2": "Preço agora: {price} por {unit} ({source})",
   "inv.priceLive2": "Preço de {source} · {date}",
+  "settings.account.deleteConfirm": "Excluir sua conta? Todos os seus dados vão sumir — na nuvem e neste aparelho. Não dá para desfazer. Se quiser guardá-los, exporte antes uma cópia para o Excel.",
+  "settings.account.deleteErr": "Não foi possível excluir a conta. Entre de novo e tente outra vez.",
+  "settings.account.delete": "Excluir conta e todos os dados",
 };

@@ -549,8 +549,8 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Input label={t("bet.odds", "Kurs")} type="number" inputMode="decimal" step="0.01" placeholder="2.10" value={form.odds} onChange={e => setF({ odds: e.target.value })}/></div>
-            <div style={{ flex: 1.3 }}><Input label={t("bet.stake", "Stawka")} type="number" inputMode="decimal" step="0.01" placeholder="20" value={form.stake} onChange={e => setF({ stake: e.target.value })}/></div>
+            <div style={{ flex: 1 }}><Input label={t("bet.odds", "Kurs")} type="text" inputMode="decimal" step="0.01" placeholder="2.10" value={form.odds} onChange={e => setF({ odds: e.target.value })}/></div>
+            <div style={{ flex: 1.3 }}><Input label={t("bet.stake", "Stawka")} type="text" inputMode="decimal" step="0.01" placeholder="20" value={form.stake} onChange={e => setF({ stake: e.target.value })}/></div>
             <div style={{ flex: 0.9 }}>
               <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
@@ -586,7 +586,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           </div>
 
           {usesPayout(form.status) && (
-            <Input label={t("bet.payout", "Wypłata")} type="number" inputMode="decimal" step="0.01" value={form.payout}
+            <Input label={t("bet.payout", "Wypłata")} type="text" inputMode="decimal" step="0.01" value={form.payout}
               onChange={e => setForm(f => ({ ...f, payout: e.target.value, payoutTouched: true }))}/>
           )}
 
@@ -609,7 +609,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14, lineHeight: 1.5 }}>
             {settle.tx.bet.event || bookmakerName(settle.tx.bet.bookmaker)} · {t("bet.stakeShort", "stawka")} {fmtBet(settle.tx.bet.stake, settle.tx.bet.currency)}
           </div>
-          <Input label={`${t("bet.payout", "Wypłata")} (${settle.tx.bet.currency})`} type="number" inputMode="decimal" step="0.01" autoFocus
+          <Input label={`${t("bet.payout", "Wypłata")} (${settle.tx.bet.currency})`} type="text" inputMode="decimal" step="0.01" autoFocus
             value={settle.payout} onChange={e => setSettle(s => ({ ...s, payout: e.target.value }))}/>
           <button onClick={() => {
             const p = num(settle.payout);
@@ -636,7 +636,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           </div>
           {transfer.custom && <Input placeholder={t("bet.bookmakerName", "Nazwa bukmachera")} value={transfer.bookmaker} onChange={e => setTransfer(x => ({ ...x, bookmaker: e.target.value }))}/>}
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1.4 }}><Input label={t("bet.transfer.amount", "Kwota")} type="number" inputMode="decimal" step="0.01" value={transfer.amount} onChange={e => setTransfer(x => ({ ...x, amount: e.target.value }))}/></div>
+            <div style={{ flex: 1.4 }}><Input label={t("bet.transfer.amount", "Kwota")} type="text" inputMode="decimal" step="0.01" value={transfer.amount} onChange={e => setTransfer(x => ({ ...x, amount: e.target.value }))}/></div>
             <div style={{ flex: 1 }}>
               <Select label={t("tx.currency", "Waluta")} value={transfer.currency} onChange={e => setTransfer(x => ({ ...x, currency: e.target.value }))}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}

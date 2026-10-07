@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "z. B. VWCE, IWDA, SAP, ISIN",
   "inv.livePriceNow2": "Preis jetzt: {price} pro {unit} ({source})",
   "inv.priceLive2": "Preis von {source} · {date}",
+  "settings.account.deleteConfirm": "Konto löschen? Alle deine Daten verschwinden — in der Cloud und auf diesem Gerät. Das lässt sich nicht rückgängig machen. Wenn du sie behalten willst, exportiere vorher eine Kopie nach Excel.",
+  "settings.account.deleteErr": "Das Konto konnte nicht gelöscht werden. Melde dich erneut an und versuch es noch einmal.",
+  "settings.account.delete": "Konto und alle Daten löschen",
 };

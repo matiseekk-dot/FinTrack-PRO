@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "es. VWCE, IWDA, Enel, ISIN",
   "inv.livePriceNow2": "Prezzo ora: {price} per {unit} ({source})",
   "inv.priceLive2": "Prezzo da {source} · {date}",
+  "settings.account.deleteConfirm": "Eliminare l'account? Tutti i tuoi dati spariranno, nel cloud e su questo dispositivo. Non si può annullare. Se vuoi conservarli, esporta prima una copia in Excel.",
+  "settings.account.deleteErr": "Impossibile eliminare l'account. Accedi di nuovo e riprova.",
+  "settings.account.delete": "Elimina l'account e tutti i dati",
 };

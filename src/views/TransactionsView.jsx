@@ -836,7 +836,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
           <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6,
             textTransform: "uppercase", letterSpacing: "0.08em" }}>{t("tx.amount", "Kwota")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input type="number" inputMode="decimal" value={form.amount}
+            <input type="text" inputMode="decimal" value={form.amount}
               onChange={e => setForm(f => ({...f, amount: e.target.value}))}
               placeholder="0.00"
               style={{ flex: 2, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10,
@@ -856,7 +856,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
           {form.currency && form.amount && form.currency !== getDisplayCurrency() && (() => {
             const r  = form.currency === "PLN" ? 1 : getRate(form.currency);
             const safeRate = isFinite(r) ? r : 1;
-            const plnValue = parseFloat(form.amount) * safeRate;
+            const plnValue = parseFloat(String(form.amount).replace(",", ".")) * safeRate;
             const dispIsPLN = getDisplayCurrency() === "PLN";
             return (
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

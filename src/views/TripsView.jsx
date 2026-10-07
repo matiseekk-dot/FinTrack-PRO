@@ -539,7 +539,7 @@ function TripDetails({ trip, cost, transactions, setTransactions, setAccounts, d
           </div>
           <Input label={t("trips.what", "Za co")} placeholder={t("trips.whatPh", "np. kolacja, Airbnb")} value={friendForm.desc} onChange={e => setFriendForm(f => ({ ...f, desc: e.target.value }))}/>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1.4 }}><Input label={t("trips.amount", "Kwota")} type="number" inputMode="decimal" step="0.01" value={friendForm.amount} onChange={e => setFriendForm(f => ({ ...f, amount: e.target.value }))}/></div>
+            <div style={{ flex: 1.4 }}><Input label={t("trips.amount", "Kwota")} type="text" inputMode="decimal" step="0.01" value={friendForm.amount} onChange={e => setFriendForm(f => ({ ...f, amount: e.target.value }))}/></div>
             <div style={{ flex: 1 }}>
               <Select label={t("tx.currency", "Waluta")} value={friendForm.currency} onChange={e => setFriendForm(f => ({ ...f, currency: e.target.value }))}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
@@ -575,7 +575,7 @@ function TripModal({ trip, setTrip, onClose, onSave, onDelete, onArchive }) {
         <Input label={t("trips.dateTo")} type="date" value={trip.dateTo} onChange={e => set({ dateTo: e.target.value })}/>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <div style={{ flex: 1.4 }}><Input label={t("trips.budgetOpt", "Budżet (opcjonalnie)")} type="number" inputMode="decimal" value={trip.budget} onChange={e => set({ budget: e.target.value })} placeholder="0"/></div>
+        <div style={{ flex: 1.4 }}><Input label={t("trips.budgetOpt", "Budżet (opcjonalnie)")} type="text" inputMode="decimal" value={trip.budget} onChange={e => set({ budget: e.target.value })} placeholder="0"/></div>
         <div style={{ flex: 1 }}>
           <Select label={t("tx.currency", "Waluta")} value={trip.budgetCurrency || "PLN"} onChange={e => set({ budgetCurrency: e.target.value })}>
             {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}

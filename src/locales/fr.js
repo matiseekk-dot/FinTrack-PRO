@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "ex. VWCE, IWDA, LVMH, ISIN",
   "inv.livePriceNow2": "Prix actuel : {price} par {unit} ({source})",
   "inv.priceLive2": "Prix {source} · {date}",
+  "settings.account.deleteConfirm": "Supprimer votre compte ? Toutes vos données disparaîtront — dans le cloud et sur cet appareil. C'est irréversible. Pour les garder, exportez d'abord une copie vers Excel.",
+  "settings.account.deleteErr": "Impossible de supprimer le compte. Reconnectez-vous et réessayez.",
+  "settings.account.delete": "Supprimer le compte et toutes les données",
 };

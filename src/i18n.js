@@ -427,6 +427,9 @@ const TRANSLATIONS = {
     "tx.fx.source": "NBP rate (Table A) from {date}",
     "tx.fx.offline": "Offline rate (from {date}) — check your connection",
     // Sidegig v2.4.0 — języki
+    "settings.account.deleteConfirm": "Delete your account? All your data will be gone — in the cloud and on this device. This can't be undone. If you want to keep it, export a copy to Excel first.",
+    "settings.account.deleteErr": "Couldn't delete the account. Sign in again and try once more.",
+    "settings.account.delete": "Delete account and all data",
     "scan.webLimit": "Many games and local books aren't in the databases a browser can reach. In the Android app we also search the Polish National Library and a large product-code database. Type the title — we'll keep the code.",
     "inv.liveAt2": "Live prices · {time}",
     "inv.liveRefresh2": "Refresh live prices",

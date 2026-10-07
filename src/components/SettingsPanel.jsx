@@ -22,7 +22,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
                          vacationArchive = [], partnerName = "Partner", onClearData,
-                         user = null, onSignIn, onSignOut,
+                         user = null, onSignIn, onSignOut, onDeleteAccount,
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
                          trips = [], hobbies = [], portfolio = [],
                          // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
@@ -530,7 +530,17 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
               flex: "none", background: "none", border: "1px solid #1e3a5f", borderRadius: 10, padding: "9px 14px", color: "#94a3b8", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
             }}>{t("app.signOut", "Wyloguj")}</button>
           </div>
-        ) : <>
+        ) : null}
+        {user && onDeleteAccount && (
+          <button onClick={async () => {
+            if (!window.confirm(t("settings.account.deleteConfirm", "Usunąć konto? Znikną wszystkie Twoje dane — w chmurze i na tym urządzeniu. Tego nie da się cofnąć. Jeśli chcesz je zachować, najpierw wyeksportuj kopię do Excela."))) return;
+            try { await onDeleteAccount(); onClose(); }
+            catch (e) { alert(t("settings.account.deleteErr", "Nie udało się usunąć konta. Zaloguj się ponownie i spróbuj jeszcze raz.")); console.error("[account] delete", e); }
+          }} style={{ background: "none", border: "none", padding: 0, margin: "-4px 0 14px", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+            {t("settings.account.delete", "Usuń konto i wszystkie dane")}
+          </button>
+        )}
+        {!user && <>
           <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
             {t("settings.account.guest", "Korzystasz bez konta — dane są tylko na tym urządzeniu. Połącz konto Google, żeby mieć kopię w chmurze i używać Sidegig na kilku urządzeniach. Twoje wpisy zostaną.")}
           </p>

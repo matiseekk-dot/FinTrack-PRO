@@ -20,7 +20,7 @@ function AmountModal({ title, desc, label, value, onSave, onClear, onClose }) {
       {desc && <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 14 }}>{desc}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <div style={{ flex: 1.6 }}>
-          <Input label={label} type="number" inputMode="decimal" step="1" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}/>
+          <Input label={label} type="text" inputMode="decimal" step="1" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}/>
         </div>
         <div style={{ flex: 1 }}>
           <Select label={t("tx.currency", "Waluta")} value={currency} onChange={e => setCurrency(e.target.value)}>

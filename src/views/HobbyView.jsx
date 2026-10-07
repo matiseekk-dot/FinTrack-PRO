@@ -313,7 +313,7 @@ function HobbyModal({ hobby, setHobby, allCats, onClose, onSave }) {
           {t("hobby.targetHelp")}
         </div>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
           value={hobby.yearlyTarget}
           onChange={e => setHobby({ ...hobby, yearlyTarget: e.target.value })}

@@ -268,13 +268,13 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
           )}
           <Input label={t("gig.what", "Za co")} value={form.title} onChange={e => setF({ title: e.target.value })} placeholder={t("gig.whatPh", "np. Landing page, logo, tłumaczenie")}/>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1.4 }}><Input label={t("gig.amount", "Kwota")} type="number" inputMode="decimal" step="0.01" value={form.amount} onChange={e => setF({ amount: e.target.value })}/></div>
+            <div style={{ flex: 1.4 }}><Input label={t("gig.amount", "Kwota")} type="text" inputMode="decimal" step="0.01" value={form.amount} onChange={e => setF({ amount: e.target.value })}/></div>
             <div style={{ flex: 0.9 }}>
               <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </div>
-            <div style={{ flex: 0.9 }}><Input label={t("gig.hours", "Godziny")} type="number" inputMode="decimal" step="0.5" placeholder="—" value={form.hours} onChange={e => setF({ hours: e.target.value })}/></div>
+            <div style={{ flex: 0.9 }}><Input label={t("gig.hours", "Godziny")} type="text" inputMode="decimal" step="0.5" placeholder="—" value={form.hours} onChange={e => setF({ hours: e.target.value })}/></div>
           </div>
 
           <div style={fieldLabel}>{t("gig.statusLabel", "Status")}</div>
@@ -305,7 +305,7 @@ function FreelanceView({ gigs = [], setGigs, transactions, setTransactions, setA
           <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.55, marginBottom: 14 }}>
             {t("gig.reserveDesc", "Podaj, jaki procent zarobionego na czysto chcesz odkładać. Sidegig tylko liczy kwotę — stawkę dobierz do swojej formy rozliczenia.")}
           </div>
-          <Input label="%" type="number" inputMode="decimal" step="0.5" placeholder="12" value={taxForm.pct} onChange={e => setTaxForm({ pct: e.target.value })}/>
+          <Input label="%" type="text" inputMode="decimal" step="0.5" placeholder="12" value={taxForm.pct} onChange={e => setTaxForm({ pct: e.target.value })}/>
           <button onClick={() => { setTaxReservePct(taxForm.pct); setTaxPct(getTaxReservePct()); setTaxForm(null); }} style={primaryBtn}>
             {t("common.save", "Zapisz")}
           </button>

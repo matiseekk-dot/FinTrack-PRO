@@ -54,6 +54,9 @@ function rentStatus(p, ym, transactions, today) {
     .reduce((s, tx) => s + (tx.origCurrency === cur && tx.origAmount != null ? Math.abs(tx.origAmount) : (cur === "PLN" ? tx.amount : tx.amount / (tx.fxRate || 1))), 0);
   const rent = Number(p.rent);
   if (paid >= rent - 0.005) return { state: "paid", paid, due };
+  // Miesiące sprzed dodania miejsca do aplikacji: brak wpisu ≠ zaległość (najem trwał, a my o nim nie wiedzieliśmy)
+  const tracked = p.createdAt && ymOf(p.createdAt) > ymOf(p.since || "") ? ymOf(p.createdAt) : null;
+  if (tracked && ym < tracked) return { state: "none", paid, due };
   if (today > due) return { state: paid > 0 ? "partial" : "late", paid, due, missing: rent - paid };
   const days = Math.round((new Date(`${due}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000);
   return { state: days <= 5 ? "due" : "upcoming", paid, due, missing: rent - paid, days };

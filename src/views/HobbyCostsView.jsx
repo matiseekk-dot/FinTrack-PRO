@@ -399,7 +399,7 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
             {SUB_KINDS.map(k => <Chip key={k.id} on={form.kind === k.id} color={k.color} onClick={() => setF({ kind: k.id, kindTouched: true })}>{subKindLabel(k.id, lang)}</Chip>)}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1.4 }}><Input label={t("sub.price", "Cena")} type="number" inputMode="decimal" step="0.01" value={form.amount} onChange={e => setF({ amount: e.target.value })}/></div>
+            <div style={{ flex: 1.4 }}><Input label={t("sub.price", "Cena")} type="text" inputMode="decimal" step="0.01" value={form.amount} onChange={e => setF({ amount: e.target.value })}/></div>
             <div style={{ flex: 1 }}>
               <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setF({ currency: e.target.value })}>
                 {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}

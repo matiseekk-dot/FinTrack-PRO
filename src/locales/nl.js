@@ -1100,4 +1100,7 @@ export default {
   "inv.quotePh": "bijv. VWCE, IWDA, ASML, ISIN",
   "inv.livePriceNow2": "Prijs nu: {price} per {unit} ({source})",
   "inv.priceLive2": "Prijs van {source} · {date}",
+  "settings.account.deleteConfirm": "Account verwijderen? Al je gegevens verdwijnen — in de cloud en op dit apparaat. Dit kan niet ongedaan worden. Wil je ze bewaren, exporteer dan eerst een kopie naar Excel.",
+  "settings.account.deleteErr": "Het account kon niet worden verwijderd. Log opnieuw in en probeer het nog eens.",
+  "settings.account.delete": "Account en alle gegevens verwijderen",
 };

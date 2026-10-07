@@ -36,10 +36,13 @@ function Chip({ on, color = "#10b981", onClick, children }) {
 }
 
 function Stat({ label, value, color = "#e2e8f0" }) {
+  // Duże kwoty („152 608,35 zł”) mieszczą się mniejszą czcionką zamiast urwać się wielokropkiem
+  const len = String(value ?? "").length;
+  const size = len > 15 ? 10.5 : len > 12 ? 11.5 : 13;
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: size, fontWeight: 700, color, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
     </div>
   );
 }

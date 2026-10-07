@@ -122,7 +122,7 @@ function applyData(d, s) {
 const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby", "trips", "portfolio", "rental"];
 
 export default function App() {
-  const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
+  const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, deleteAccount, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
 
   const [tab,          setTab]          = useState("home");
   // Tryb bez konta: dane tylko na tym urządzeniu. Logowanie później łączy je z kontem (nic nie ginie).
@@ -524,6 +524,14 @@ export default function App() {
     setTimeout(() => { clearingRef.current = false; }, 2000);
   };
 
+  // Usunięcie konta: chmura + konto logowania (useFirebase), potem dane z tego urządzenia
+  const deleteAccountAndData = async () => {
+    clearingRef.current = true;
+    try { await deleteAccount(); }
+    catch (e) { clearingRef.current = false; throw e; }
+    await clearAllData();
+  };
+
   // Android: Wstecz zamyka najpierw otwarte okno, potem wraca z ekranu na Start,
   // a na Starcie (i na blokadzie PIN) minimalizuje aplikację.
   const backRef = useRef(null);
@@ -780,7 +788,7 @@ export default function App() {
         setCustomCats={setCustomCatsCap}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
-        user={user} onSignOut={signOutUser} onSignIn={signInGoogle} onClearData={clearAllData}
+        user={user} onSignOut={signOutUser} onSignIn={signInGoogle} onClearData={clearAllData} onDeleteAccount={deleteAccountAndData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
         prefs={prefs} subscriptions={subscriptions} rentals={rentals}

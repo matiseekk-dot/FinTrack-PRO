@@ -758,7 +758,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1.3 }}><Input label={t("coll.price", "Cena")} type="number" inputMode="decimal" step="0.01" placeholder={form.buyMode === "none" ? t("common.optional", "opcjonalnie") : "0"} value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
+                  <div style={{ flex: 1.3 }}><Input label={t("coll.price", "Cena")} type="text" inputMode="decimal" step="0.01" placeholder={form.buyMode === "none" ? t("common.optional", "opcjonalnie") : "0"} value={form.buyPrice} onChange={e => setF({ buyPrice: e.target.value })}/></div>
                   <div style={{ flex: 0.9 }}>
                     <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setCurrency(e.target.value)}>
                       {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
@@ -768,7 +768,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 </div>
               )}
 
-              <Input label={`${t("coll.estValue", "Szacowana wartość dziś")} · ${form.currency}`} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.value} onChange={e => setF({ value: e.target.value, valueTouched: true })}/>
+              <Input label={`${t("coll.estValue", "Szacowana wartość dziś")} · ${form.currency}`} type="text" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.value} onChange={e => setF({ value: e.target.value, valueTouched: true })}/>
               {(() => {
                 const v = num(form.value), p = num(form.buyPrice);
                 const fromDiscogs = !form.valueTouched && form.valueSource === "discogs" && form.valueAt;
@@ -794,7 +794,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
 
             </> : (
               <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ flex: 1.3 }}><Input label={t("coll.targetPrice", "Kupię do")} type="number" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.targetPrice} onChange={e => setF({ targetPrice: e.target.value })}/></div>
+                <div style={{ flex: 1.3 }}><Input label={t("coll.targetPrice", "Kupię do")} type="text" inputMode="decimal" step="0.01" placeholder={t("common.optional", "opcjonalnie")} value={form.targetPrice} onChange={e => setF({ targetPrice: e.target.value })}/></div>
                 <div style={{ flex: 0.9 }}>
                   <Select label={t("tx.currency", "Waluta")} value={form.currency} onChange={e => setCurrency(e.target.value)}>
                     {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
