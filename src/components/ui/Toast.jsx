@@ -9,7 +9,8 @@ function Toast({ message, type = "success", visible }) {
   return (
     <div style={{
       position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
-      zIndex: 999, background: c.bg, border: `1px solid ${c.border}`,
+      // Nad oknami (Modal 9999/10000) — błędy formularza muszą być widoczne; pod blokadą PIN
+      zIndex: 10050, background: c.bg, border: `1px solid ${c.border}`,
       borderRadius: 12, padding: "11px 18px",
       display: "flex", alignItems: "center", gap: 10,
       boxShadow: "0 4px 24px #00000088",

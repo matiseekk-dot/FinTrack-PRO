@@ -87,8 +87,8 @@ function isImmutableAsset(url) {
   if (url.pathname.endsWith(".png") || url.pathname.endsWith(".svg") ||
       url.pathname.endsWith(".woff2") || url.pathname.endsWith(".woff") ||
       url.pathname.endsWith(".ico")) return true;
-  // Vite chunk: /assets/{name}-{hash}.{js|css}
-  if (/\/assets\/.+-[A-Za-z0-9_]{8,}\.(js|css)$/.test(url.pathname)) return true;
+  // Vite chunk: /assets/{name}-{hash}.{js|css|wasm} (wasm = skaner kodów, ~1 MB — raz pobrany zostaje)
+  if (/\/assets\/.+-[A-Za-z0-9_]{8,}\.(js|css|wasm)$/.test(url.pathname)) return true;
   return false;
 }
 

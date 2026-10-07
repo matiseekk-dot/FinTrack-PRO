@@ -9,7 +9,7 @@
 
 import { Disc3, BookOpen, Gamepad2, Gem } from "lucide-react";
 import { newId, makeTx } from "./ledger.js";
-import { amountForDisplay } from "./fx.js";
+import { amountForDisplay, convert } from "./fx.js";
 import { itemProfit } from "./reselling.js";
 import { CATEGORIES } from "../constants.js";
 
@@ -163,6 +163,24 @@ function itemGain(it) {
   return Math.round((Number(it.value) - Number(it.buyPrice)) * 100) / 100;
 }
 
+/**
+ * Mediana Twoich cen sprzedaży rzeczy tego rodzaju (z tej kolekcji albo tej kategorii w Sprzedaży),
+ * w podanej walucie — podpowiedź wyceny, gdy nie ma ceny rynkowej (książki, gry). null, gdy < 3 sprzedaży.
+ */
+function salesMedian(hobby, items, resaleItems, currency) {
+  if (!hobby) return null;
+  const fromHere = new Set(items.filter(it => it.hobbyId === hobby.id).map(it => it.id));
+  const cat = KINDS[collectionKind(hobby)].resaleCategory;
+  const prices = resaleItems
+    .filter(r => r.status === "sold" && Number(r.sellPrice) > 0 && (fromHere.has(r.fromCollectionItemId) || r.category === cat))
+    .map(r => convert(Number(r.sellPrice), r.currency || "PLN", currency))
+    .sort((a, b) => a - b);
+  if (prices.length < 3) return null;
+  const mid = Math.floor(prices.length / 2);
+  const median = prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+  return { median: Math.round(median * 100) / 100, n: prices.length };
+}
+
 function sanitizeCollectionItems(value) {
   if (!Array.isArray(value)) return [];
   return value.filter(it => it && it.id != null && it.hobbyId != null && typeof it.title === "string");
@@ -171,5 +189,5 @@ function sanitizeCollectionItems(value) {
 export {
   KINDS, CONDITIONS,
   collectionKind, conditionLabel, itemTitle, itemState,
-  buildPurchaseTx, toResaleItem, collectionStats, itemGain, sanitizeCollectionItems,
+  buildPurchaseTx, toResaleItem, collectionStats, itemGain, salesMedian, sanitizeCollectionItems,
 };

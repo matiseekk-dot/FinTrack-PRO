@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink, Link2 } from "lucide-react";
+import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink, Link2, ScanBarcode } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -17,12 +17,13 @@ import { getHobbyExpenses, pickHobbyColor, txMatchesHobby, isRulesOnlyElsewhere 
 import { getModule } from "../lib/modules.js";
 import { guessHobby } from "../lib/hobbyMove.js";
 import { DiscogsModal, shiftDays } from "../components/DiscogsModal.jsx";
+import { ScanModal } from "../components/ScanModal.jsx";
 import { getSaved as getDiscogsSaved, needsPricing } from "../lib/discogs.js";
 import { matchPurchases, matchDuplicates, linkPurchase, mergeDuplicate, convertValue } from "../lib/collectionMatch.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
-  buildPurchaseTx, toResaleItem, collectionStats, itemGain,
+  buildPurchaseTx, toResaleItem, collectionStats, itemGain, salesMedian,
 } from "../lib/collections.js";
 
 const ACCENT = "#34d399";
@@ -149,6 +150,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
   // Zakupy z kolekcji spoza katalogu (np. dodane w Wpisach) — do szybkiego dopisania
   const [pickFromLedger, setPickFromLedger] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
+  const [scanMode, setScanMode] = useState(null); // null | "batch" | "single" (do formularza pozycji)
   const offCatalog = useMemo(() => open
     ? getHobbyExpenses(transactions, open).filter(tx => !linkedTxIds.has(tx.id))
     : [], [open, transactions, linkedTxIds]);
@@ -277,6 +279,9 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       buyTxId: owned && form.buyMode === "ledger" ? form.buyTxId : (owned && form.buyMode === "new" && old?.buyTxOwned ? old.buyTxId : null),
       buyTxOwned: owned && form.buyMode === "new",
       createdAt: old?.createdAt || today,
+      ...(form.barcode ? { barcode: form.barcode } : {}),
+      ...(form.year ? { year: form.year } : {}),
+      ...(form.discogs ? { discogs: form.discogs } : {}),
     };
 
     const oldOwnedTx = old?.buyTxOwned ? transactions.find(tx => tx.id === old.buyTxId) : null;
@@ -530,6 +535,20 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
             );
           })()}
 
+          <button onClick={() => setScanMode("batch")} style={{
+            all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
+            background: ACCENT + "14", border: `1px solid ${ACCENT}44`, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1", lineHeight: 1.45,
+          }}>
+            <ScanBarcode size={16} color={ACCENT}/>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: "block", fontWeight: 700, color: "#e2e8f0" }}>{t("scan.cardTitle", "Skanuj kody kreskowe")}</span>
+              {collectionKind(open) === "books" ? t("scan.cardBooks", "ISBN z okładki — tytuł i autor wpiszą się same. Cała półka w kilka minut.")
+                : collectionKind(open) === "vinyl" ? t("scan.cardVinyl", "Kod z okładki — tytuł, wykonawca i numer Discogs do wyceny.")
+                : t("scan.cardOther", "Kod z pudełka — tytuł wpisze się sam, jeśli jest w bazie. Dodawaj seriami.")}
+            </span>
+            <ChevronRight size={14} color={ACCENT}/>
+          </button>
+
           {collectionKind(open) === "vinyl" && (() => {
             const mineHere = items.filter(it => it.hobbyId === open.id);
             const fromDiscogs = mineHere.filter(it => it.discogs).length;
@@ -676,6 +695,14 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
               <Chip on={form.status === "wishlist"} color={STATE_COLORS.wishlist} onClick={() => setF({ status: "wishlist" })}>{t("coll.shelf.wishlist", "Lista życzeń")}</Chip>
             </div>
 
+            {form.editingId == null && (
+              <button type="button" onClick={() => setScanMode("single")} style={{
+                width: "100%", marginBottom: 14, background: ACCENT + "14", border: `1px solid ${ACCENT}55`, borderRadius: 12, padding: "11px 14px",
+                color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+                <ScanBarcode size={16}/> {form.barcode ? t("scan.again", "Zeskanuj inny kod") : t("scan.fill", "Skanuj kod — tytuł wpisze się sam")}
+              </button>
+            )}
             <Input label={t("coll.itemTitle", "Tytuł")} value={form.title} onChange={e => setF({ title: e.target.value })}
               placeholder={kind === "vinyl" ? "OK Computer" : kind === "books" ? t("coll.titlePhBook", "np. Diuna") : kind === "games" ? "Elden Ring" : ""}/>
             <Input label={kind === "vinyl" ? t("coll.artist", "Wykonawca") : kind === "books" ? t("coll.author", "Autor") : kind === "games" ? t("coll.studio", "Studio / wydawca") : t("coll.creator", "Twórca")}
@@ -746,6 +773,14 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 const v = num(form.value), p = num(form.buyPrice);
                 const fromDiscogs = !form.valueTouched && form.valueSource === "discogs" && form.valueAt;
                 const gain = isFinite(v) && v > 0 && isFinite(p) && p > 0 ? v - p : null;
+                const hint = !form.value && salesMedian(formHobby, items, resaleItems, form.currency);
+                if (hint) return (
+                  <button type="button" onClick={() => setF({ value: String(hint.median), valueTouched: true })} style={{
+                    display: "block", margin: "-6px 0 14px", background: "none", border: "none", padding: 0, color: ACCENT, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", lineHeight: 1.45,
+                  }}>
+                    {t("coll.medianHint", "Wstaw medianę Twoich sprzedaży: {amount} (z {n})").replace("{amount}", fmtCurrency(hint.median, form.currency)).replace("{n}", hint.n)}
+                  </button>
+                );
                 if (gain == null && !fromDiscogs) return null;
                 return (
                   <div style={{ fontSize: 12, color: "#94a3b8", margin: "-6px 0 14px", lineHeight: 1.5 }}>
@@ -877,6 +912,28 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           </button>
         </>}
       </Modal>
+
+      {scanMode && (scanMode === "single" ? formHobby : open) && (
+        <ScanModal hobby={scanMode === "single" ? formHobby : open} items={items} setItems={setItems} today={today} mode={scanMode}
+          initialStatus={shelf === "wishlist" ? "wishlist" : "owned"}
+          salesHint={salesMedian(open, items, resaleItems, getDisplayCurrency())}
+          onClose={() => setScanMode(null)}
+          onAdded={(n) => { setScanMode(null); setShelf("owned"); showToast(t("scan.added", "Dodano: {n} ✓").replace("{n}", n)); }}
+          onPick={(r) => {
+            setScanMode(null);
+            const fmts = KINDS[kind].formats[lang] || KINDS[kind].formats.en;
+            // Wpisane ręcznie zostaje, gdy baza czegoś nie zna; dane z poprzedniego skanu — zastępujemy
+            setForm(f => f && ({
+              ...f, barcode: r.code,
+              title: r.title || (f.barcode ? "" : f.title),
+              creator: r.creator || (f.barcode ? "" : f.creator),
+              format: fmts.includes(r.format) ? r.format : (f.barcode ? "" : f.format),
+              year: r.year || null, discogs: r.discogs || null,
+            }));
+            if (r.dup) showToast(t("scan.youHave", "Już masz: {title}").replace("{title}", r.dup), "error", 3500);
+            else if (!r.found) showToast(t("scan.notFoundToast", "Nie ma tego kodu w bazach — wpisz tytuł, kod zapiszemy."), "error", 3500);
+          }}/>
+      )}
 
       {discogsOpen && open && (
         <DiscogsModal hobby={open} items={items} setItems={setItems} today={today} onClose={() => setDiscogsOpen(false)}/>

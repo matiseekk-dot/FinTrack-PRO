@@ -93,6 +93,34 @@ function needsPricing(it, staleBefore) {
   return it.value == null || !it.valueAt || it.valueAt < staleBefore || it.valueCur !== (it.currency || "EUR");
 }
 
+/** Wydanie po kodzie kreskowym — wyszukiwarka Discogs działa tylko z tokenem. */
+async function searchBarcode(code, token) {
+  if (!token) return null;
+  const r = await get("/database/search", token, { barcode: code, type: "release", per_page: 10 });
+  // Tylko wydanie z dokładnie tym kodem (UPC bywa zapisany bez zera z przodu i ze spacjami)
+  const want = new Set([code, code.replace(/^0/, "")]);
+  return (r.results || []).find(x => (x.barcode || []).some(b => want.has(String(b).replace(/\D/g, "")))) || null;
+}
+
+/** Wynik wyszukiwania Discogs („Wykonawca - Tytuł”) → pola pozycji katalogu. */
+function mapSearchResult(r, lang) {
+  const names = (KINDS.vinyl.formats[lang] || KINDS.vinyl.formats.en);
+  const parts = String(r.title || "").split(" - ");
+  const artist = parts.length > 1 ? parts.shift() : "";
+  const f = (r.format || []).join(" ");
+  let format = "";
+  if (/vinyl/i.test(f)) format = /7"/.test(f) ? '7"' : /12"/.test(f) && !/\bLP\b/.test(f) ? '12"' : Number(r.format_quantity) >= 2 ? "2LP" : "LP";
+  else if (/\bCD\b/.test(f)) format = "CD";
+  else if (/cassette/i.test(f)) format = names[5];
+  else if (/box set/i.test(f)) format = names[6];
+  return {
+    title: parts.join(" - ") || "—",
+    creator: artist.replace(/\s\(\d+\)$/, "").replace(/\*$/, ""),
+    format, year: Number(r.year) || null,
+    discogs: { r: r.id, i: null },
+  };
+}
+
 /** Wartość całej kolekcji wg Discogs (min / mediana / max) — tylko z tokenem właściciela. */
 async function collectionValue(user, token) {
   if (!token) return null;
@@ -136,4 +164,4 @@ function mapRelease(entry, lang) {
   };
 }
 
-export { getSaved, save, markSynced, needsPricing, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease, DISCOGS_CURRENCIES };
+export { getSaved, save, markSynced, needsPricing, searchBarcode, mapSearchResult, fetchFolders, fetchReleases, lowestPrice, collectionValue, mapRelease, DISCOGS_CURRENCIES };

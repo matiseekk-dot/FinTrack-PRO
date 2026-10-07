@@ -1,7 +1,7 @@
 {
   "name": "fintrack-pro",
   "private": true,
-  "version": "2.10.1",
+  "version": "2.11.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,12 +20,14 @@
     "@capacitor/splash-screen": "^8.0.2",
     "@capawesome/capacitor-app-shortcuts": "^8.0.2",
     "@capgo/capacitor-social-login": "^8.5.12",
+    "barcode-detector": "^3.2.2",
     "firebase": "^10.12.0",
     "lucide-react": "^0.383.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "2.9.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zxing-wasm": "3.1.3"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
