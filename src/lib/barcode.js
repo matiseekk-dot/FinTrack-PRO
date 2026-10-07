@@ -110,12 +110,26 @@ async function lookupBook(isbn) {
   if (b && b.title) {
     return { title: clean(b.title), creator: (b.authors || []).map(a => clean(a.name)).filter(Boolean).join(", "), year: yearOf(b.publish_date) };
   }
-  // Google Books: bez klucza wspólny limit jest zawsze wyczerpany — używamy klucza projektu
+  // Google Books: bez klucza wspólny limit jest zawsze wyczerpany — używamy klucza projektu.
+  // Zapytanie „isbn:…” zwraca dziś zero wyników, a sam numer szuka też w treści książek —
+  // bierzemy więc tylko wynik, którego ISBN naprawdę się zgadza.
   const key = auth && auth.app && auth.app.options && auth.app.options.apiKey;
-  const gb = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}${key ? `&key=${key}` : ""}`);
-  const v = gb && gb.items && gb.items[0] && gb.items[0].volumeInfo;
+  const gb = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=${isbn}&maxResults=10${key ? `&key=${key}` : ""}`);
+  const want = new Set([isbn, isbn13to10(isbn)].filter(Boolean));
+  const hit = ((gb && gb.items) || []).find(it => ((it.volumeInfo && it.volumeInfo.industryIdentifiers) || [])
+    .some(id => want.has(String(id.identifier || "").replace(/[^0-9X]/gi, "").toUpperCase())));
+  const v = hit && hit.volumeInfo;
   if (v && v.title) return { title: clean(v.title), creator: (v.authors || []).map(clean).join(", "), year: yearOf(v.publishedDate) };
   return null;
+}
+
+/** ISBN-13 (978…) → ISBN-10 (do porównania z danymi, które mają tylko stary numer). */
+function isbn13to10(isbn) {
+  if (!/^978\d{10}$/.test(isbn)) return null;
+  const core = isbn.slice(3, 12);
+  const sum = core.split("").reduce((a, d, i) => a + Number(d) * (10 - i), 0);
+  const check = (11 - (sum % 11)) % 11;
+  return core + (check === 10 ? "X" : String(check));
 }
 
 // Biblioteka Narodowa: „Ostatnie życzenie / Wiedźmin Wiedźmin” → „Ostatnie życzenie”
