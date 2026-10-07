@@ -72,7 +72,7 @@ const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  *
  * Z tombstones: union remote+local FILTRUJE wszystkie ID które są w tombstones.
  */
-function mergeSnapshots(local, remote) {
+export function mergeSnapshots(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
 

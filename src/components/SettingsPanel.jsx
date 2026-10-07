@@ -20,7 +20,7 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
                          setPayments, setPaid, setGoals,
                          cycleDay, cycleDayHistory = [], setCycleDayHistory,
                          vacationArchive = [], partnerName = "Partner", onClearData,
-                         user = null,
+                         user = null, onSignIn, onSignOut,
                          // v1.5.1: nowe dane do pełnego exportu XLSX (trips/hobbies/portfolio)
                          trips = [], hobbies = [], portfolio = [],
                          // v2.1.0: przedmioty Sprzedaży + pełne przywracanie backupu przez applyData w App
@@ -513,6 +513,28 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
             <X size={18}/>
           </button>
         </div>
+
+        {/* Konto */}
+        <SectionTitle>👤 {t("settings.account.title", "Konto")}</SectionTitle>
+        {user ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+              <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{user.email || user.displayName}</span>
+              <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>{t("settings.account.syncOn", "Dane synchronizują się z chmurą.")}</span>
+            </div>
+            <button onClick={() => { if (window.confirm(`${t("app.signOutConfirm", "Wylogować się z konta")} ${user.displayName || user.email}?`)) { onClose(); onSignOut && onSignOut(); } }} style={{
+              flex: "none", background: "none", border: "1px solid #1e3a5f", borderRadius: 10, padding: "9px 14px", color: "#94a3b8", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}>{t("app.signOut", "Wyloguj")}</button>
+          </div>
+        ) : <>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
+            {t("settings.account.guest", "Korzystasz bez konta — dane są tylko na tym urządzeniu. Połącz konto Google, żeby mieć kopię w chmurze i używać Sidegig na kilku urządzeniach. Twoje wpisy zostaną.")}
+          </p>
+          <button onClick={() => onSignIn && onSignIn()} style={{
+            width: "100%", background: "#1e40af", border: "none", borderRadius: 12, padding: "12px 0", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 14,
+          }}>{t("app.guestConnect", "Połącz z Google")}</button>
+        </>}
+        <Divider/>
 
         {/* Eksport */}
         <SectionTitle>📤 {t("settings.export.title", "Eksport danych")}</SectionTitle>

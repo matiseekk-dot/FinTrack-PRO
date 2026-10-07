@@ -3,7 +3,7 @@ import { FontLoader } from "./FontLoader.jsx";
 import { t } from "../i18n.js";
 import { sitePage, linkProps } from "../lib/native.js";
 
-function LoginScreen({ onSignIn, loading, syncError }) {
+function LoginScreen({ onSignIn, onGuest, loading, syncError }) {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -91,6 +91,20 @@ function LoginScreen({ onSignIn, loading, syncError }) {
         )}
       </button>
 
+      {onGuest && (
+        <button onClick={onGuest} disabled={loading || pressed} style={{
+          width: "100%", marginTop: 10, background: "none", border: "1px solid #1e3a5f", borderRadius: 14, padding: "14px 0",
+          color: "#cbd5e1", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+        }}>
+          {t("login.guest", "Wypróbuj bez konta")}
+        </button>
+      )}
+      {onGuest && (
+        <div style={{ fontSize: 11, color: "#475569", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
+          {t("login.guestHint", "Dane zostaną tylko na tym urządzeniu. Konto Google możesz połączyć później — nic nie zginie.")}
+        </div>
+      )}
+
       {syncError && (
         <div style={{ fontSize: 13, color: "#ef4444", marginTop: 12, textAlign: "center",
           background: "#1a0808", border: "1px solid #7f1d1d44", borderRadius: 10, padding: "10px 16px" }}>
@@ -98,7 +112,7 @@ function LoginScreen({ onSignIn, loading, syncError }) {
         </div>
       )}
       <div style={{ fontSize: 11, color: "#334155", marginTop: 16, textAlign: "center", lineHeight: 1.8 }}>
-        {t("login.terms.prefix", "Logując się akceptujesz")}{" "}
+        {t("login.terms.prefix2", "Korzystając z Sidegig akceptujesz")}{" "}
         <a {...linkProps(sitePage("terms.html"))}
           style={{ color: "#475569", textDecoration: "underline" }}>
           {t("login.terms.tos", "Regulamin")}

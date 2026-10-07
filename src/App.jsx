@@ -23,6 +23,7 @@ import { sanitizeGigs } from "./lib/freelance.js";
 import { saveToStorage, loadFromStorage } from "./data/storage.js";
 import { todayLocal, getCurrentCycleMonth } from "./utils.js";
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_PAYMENTS, INITIAL_PAID, INITIAL_GOALS, getAllCats } from "./constants.js";
+import { mergeGuestIntoAccount } from "./lib/guest.js";
 import { useFirebase } from "./hooks/useFirebase.js";
 import { PinScreen, PIN_ENABLED_KEY } from "./components/PinLock.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
@@ -120,6 +121,15 @@ export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
 
   const [tab,          setTab]          = useState("home");
+  // Tryb bez konta: dane tylko na tym urządzeniu. Logowanie później łączy je z kontem (nic nie ginie).
+  const [guest, setGuest] = useState(() => { try { return localStorage.getItem("ft_guest") === "1"; } catch { return false; } });
+  const guestRef = useRef(guest);
+  guestRef.current = guest;
+  const startGuest = () => { try { localStorage.setItem("ft_guest", "1"); } catch { /* bez pamięci */ } setGuest(true); };
+  const [guestNudgeHidden, setGuestNudgeHidden] = useState(() => {
+    try { return Date.now() - Number(localStorage.getItem("ft_guest_nudge") || 0) < 7 * 86400000; } catch { return false; }
+  });
+  const hideGuestNudge = () => { setGuestNudgeHidden(true); try { localStorage.setItem("ft_guest_nudge", String(Date.now())); } catch { /* bez pamięci */ } };
   // Sidegig: włączone moduły (null = setup jeszcze nie zrobiony → onboarding Sidegig)
   const [modules,      setModules]      = useState(null);
   // true gdy Firestore load się zakończył (albo nie ma czego ładować) — onboarding czeka na to,
@@ -337,8 +347,11 @@ export default function App() {
     loadFromFirestore(user.uid).then(d => {
       if (cancelled) return;
       setRemoteChecked(true);
+      // Pierwsze logowanie po korzystaniu bez konta: łączymy dane z telefonu z tymi z konta
+      const fromGuest = guestRef.current;
+      if (fromGuest) { try { localStorage.removeItem("ft_guest"); } catch { /* bez pamięci */ } setGuest(false); }
       if (d) {
-        applyData(d, setters);
+        applyData(fromGuest ? mergeGuestIntoAccount(stateRef.current, d, mergeSnapshots) : d, setters);
         if (!onboarded && (d.transactions?.length > 0 || d.payments?.length > 0)) {
           localStorage.setItem("ft_onboarded", "1");
           setOnboarded(true);
@@ -518,7 +531,7 @@ export default function App() {
   useEffect(() => { initNative({ onBack: () => backRef.current(), onShortcut: (id) => setPendingAction(id) }); }, []);
 
   useEffect(() => {
-    if (!pendingAction || !loaded || !user || !modules || pinLocked || setupOpen) return;
+    if (!pendingAction || !loaded || (!user && !guest) || !modules || pinLocked || setupOpen) return;
     const action = pendingAction;
     setPendingAction(null);
     setSettingsOpen(false);
@@ -530,7 +543,7 @@ export default function App() {
       setTab("home");
       setQuickAddOpen(true);
     }
-  }, [pendingAction, loaded, user, modules, pinLocked, setupOpen]);
+  }, [pendingAction, loaded, user, guest, modules, pinLocked, setupOpen]);
   // Widok modułu przeczytał openAdd przy montowaniu (efekty dzieci biegną przed rodzicem)
   useEffect(() => { if (addOnMount) setAddOnMount(false); }, [addOnMount]);
 
@@ -592,7 +605,7 @@ export default function App() {
   );
 
   // Login
-  if (!user) return <LoginScreen onSignIn={signInGoogle} loading={authLoading} syncError={syncError}/>;
+  if (!user && !guest) return <LoginScreen onSignIn={signInGoogle} onGuest={startGuest} loading={authLoading} syncError={syncError}/>;
 
   // Setup Sidegig — raz dla każdego (także dla użytkowników FinTrack po aktualizacji)
   // oraz ponownie z Więcej → Moduły. Użytkownik z danymi dostaje moduły zaznaczone
@@ -661,12 +674,17 @@ export default function App() {
               <span title={t("app.syncError", "Błąd sync")} style={{ fontSize: 10, fontWeight: 700, color: "#ef4444", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{t("app.syncError", "Błąd sync")}</span>
             </div>
           )}
-          <div style={{ position: "relative" }}>
+          {!user && (
+            <button onClick={() => signInGoogle()} style={{ display: "flex", alignItems: "center", gap: 5, background: "#0a1e3a", border: "1px solid #1e40af66", borderRadius: 10, padding: "6px 10px", cursor: "pointer", color: "#93c5fd", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>
+              <Cloud size={12}/> {t("app.guestSignIn", "Zapisz w chmurze")}
+            </button>
+          )}
+          {user && <div style={{ position: "relative" }}>
             <button
               onClick={() => {
                 if (window.confirm(`${t("app.signOutConfirm", "Wylogować się z konta")} ${user.displayName || user.email}?`)) signOutUser();
               }}
-              title={`Wyloguj: ${user.displayName || user.email}`}
+              title={`${t("app.signOut", "Wyloguj")}: ${user.displayName || user.email}`}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 2,
                 borderRadius: "50%", transition: "opacity 0.2s" }}
             >
@@ -677,13 +695,27 @@ export default function App() {
                   </div>
               }
             </button>
-          </div>
+          </div>}
           <Settings size={17} color="#475569" style={{ cursor: "pointer" }} onClick={() => setSettingsOpen(true)}/>
         </div>
       </div>
 
       {/* Pages — key: po zmianie waluty głównej widoki liczą sumy od nowa */}
       <div key={`fx${fxEpoch}`} style={{ paddingBottom: 100 }}>
+        {!user && tab === "home" && !guestNudgeHidden && (transactions.length > 0 || trips.length > 0 || hobbies.length > 0 || portfolio.length > 0) && (
+          <div style={{ margin: "0 16px 12px", padding: "12px 14px", borderRadius: 14, background: "#0a1e3a", border: "1px solid #1e40af55", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <CloudOff size={16} color="#93c5fd" style={{ flexShrink: 0, marginTop: 2 }}/>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>
+                {t("app.guestNudge", "Twoje dane są tylko na tym telefonie. Połącz konto Google, żeby mieć kopię w chmurze i używać Sidegig na kilku urządzeniach.")}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button onClick={() => signInGoogle()} style={{ background: "#1e40af", border: "none", borderRadius: 9, padding: "7px 12px", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t("app.guestConnect", "Połącz z Google")}</button>
+                <button onClick={hideGuestNudge} style={{ background: "none", border: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("app.later", "Później")}</button>
+              </div>
+            </div>
+          </div>
+        )}
         {tab === "home"         && <ErrorBoundary><SidegigHome transactions={transactions} hobbies={hobbies} trips={trips} portfolio={portfolio} gigs={gigs} resaleItems={resaleItems} collectionItems={collectionItems} modules={enabledModules}
             onOpenModule={openModule}
             onAddTx={() => setQuickAddOpen(true)}
@@ -723,7 +755,7 @@ export default function App() {
         setCustomCats={setCustomCatsCap}
         defaultAcc={defaultAcc} setDefaultAcc={setDefaultAcc}
         vacationArchive={vacationArchive} partnerName={partnerName}
-        user={user} onSignOut={signOutUser} onClearData={clearAllData}
+        user={user} onSignOut={signOutUser} onSignIn={signInGoogle} onClearData={clearAllData}
         trips={trips} hobbies={hobbies} portfolio={portfolio} resaleItems={resaleItems} collectionItems={collectionItems} gigs={gigs} modules={modules}
         onRestoreFull={(d) => applyData(d, setters)}
         prefs={prefs} subscriptions={subscriptions}
