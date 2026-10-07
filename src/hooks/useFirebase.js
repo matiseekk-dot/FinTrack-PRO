@@ -252,7 +252,8 @@ export function useFirebase() {
       setSyncing(true);
       try {
         const payload = {};
-        SYNC_KEYS.forEach(k => { if (data[k] !== undefined) payload[k] = data[k]; });
+        // Firestore odrzuca cały zapis, gdy gdziekolwiek w danych jest undefined — serializacja JSON je usuwa
+        SYNC_KEYS.forEach(k => { if (data[k] !== undefined) payload[k] = JSON.parse(JSON.stringify(data[k])); });
         payload._lastModified = serverTimestamp();
         
         // Warning jeśli dokument robi się duży (90% limit) - prosta prewencja

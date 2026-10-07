@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { todayLocal } from "../utils.js";
 import { PinSettings } from "./PinLock.jsx";
-import { positionValues } from "../lib/accountTypes.js";
+import { holdingStats, kindOf, modeOf } from "../lib/investments.js";
 import { getLang, setLang, t, getLocale, LANGUAGES } from "../i18n.js";
 import { useBackHandler } from "../lib/backButton.js";
 import { isNative, sitePage, linkProps, shareFile } from "../lib/native.js";
@@ -192,20 +192,30 @@ function SettingsPanel({ open, onClose, accounts, transactions, budgets, payment
 
     // Sheet 11: Portfolio (v1.5.1) — pozycje inwestycyjne (już istniały w state ale nie były exportowane)
     if (portfolio && portfolio.length) {
-      const portRows = portfolio.map(p => ({
-        ID:           p.id,
-        Ticker:       p.ticker || "",
-        Nazwa:        p.name || "",
-        Ilość:        p.qty || 0,
-        Cena_średnia: p.avgPrice || 0,
-        Cena_aktualna:p.currentPrice || 0,
-        Wartość_PLN:  +positionValues(p).valuePLN.toFixed(2),
-        PnL_PLN:      +positionValues(p).pnlPLN.toFixed(2),
-        PnL_proc:     p.pnlPct != null ? p.pnlPct.toFixed(2) + "%" : "",
-        Konto:        p.account || "",
-        Waluta:       p.currency || "PLN",
-        Linked_Acc:   p.linkedAccId != null ? p.linkedAccId : "",
-      }));
+      // v2.12.0: pozycje różnych rodzajów (sztuki × cena albo wpłacono / wartość)
+      const portRows = portfolio.map(p => {
+        const s = holdingStats(p, todayLocal());
+        const units = modeOf(p) === "units";
+        return {
+          ID:            p.id,
+          Rodzaj:        kindOf(p),
+          Nazwa:         p.name || "",
+          Ticker:        p.ticker || "",
+          Gdzie:         p.platform || p.account || "",
+          Waluta:        s.currency,
+          Ilość:         units ? (p.qty || 0) : "",
+          Cena_średnia:  units ? (p.avgPrice || 0) : "",
+          Cena_aktualna: units ? (p.currentPrice ?? "") : "",
+          Wpłacono:      +s.cost.toFixed(2),
+          Wartość:       +s.value.toFixed(2),
+          Wynik:         +s.gain.toFixed(2),
+          Wynik_proc:    s.gainPct != null ? s.gainPct.toFixed(2) + "%" : "",
+          Oprocentowanie: p.rate != null ? p.rate : "",
+          Cena_z_dnia:   p.priceAt || "",
+          Zamknięta:     p.closed ? "tak" : "",
+          Zrealizowano:  p.realized != null ? p.realized : "",
+        };
+      });
       const wsPort = XLSX.utils.json_to_sheet(portRows);
       XLSX.utils.book_append_sheet(wb, wsPort, "Inwestycje");
     }

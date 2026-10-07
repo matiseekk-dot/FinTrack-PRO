@@ -11,7 +11,7 @@ import { isOverdue, freelanceStats } from "../lib/freelance.js";
 import { moneyForDisplay } from "../lib/prefs.js";
 import { subscriptionState, monthlyCost, daysUntil } from "../lib/subscriptions.js";
 import { AmountModal } from "../components/AmountModal.jsx";
-import { positionValues } from "../lib/accountTypes.js";
+import { portfolioTotals } from "../lib/investments.js";
 import { t, getLang } from "../i18n.js";
 
 const BRAND = "linear-gradient(135deg,#059669,#10b981)";
@@ -321,14 +321,16 @@ function SidegigHome({ transactions = [], hobbies = [], trips = [], portfolio = 
           : `${s.count} ${s.count === 1 ? t("home.entry", "wpis") : t("home.entries", "wpisy")} · ${[s.income > 0 && `+${fmtDisplay(s.income)}`, s.expense > 0 && `−${fmtDisplay(s.expense)}`].filter(Boolean).join(" / ")}`;
         // Inwestycje: wpłaty to nie strata. Pokazujemy je neutralnie, a po prawej wynik portfela.
         let right = s.count === 0 ? null : s.net;
+        // Inwestycje: po prawej dochód z miesiąca (dywidendy, odsetki, sprzedaż); wpłaty to nie wynik.
+        // Pod nazwą — ile portfel jest wart i ile na nim jesteś do przodu.
         if (id === "investments") {
-          const pnl = portfolio.reduce((sum, p) => sum + positionValues(p).pnlPLN, 0);
+          const tot = portfolioTotals(portfolio, today);
           const parts = [];
+          if (tot.count > 0) parts.push(`${t("home.portfolioValue", "portfel")} ${fmtDisplay(tot.value)} (${fmtDisplay(tot.gain, { showSign: true })})`);
           if (s.invested > 0) parts.push(`${t("home.invested", "wpłacono")} ${fmtDisplay(s.invested)}`);
           else if (s.invested < 0) parts.push(`${t("home.withdrawn", "wypłacono")} ${fmtDisplay(-s.invested)}`);
-          if (portfolio.length > 0) parts.push(t("home.portfolioResult", "wynik portfela"));
           if (parts.length) sub = parts.join(" · ");
-          right = portfolio.length > 0 ? pnl : (s.net !== 0 ? s.net : null);
+          right = s.net !== 0 ? s.net : null;
         }
         if (extras[id]) sub = s.count === 0 ? extras[id] : `${sub} · ${extras[id]}`;
         return (

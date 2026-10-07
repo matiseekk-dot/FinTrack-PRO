@@ -1,28 +1,11 @@
 /**
- * Wycena pozycji portfela i księgowanie wpisów na (ukrytym od 2.6.0) koncie.
+ * Księgowanie wpisów na (ukrytym od 2.6.0) koncie. Wycena pozycji portfela: lib/investments.js.
  *
  * Konta nie są już pokazywane w apce, ale zostają w danych: każdy wpis ma `acc`,
  * a saldo konta jest nadal aktualizowane, żeby stare dane i kopie zostały spójne.
  */
 
 import { getRate } from "./fx.js";
-
-/**
- * Wartość i wynik pozycji portfela w PLN (v2.4.0), liczone na bieżąco z ilości, cen
- * i waluty pozycji. Wcześniej valuePLN = ilość × cena bez kursu, więc pozycja w USD
- * była liczona jak w PLN. Dla pozycji bez ceny (stare dane) zostaje zapisane valuePLN.
- */
-function positionValues(p) {
-  if (!p) return { valuePLN: 0, pnlPLN: 0 };
-  const qty = Number(p.qty) || 0;
-  const cur = Number(p.currentPrice);
-  if (!isFinite(cur) || qty === 0) return { valuePLN: Number(p.valuePLN) || 0, pnlPLN: Number(p.pnlPLN) || 0 };
-  const code = (p.currency || "PLN").toUpperCase();
-  const rate = code === "PLN" ? 1 : getRate(code);
-  const r = isFinite(rate) && rate > 0 ? rate : 1;
-  const avg = Number(p.avgPrice) || 0;
-  return { valuePLN: qty * cur * r, pnlPLN: qty * (cur - avg) * r };
-}
 
 /**
  * Helper: przelicza tx.amount (zawsze w PLN) na walutę natywną konta.
@@ -48,4 +31,4 @@ function txAmountInAccountCurrency(account, tx) {
   return (Number(tx.amount) || 0) / rate;
 }
 
-export { positionValues, txAmountInAccountCurrency };
+export { txAmountInAccountCurrency };

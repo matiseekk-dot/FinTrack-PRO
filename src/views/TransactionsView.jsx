@@ -38,8 +38,13 @@ const catFor = (module, type, pickedCat) =>
   type === "expense" && CHIP_CATS[module] && CHIP_CATS[module].includes(pickedCat)
     ? pickedCat
     : (MODULE_DEFAULT_CAT[module] && MODULE_DEFAULT_CAT[module][type]) || (type === "income" ? "dodatkowe" : "zakupy");
+// Inwestycje: „capital” = wpłata/wypłata (przesunięcie pieniędzy, nie wynik); „result” = dywidenda,
+// odsetki, zysk albo prowizja/podatek/strata — liczy się do dochodu pobocznego.
+// Bez wyboru: wydatek = wpłata, przychód = dochód (dywidenda, odsetki).
+const invKindOf = (type, picked) => picked || (type === "income" ? "result" : "capital");
+const invCat = (type, picked) => invKindOf(type, picked) === "capital" ? "inwestycje" : (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], holdings = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -87,6 +92,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       module,
       type: INCOME_FIRST.includes(module) ? "income" : "expense",
       hobbyId: module === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null,
+      holdingId: module === "investments" ? (f.holdingId ?? null) : null, invKind: null,
       tripId: trip ? trip.id : null,
       currency: trip && trip.defaultCurrency && (!f.currency || f.currency === getDisplayCurrency()) ? trip.defaultCurrency : (f.currency || getDisplayCurrency()),
     };
@@ -107,6 +113,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       type: tx.amount > 0 ? "income" : "expense",
       currency: hasFx ? tx.origCurrency : "PLN",
       module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null, tripSplit: Array.isArray(tx.tripSplit) ? tx.tripSplit : null,
+      holdingId: tx.holdingId ?? null, invKind: module === "investments" ? (tx.cat === "inwestycje" ? "capital" : "result") : null,
       tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
       hobbyCat: HOBBY_CATS.includes(tx.cat) ? tx.cat : "wydarzenia",
     };
@@ -154,7 +161,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       showToast(t("tx.err.date", "Wprowadź poprawną datę"), "error");
       return;
     }
-    const finalCat = catFor(form.module, form.type, form.module === "hobby" ? form.hobbyCat : form.tripCat);
+    const finalCat = form.module === "investments" ? invCat(form.type, form.invKind) : catFor(form.module, form.type, form.module === "hobby" ? form.hobbyCat : form.tripCat);
     // Multi-currency (v1.4.1): dla nie-PLN pobierz HISTORYCZNY kurs z dnia tx,
     // nie dzisiejszy. NBP /tables/A/{date} z fallbackiem do najbliższego dnia
     // roboczego wstecz; offline → dzisiejszy kurs jako last resort.
@@ -197,6 +204,8 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
     } else if (editingId) { txData.tripId = null; txData.tripSplit = null; }
     if (form.module === "collections" && form.hobbyId != null) txData.hobbyId = form.hobbyId;
     else if (editingId) txData.hobbyId = null;
+    if (form.module === "investments" && form.holdingId != null) txData.holdingId = form.holdingId;
+    else if (editingId) txData.holdingId = null;
     // v1.4.1: dorzuć metadane FX dla tx walutowych. Tx w PLN nie mają tych pól
     // (oszczędność miejsca + backward compat — stare tx czytane jako PLN).
     // Edge case: edit walutowej → PLN MUSI explicit-null'ować stare pola,
@@ -579,7 +588,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
             ["expense", t("tx.type.expense", "Wydatek"), "#ef4444"],
             ["income",  t("tx.type.income", "Przychód"), "#10b981"],
           ].map(([v, l, c]) => (
-            <button key={v} type="button" onClick={() => setForm(f => ({ ...f, type: v }))} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif" }}>
+            <button key={v} type="button" onClick={() => setForm(f => ({ ...f, type: v, invKind: null }))} style={{ flex: 1, background: form.type === v ? c + "22" : "#060b14", border: `1px solid ${form.type === v ? c : "#1a2744"}`, color: form.type === v ? c : "#64748b", borderRadius: 10, padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'Space Grotesk', sans-serif" }}>
               {l}
             </button>
           ))}
@@ -654,6 +663,37 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
                     const c = getLocalCat(id);
                     return <button key={id} type="button" aria-pressed={form.tripCat === id} onClick={() => setForm(f => ({ ...f, tripCat: id }))} style={chip(form.tripCat === id, c.color)}>{c.label}</button>;
                   })}
+                </div>
+              </div>
+            )}
+          </>;
+        })()}
+
+        {form.module === "investments" && (() => {
+          const kind = invKindOf(form.type, form.invKind);
+          const opts = form.type === "income"
+            ? [["result", t("tx.inv.income", "Dochód: dywidenda, odsetki, zysk")], ["capital", t("tx.inv.withdraw", "Wypłata (zwrot wpłaconych pieniędzy)")]]
+            : [["capital", t("tx.inv.deposit", "Wpłata / zakup")], ["result", t("tx.inv.cost", "Koszt: prowizja, podatek, strata")]];
+          const openHoldings = (holdings || []).filter(h => !h.closed);
+          return <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={labelStyle}>{t("tx.inv.kind", "Rodzaj")}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {opts.map(([id, label]) => (
+                  <button key={id} type="button" aria-pressed={kind === id} onClick={() => setForm(f => ({ ...f, invKind: id }))} style={chip(kind === id, MODULES.investments.color)}>{label}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
+                {kind === "capital" ? t("tx.inv.capitalHint", "Przesunięcie pieniędzy — nie zmienia wyniku.") : t("tx.inv.resultHint", "Liczy się do dochodu pobocznego.")}
+              </div>
+            </div>
+            {openHoldings.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={labelStyle}>{t("tx.inv.holding", "Pozycja (opcjonalnie)")}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {openHoldings.slice(0, 12).map(h => (
+                    <button key={h.id} type="button" aria-pressed={form.holdingId === h.id} onClick={() => setForm(f => ({ ...f, holdingId: f.holdingId === h.id ? null : h.id }))} style={chip(form.holdingId === h.id, MODULES.investments.color)}>{h.name || h.ticker}</button>
+                  ))}
                 </div>
               </div>
             )}

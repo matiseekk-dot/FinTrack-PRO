@@ -115,7 +115,7 @@ function applyData(d, s) {
 }
 
 // Moduły z własnym ekranem; pozostałe otwierają przefiltrowane Wpisy
-const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby", "trips"];
+const MODULE_SCREENS = ["betting", "reselling", "collections", "freelance", "hobby", "trips", "portfolio"];
 
 export default function App() {
   const { user, authLoading, syncing, syncError, signInGoogle, signOutUser, loadFromFirestore, saveToFirestore, subscribeToUpdates, mergeSnapshots } = useFirebase();
@@ -701,8 +701,8 @@ export default function App() {
           {tab === "trips"        && <ErrorBoundary><TripsView trips={trips} setTrips={setTripsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc}
             onBack={() => setTab("home")} onAddExpense={(trip) => { setQuickAddModule("trips"); setQuickAddTrip(trip.id); setQuickAddOpen(true); }}
             addSignal={moduleAddSignal} openAdd={addOnMount} focusTripId={focusTrip} onFocusHandled={() => setFocusTrip(null)}/></ErrorBoundary>}
-          {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} onBack={() => setTab("home")}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
+          {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} month={viewMonth} onMonthChange={setViewMonth} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} holdings={portfolio} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -744,7 +744,7 @@ export default function App() {
           _onClose={() => { setQuickAddOpen(false); setQuickAddModule(null); setQuickAddTrip(null); }}
           _onModalClose={() => { setQuickAddOpen(false); setQuickAddModule(null); setQuickAddTrip(null); }}
           defaultAcc={defaultAcc}
-          trips={trips}
+          trips={trips} holdings={portfolio}
           modules={enabledModules} hobbies={hobbies}
           onOpenLinked={(tx) => { setQuickAddOpen(false); openLinkedTx(tx); }}
         />
