@@ -153,6 +153,55 @@ function applySell(h, { qty, total, date }) {
 const round2 = (n) => Math.round(n * 100) / 100;
 const round8 = (n) => Math.round(n * 1e8) / 1e8;
 
+/**
+ * Pozycja z tego, co pokazuje aplikacja brokera/banku — bez liczenia na kartce.
+ * Sztuki: ilość + koszt jednym ze sposobów: avg (średnia cena) | total (zapłacono łącznie) |
+ *   pl (zysk kwotą albo w %) | now (nie wiem — wynik od dziś); cena teraz za 1 szt. albo wartość łącznie
+ *   (albo cena na żywo). Wartość: wartość teraz + wpłacono | zysk kwotą/% | nie wiem.
+ * Zwraca { qty, avgPrice, price } albo { invested, value }; przy błędzie { err: "qty"|"avg"|"total"|"pl"|"price"|"value"|"invested" }.
+ */
+function fromBroker(f) {
+  const n = (v) => { const x = parseFloat(String(v ?? "").replace(",", ".")); return isFinite(x) ? x : null; };
+  const plOf = (value) => {
+    const pl = n(f.pl);
+    if (pl == null) return null;
+    if (f.plPct) return pl <= -100 ? null : value / (1 + pl / 100);
+    return value - pl;
+  };
+  if (f.mode === "units") {
+    const qty = n(f.qty);
+    if (!(qty > 0)) return { err: "qty" };
+    let price = f.livePrice != null ? f.livePrice : f.priceMode === "value" ? (n(f.valueNow) != null ? n(f.valueNow) / qty : null) : n(f.price);
+    if (price != null && !(price >= 0)) price = null;
+    let avg;
+    if (f.costMode === "avg") { avg = n(f.avg); if (avg == null || avg < 0) return { err: "avg" }; }
+    else if (f.costMode === "total") { const tot = n(f.total); if (tot == null || tot < 0) return { err: "total" }; avg = tot / qty; }
+    else if (f.costMode === "pl") {
+      if (price == null) return { err: "price" };
+      const cost = plOf(qty * price);
+      if (cost == null || !(cost >= 0)) return { err: "pl" };
+      avg = cost / qty;
+    } else {
+      if (price == null) return { err: "price" };
+      avg = price;
+    }
+    return { qty: round8(qty), avgPrice: Math.round(avg * 1e6) / 1e6, price: price != null ? Math.round(price * 1e6) / 1e6 : null };
+  }
+  const value = n(f.value);
+  if (f.costMode === "invested") {
+    const inv = n(f.invested);
+    if (!(inv > 0)) return { err: "invested" };
+    return { invested: round2(inv), value: value > 0 ? round2(value) : null };
+  }
+  if (!(value > 0)) return { err: "value" };
+  if (f.costMode === "pl") {
+    const inv = plOf(value);
+    if (inv == null || !(inv >= 0)) return { err: "pl" };
+    return { invested: round2(inv), value: round2(value) };
+  }
+  return { invested: round2(value), value: round2(value) };
+}
+
 // ── Ceny na żywo ────────────────────────────────────────────────────
 
 async function cgJson(url) {
@@ -203,5 +252,5 @@ async function fetchLivePrices(holdings) {
 
 export {
   KINDS, KIND_ORDER, PLATFORMS, kindOf, modeOf, holdingStats, portfolioTotals, valueNow,
-  applyBuy, applySell, searchCoins, fetchLivePrices, isLive,
+  applyBuy, applySell, searchCoins, fetchLivePrices, isLive, fromBroker,
 };

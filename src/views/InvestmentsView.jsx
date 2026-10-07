@@ -10,12 +10,12 @@ import {
 } from "../components/ModuleUI.jsx";
 import { fmtDisplay, fmtCurrency, todayLocal } from "../utils.js";
 import { t, getLocale } from "../i18n.js";
-import { SUPPORTED_CURRENCIES, getDisplayCurrency, txAmountForDisplay } from "../lib/fx.js";
+import { SUPPORTED_CURRENCIES, getDisplayCurrency, txAmountForDisplay, amountForDisplay } from "../lib/fx.js";
 import { newId, rateOnDate, makeTx, commitTxChanges } from "../lib/ledger.js";
 import { MODULES, moduleLabel, getModule, isCapitalFlow } from "../lib/modules.js";
 import {
   KINDS, KIND_ORDER, PLATFORMS, kindOf, modeOf, holdingStats, portfolioTotals, valueNow,
-  applyBuy, applySell, searchCoins, fetchLivePrices, isLive,
+  applyBuy, applySell, searchCoins, fetchLivePrices, isLive, fromBroker,
 } from "../lib/investments.js";
 
 const ACCENT = MODULES.investments.color;
@@ -107,21 +107,26 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
   // ── Dodawanie / edycja ───────────────────────────────────────────
   const blank = (kind = "etf") => ({
     id: null, kind, name: "", ticker: "", platform: "", currency: getDisplayCurrency(), coinId: null, unit: "g",
-    qty: "", total: "", price: "", invested: "", value: "", rate: "", startDate: today,
+    qty: "", costMode: KINDS[kind].mode === "units" ? "avg" : "invested", avg: "", total: "", pl: "", plPct: false,
+    priceMode: "unit", price: "", valueNow: "", livePrice: null, invested: "", value: "", rate: "", startDate: today,
+    pastRealized: "", pastIncome: "",
   });
   const startAdd = (kind) => setForm(blank(kind || "etf"));
   const startEdit = (h) => {
     const units = modeOf(h) === "units";
     setOpenId(null);
     setForm({
+      ...blank(kindOf(h)),
       id: h.id, kind: kindOf(h), name: h.name || h.ticker || "", ticker: h.ticker || "", platform: h.platform || "",
       currency: h.currency || "PLN", coinId: h.coinId || null, unit: h.unit || "g",
       qty: units && h.qty != null ? String(h.qty) : "",
-      total: units && h.qty != null && h.avgPrice != null ? String(Math.round(h.qty * h.avgPrice * 100) / 100) : "",
-      price: units && h.currentPrice != null ? String(h.currentPrice) : "",
+      costMode: units ? "avg" : "invested",
+      avg: units && h.avgPrice != null ? String(+Number(h.avgPrice).toPrecision(8)) : "",
+      price: units && h.currentPrice != null ? String(+Number(h.currentPrice).toPrecision(8)) : "",
       invested: !units && h.invested != null ? String(h.invested) : "",
       value: !units && h.value != null ? String(h.value) : "",
       rate: h.rate != null ? String(h.rate) : "", startDate: h.startDate || h.priceAt || today,
+      pastRealized: h.pastRealized != null ? String(h.pastRealized) : "", pastIncome: h.pastIncome != null ? String(h.pastIncome) : "",
     });
   };
   const firstAddSignal = useRef(openAdd ? null : addSignal);
@@ -140,24 +145,36 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
       coinId: f.kind === "crypto" ? f.coinId : null, unit: f.kind === "gold" ? f.unit : null,
       createdAt: old?.createdAt || today, closed: false,
     };
+    const r = fromBroker({ ...f, mode, livePrice: live ? f.livePrice : null });
+    if (r.err) {
+      const msg = {
+        qty: t("inv.err.qty", "Wpisz ilość"),
+        avg: t("inv.err.avg", "Wpisz średnią cenę zakupu"),
+        total: t("inv.err.total", "Wpisz kwotę zapłaconą łącznie"),
+        pl: t("inv.err.pl", "Wpisz zysk (stratę z minusem)"),
+        price: t("inv.err.price", "Wpisz cenę teraz albo wartość pozycji — bez niej nie policzę kosztu"),
+        value: t("inv.err.value", "Wpisz wartość teraz"),
+        invested: t("inv.err.invested", "Wpisz, ile wpłacono"),
+      }[r.err];
+      showToast(msg, "error", 3500);
+      return;
+    }
     let h;
     if (mode === "units") {
-      const qty = num(f.qty), total = num(f.total);
-      if (!isFinite(qty) || qty <= 0) { showToast(t("inv.err.qty", "Wpisz ilość"), "error"); return; }
-      const avg = isFinite(total) && total >= 0 ? total / qty : (old?.avgPrice ?? 0);
-      const price = num(f.price);
-      const priceChanged = isFinite(price) && price > 0 && price !== old?.currentPrice;
+      const fromLive = live && f.livePrice != null;
+      const price = r.price != null ? r.price : (old?.currentPrice ?? r.avgPrice);
+      const priceChanged = r.price != null && r.price !== old?.currentPrice;
       h = {
-        ...base, qty, avgPrice: Math.round(avg * 1e6) / 1e6,
-        currentPrice: isFinite(price) && price > 0 ? price : (old?.currentPrice ?? Math.round(avg * 1e6) / 1e6),
-        priceAt: priceChanged || !old ? today : old.priceAt, priceSource: live ? (old?.priceSource || "manual") : "manual",
+        ...base, qty: r.qty, avgPrice: r.avgPrice, currentPrice: price,
+        priceAt: priceChanged || !old ? today : old.priceAt,
+        priceSource: fromLive ? "coingecko" : live ? (old?.priceSource || "manual") : "manual",
+        ...(fromLive ? { priceTs: Date.now() } : {}),
         invested: null, value: null, rate: null,
       };
     } else {
-      const invested = num(f.invested), value = num(f.value), rate = num(f.rate);
-      if (!(isFinite(invested) && invested > 0) && !(isFinite(value) && value > 0)) { showToast(t("inv.err.amount", "Wpisz, ile wpłaciłeś albo ile to jest warte"), "error"); return; }
-      const inv = isFinite(invested) && invested > 0 ? invested : value;
-      const val = isFinite(value) && value > 0 ? value : inv;
+      const rate = num(f.rate);
+      const inv = r.invested;
+      const val = r.value != null ? r.value : inv;
       const valueChanged = !old || val !== old.value || f.startDate !== (old.startDate || old.priceAt);
       h = {
         ...base, invested: inv, value: val,
@@ -167,11 +184,15 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
         qty: null, avgPrice: null, currentPrice: null,
       };
     }
+    // Historia sprzed aplikacji — tylko do łącznego wyniku pozycji (bez wpisów)
+    const pr = num(f.pastRealized), pi = num(f.pastIncome);
+    h.pastRealized = isFinite(pr) && pr !== 0 ? pr : null;
+    h.pastIncome = isFinite(pi) && pi > 0 ? pi : null;
     // Pola po starym formacie (valuePLN, pnlPLN…) zostają w danych, ale nie są już źródłem prawdy
     setPortfolio(prev => old ? prev.map(x => x.id === h.id ? h : x) : [...prev, h]);
     setForm(null);
     showToast(old ? t("inv.toast.saved", "Zapisano ✓") : t("inv.toast.added", "Dodano do portfela ✓"));
-    if (live) setTimeout(() => refreshLive(true), 80);
+    if (live && !(f.livePrice != null)) setTimeout(() => refreshLive(true), 80);
   };
 
   const remove = (h) => {
@@ -369,6 +390,7 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
   const [coins, setCoins] = useState([]);
   const [coinBusy, setCoinBusy] = useState(false);
   const [coinErr, setCoinErr] = useState("");
+  const [showHist, setShowHist] = useState(!!(form.pastRealized || form.pastIncome));
 
   const findCoin = async () => {
     setCoinBusy(true); setCoinErr("");
@@ -377,10 +399,49 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
     setCoinBusy(false);
   };
 
-  const q = num(form.qty), total = num(form.total);
-  const avg = isFinite(q) && q > 0 && isFinite(total) ? total / q : null;
+  // Cena na żywo (krypto, złoto) już w formularzu — żeby od razu policzyć wynik z zysku brokera
+  const live = (form.kind === "crypto" && !!form.coinId) || form.kind === "gold";
+  const [liveState, setLiveState] = useState("idle"); // idle | busy | ok | err
+  useEffect(() => {
+    if (!live) { if (form.livePrice != null) set({ livePrice: null }); setLiveState("idle"); return undefined; }
+    let cancelled = false;
+    setLiveState("busy");
+    fetchLivePrices([{ id: "form", kind: form.kind, mode: "units", coinId: form.coinId, unit: form.unit, currency: form.currency }])
+      .then(r => { if (cancelled) return; set({ livePrice: r.form ?? null }); setLiveState(r.form != null ? "ok" : "err"); })
+      .catch(() => { if (!cancelled) { set({ livePrice: null }); setLiveState("err"); } });
+    return () => { cancelled = true; };
+  }, [live, form.kind, form.coinId, form.unit, form.currency]);
+
   const unitLabel = form.kind === "gold" ? (form.unit === "oz" ? "oz" : "g") : t("inv.pcs", "szt.");
   const platforms = PLATFORMS[form.kind] || [];
+  const cur = form.currency;
+  const r = fromBroker({ ...form, mode: K.mode, livePrice: live ? form.livePrice : null });
+  // Podgląd: koszt, wartość i wynik — do porównania z aplikacją brokera
+  const preview = (() => {
+    if (r.err) return null;
+    if (units) {
+      if (r.price == null) return null;
+      const cost = r.qty * r.avgPrice, value = r.qty * r.price;
+      return { cost, value, gain: value - cost, avg: r.avgPrice };
+    }
+    const value = r.value != null ? r.value : r.invested;
+    return { cost: r.invested, value, gain: value - r.invested };
+  })();
+  const costModes = units
+    ? [["avg", t("inv.cm.avg", "Średnia cena")], ["total", t("inv.cm.total", "Zapłacono łącznie")], ["pl", t("inv.cm.pl", "Zysk / strata")], ["now", t("inv.cm.now", "Nie wiem")]]
+    : [["invested", t("inv.cm.invested", "Wpłacono")], ["pl", t("inv.cm.pl", "Zysk / strata")], ["now", t("inv.cm.now", "Nie wiem")]];
+  const plInput = (
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+      <div style={{ flex: 1 }}>
+        <Input label={form.plPct ? t("inv.plPctLabel", "Zysk / strata w %") : `${t("inv.plLabel", "Zysk / strata")} · ${cur}`} type="text" inputMode="decimal"
+          value={form.pl} onChange={e => set({ pl: e.target.value })} placeholder={form.plPct ? "+8,5" : "+1200"}/>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+        <Chip on={!form.plPct} color={ACCENT} onClick={() => set({ plPct: false })}>{cur}</Chip>
+        <Chip on={!!form.plPct} color={ACCENT} onClick={() => set({ plPct: true })}>%</Chip>
+      </div>
+    </div>
+  );
 
   return (
     <Modal open onClose={onClose} title={form.id != null ? t("inv.editTitle", "Edytuj pozycję") : t("inv.newTitle", "Nowa pozycja")}>
@@ -388,7 +449,7 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
         {KIND_ORDER.map(k => (
           <Chip key={k} on={form.kind === k} color={KINDS[k].color}
-            onClick={() => set({ kind: k, ...(KINDS[k].mode !== K.mode ? { qty: "", total: "", price: "", invested: "", value: "" } : {}) })}>
+            onClick={() => set({ kind: k, ...(KINDS[k].mode !== K.mode ? { qty: "", avg: "", total: "", pl: "", price: "", valueNow: "", invested: "", value: "", costMode: KINDS[k].mode === "units" ? "avg" : "invested" } : {}) })}>
             {kindLabel(k)}
           </Chip>
         ))}
@@ -453,40 +514,89 @@ function HoldingForm({ form, setForm, onSave, onClose }) {
         {["PLN", ...SUPPORTED_CURRENCIES].map(c => <option key={c} value={c}>{c}</option>)}
       </Select>
 
-      {units ? <>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Input label={`${t("inv.qty", "Ilość")} (${unitLabel})`} type="number" inputMode="decimal" step="any" value={form.qty} onChange={e => set({ qty: e.target.value })} placeholder="0"/></div>
-          <div style={{ flex: 1 }}><Input label={t("inv.paidTotal", "Zapłacono łącznie")} type="number" inputMode="decimal" step="0.01" value={form.total} onChange={e => set({ total: e.target.value })} placeholder="0"/></div>
+      <div style={{ ...card, background: "#060b14", padding: "12px 12px 0", marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.45, marginBottom: 12 }}>
+          {t("inv.brokerHint", "Przepisz to, co pokazuje aplikacja brokera albo banku — resztę policzymy. Nie trzeba wpisywać każdego zakupu.")}
         </div>
-        {avg != null && (
-          <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 12px" }}>
-            {t("inv.avgLine", "Średnia cena: {price} za {unit}").replace("{price}", fmtCurrency(avg, form.currency)).replace("{unit}", unitLabel)}
-          </div>
+
+        {units ? <>
+          <Input label={`${t("inv.qtyNow", "Ile masz teraz")} (${unitLabel})`} type="text" inputMode="decimal" value={form.qty} onChange={e => set({ qty: e.target.value })} placeholder="0"/>
+
+          {live && liveState !== "err" ? (
+            <div style={{ fontSize: 12, color: "#94a3b8", margin: "-4px 0 14px" }}>
+              {liveState === "busy" ? t("inv.liveBusy", "Pobieram ceny…")
+                : t("inv.livePriceNow", "Cena teraz: {price} za {unit} (CoinGecko)").replace("{price}", fmtCurrency(form.livePrice, cur)).replace("{unit}", unitLabel)}
+            </div>
+          ) : <>
+            <div style={fieldLabel}>{t("inv.nowLabel", "Ile to jest warte teraz")}</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <Chip on={form.priceMode !== "value"} color={ACCENT} onClick={() => set({ priceMode: "unit" })}>{t("inv.pm.unit", "Cena za 1 {unit}").replace("{unit}", unitLabel)}</Chip>
+              <Chip on={form.priceMode === "value"} color={ACCENT} onClick={() => set({ priceMode: "value" })}>{t("inv.pm.value", "Wartość całej pozycji")}</Chip>
+            </div>
+            {form.priceMode === "value"
+              ? <Input label={`${t("inv.valueNow", "Wartość teraz")} · ${cur}`} type="text" inputMode="decimal" value={form.valueNow} onChange={e => set({ valueNow: e.target.value })}
+                  placeholder={form.costMode === "avg" || form.costMode === "total" ? t("common.optional", "opcjonalnie") : "0"}/>
+              : <Input label={`${t("inv.priceForOne", "Cena teraz za 1 {unit}").replace("{unit}", unitLabel)} · ${cur}`} type="text" inputMode="decimal" value={form.price} onChange={e => set({ price: e.target.value })}
+                  placeholder={form.costMode === "avg" || form.costMode === "total" ? t("common.optional", "opcjonalnie") : "0"}/>}
+            {live && liveState === "err" && <div style={{ fontSize: 11, color: "#f59e0b", margin: "-6px 0 12px" }}>{t("inv.liveFail", "Nie udało się pobrać ceny — wpisz ją albo zapisz, pobierze się później.")}</div>}
+          </>}
+        </> : (
+          <Input label={`${t("inv.valueNow", "Wartość teraz")} · ${cur}`} type="text" inputMode="decimal" value={form.value} onChange={e => set({ value: e.target.value })}
+            placeholder={form.costMode === "invested" ? t("common.optional", "opcjonalnie") : "0"}/>
         )}
-        {(form.kind === "crypto" && form.coinId) || form.kind === "gold" ? (
-          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 14, lineHeight: 1.5 }}>
-            {t("inv.liveNote", "Cena aktualna pobierze się sama (CoinGecko).")}
-          </div>
-        ) : (
-          <Input label={t("inv.priceNow", "Cena teraz za {unit} (opcjonalnie)").replace("{unit}", unitLabel)} type="number" inputMode="decimal" step="any" value={form.price} onChange={e => set({ price: e.target.value })}
-            placeholder={avg != null ? String(Math.round(avg * 100) / 100) : "0"}/>
-        )}
-      </> : <>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Input label={t("inv.investedLabel", "Wpłacono")} type="number" inputMode="decimal" step="0.01" value={form.invested} onChange={e => set({ invested: e.target.value })} placeholder="0"/></div>
-          <div style={{ flex: 1 }}><Input label={t("inv.valueNow", "Wartość teraz")} type="number" inputMode="decimal" step="0.01" value={form.value} onChange={e => set({ value: e.target.value })} placeholder={form.invested || t("common.optional", "opcjonalnie")}/></div>
+
+        <div style={fieldLabel}>{units ? t("inv.costLabel", "Koszt zakupu — co znasz?") : t("inv.costLabelValue", "Ile wpłacono — co znasz?")}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {costModes.map(([id, label]) => <Chip key={id} on={form.costMode === id} color={ACCENT} onClick={() => set({ costMode: id })}>{label}</Chip>)}
         </div>
-        {K.rate && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Input label={t("inv.rate", "Oprocentowanie %")} type="number" inputMode="decimal" step="0.01" value={form.rate} onChange={e => set({ rate: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/></div>
-            <div style={{ flex: 1 }}><Input label={t("inv.since", "Od kiedy")} type="date" value={form.startDate} onChange={e => set({ startDate: e.target.value })}/></div>
+        {form.costMode === "avg" && <Input label={`${t("inv.avgPriceLabel", "Średnia cena zakupu za 1 {unit}").replace("{unit}", unitLabel)} · ${cur}`} type="text" inputMode="decimal" value={form.avg} onChange={e => set({ avg: e.target.value })} placeholder="0"/>}
+        {form.costMode === "total" && <Input label={`${t("inv.paidTotal", "Zapłacono łącznie")} · ${cur}`} type="text" inputMode="decimal" value={form.total} onChange={e => set({ total: e.target.value })} placeholder="0"/>}
+        {form.costMode === "invested" && <Input label={`${t("inv.investedLabel", "Wpłacono")} · ${cur}`} type="text" inputMode="decimal" value={form.invested} onChange={e => set({ invested: e.target.value })} placeholder="0"/>}
+        {form.costMode === "pl" && <>
+          {plInput}
+          <div style={{ fontSize: 11, color: "#64748b", margin: "-8px 0 12px", lineHeight: 1.45 }}>{t("inv.plHint", "Ten zysk, który pokazuje aplikacja dla tej pozycji. Strata — z minusem, np. -150.")}</div>
+        </>}
+        {form.costMode === "now" && (
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.45 }}>{t("inv.nowHint", "Wynik będzie liczony od dziś — koszt = obecna wartość. Możesz to poprawić później.")}</div>
+        )}
+
+        {preview && (
+          <div style={{ display: "flex", gap: 10, padding: "10px 0 12px", borderTop: "1px solid #1a2744" }}>
+            <Stat label={units ? t("inv.cost", "Koszt") : t("inv.invested", "Wpłacono")} value={fmtCurrency(preview.cost, cur)}/>
+            <Stat label={t("inv.value", "Wartość")} value={fmtCurrency(preview.value, cur)}/>
+            <Stat label={t("inv.gain", "Wynik")} value={`${fmtCurrency(preview.gain, cur, true)}${preview.cost > 0 ? ` (${pctLabel(preview.gain / preview.cost * 100)})` : ""}`} color={preview.gain >= 0 ? "#34d399" : "#f87171"}/>
           </div>
         )}
-        {K.rate && num(form.rate) > 0 && (
-          <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 12px", lineHeight: 1.45 }}>
-            {t("inv.rateHint", "Wartość będzie rosła sama o odsetki (szacunek). Gdy bank pokaże dokładną kwotę — zaktualizuj ją.")}
+        {preview && units && form.costMode !== "avg" && (
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: -6, paddingBottom: 12 }}>
+            {t("inv.avgLine", "Średnia cena: {price} za {unit}").replace("{price}", fmtCurrency(preview.avg, cur)).replace("{unit}", unitLabel)}
           </div>
         )}
+      </div>
+
+      {K.rate && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><Input label={t("inv.rate", "Oprocentowanie %")} type="text" inputMode="decimal" value={form.rate} onChange={e => set({ rate: e.target.value })} placeholder={t("common.optional", "opcjonalnie")}/></div>
+          <div style={{ flex: 1 }}><Input label={t("inv.since", "Od kiedy")} type="date" value={form.startDate} onChange={e => set({ startDate: e.target.value })}/></div>
+        </div>
+      )}
+      {K.rate && num(form.rate) > 0 && (
+        <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 12px", lineHeight: 1.45 }}>
+          {t("inv.rateHint", "Wartość będzie rosła sama o odsetki (szacunek). Gdy bank pokaże dokładną kwotę — zaktualizuj ją.")}
+        </div>
+      )}
+
+      <button type="button" onClick={() => setShowHist(v => !v)} style={{ background: "none", border: "none", padding: 0, margin: "0 0 12px", color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+        {showHist ? "▾" : "▸"} {t("inv.histToggle", "Wcześniejsze zyski i dywidendy (opcjonalnie)")}
+      </button>
+      {showHist && <>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><Input label={`${t("inv.pastRealized", "Zysk ze sprzedaży dotąd")} · ${cur}`} type="text" inputMode="decimal" value={form.pastRealized} onChange={e => set({ pastRealized: e.target.value })} placeholder="0"/></div>
+          <div style={{ flex: 1 }}><Input label={`${t("inv.pastIncome", "Dywidendy / odsetki dotąd")} · ${cur}`} type="text" inputMode="decimal" value={form.pastIncome} onChange={e => set({ pastIncome: e.target.value })} placeholder="0"/></div>
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 12px", lineHeight: 1.45 }}>
+          {t("inv.histHint", "Tylko do łącznego wyniku tej pozycji — nie trafia do Wpisów ani do wyniku miesięcy.")}
+        </div>
       </>}
 
       <button onClick={onSave} style={{ ...primaryBtn, marginTop: 4 }}>{t("common.save", "Zapisz")}</button>
@@ -508,14 +618,16 @@ function HoldingSheet({ h, today, income, onClose, onEdit, onDelete, setPortfoli
   const [busy, setBusy] = useState(false);
   const start = (a) => {
     setAction(a); setRecord(a !== "buy");
-    setF({ date: today, qty: "", total: "", price: units ? String(h.currentPrice ?? "") : String(valueNow(h, today).value) });
+    setF({ date: today, qty: "", total: "", unitPrice: "", byUnit: false, price: units ? String(h.currentPrice ?? "") : String(valueNow(h, today).value) });
   };
   const patch = (p) => setF(x => ({ ...x, ...p }));
   const name = h.name || h.ticker;
 
+  // Kwota transakcji: łącznie albo ilość × cena za sztukę
+  const totalOf = (x) => (units && x.byUnit && action !== "income" ? num(x.qty) * num(x.unitPrice) : num(x.total));
   const run = async () => {
     if (busy) return;
-    const qty = num(f.qty), total = num(f.total), price = num(f.price);
+    const qty = num(f.qty), total = totalOf(f), price = num(f.price);
     const date = f.date || today;
     setBusy(true);
     try {
@@ -552,7 +664,7 @@ function HoldingSheet({ h, today, income, onClose, onEdit, onDelete, setPortfoli
 
   const preview = (() => {
     if (action !== "sell") return null;
-    const qty = num(f.qty), total = num(f.total);
+    const qty = num(f.qty), total = totalOf(f);
     if (!(isFinite(total) && total > 0) || (units && !(isFinite(qty) && qty > 0))) return null;
     const r = applySell(h, { qty, total, date: f.date || today }).realized;
     return <div style={{ fontSize: 12, fontWeight: 700, margin: "-6px 0 12px", color: r >= 0 ? "#34d399" : "#f87171" }}>{t("inv.sellPreview", "Wynik na sprzedaży: {amount}").replace("{amount}", fmtCurrency(r, cur, true))}</div>;
@@ -578,6 +690,16 @@ function HoldingSheet({ h, today, income, onClose, onEdit, onDelete, setPortfoli
           {(income !== 0 || h.realized) && <span style={{ display: "block", color: "#94a3b8" }}>
             {t("inv.incomeLine", "Dochód z tej pozycji: {amount}").replace("{amount}", fmtDisplay(income, { showSign: true }))}
           </span>}
+          {(h.pastRealized || h.pastIncome) && <span style={{ display: "block", color: "#94a3b8" }}>
+            {t("inv.pastLine", "Wcześniej: zysk ze sprzedaży {realized}, dywidendy/odsetki {income}")
+              .replace("{realized}", fmtCurrency(h.pastRealized || 0, cur, true)).replace("{income}", fmtCurrency(h.pastIncome || 0, cur))}
+          </span>}
+          {(income !== 0 || h.realized || h.pastRealized || h.pastIncome) && (() => {
+            const all = amountForDisplay(s.gain + (Number(h.realized) || 0) + (Number(h.pastRealized) || 0) + (Number(h.pastIncome) || 0), cur) + income;
+            return <span style={{ display: "block", fontWeight: 700, color: all >= 0 ? "#34d399" : "#f87171" }}>
+              {t("inv.totalReturn", "Łącznie z dywidendami i sprzedażą: {amount}").replace("{amount}", fmtDisplay(all, { showSign: true }))}
+            </span>;
+          })()}
         </div>
       </div>
 
@@ -602,15 +724,23 @@ function HoldingSheet({ h, today, income, onClose, onEdit, onDelete, setPortfoli
           </div>
           {action === "price" ? (
             <Input label={units ? t("inv.priceFor", "Cena za {unit} · {cur}").replace("{unit}", unitLabel).replace("{cur}", cur) : `${t("inv.valueNow", "Wartość teraz")} · ${cur}`}
-              type="number" inputMode="decimal" step="any" value={f.price} onChange={e => patch({ price: e.target.value })} autoFocus/>
+              type="text" inputMode="decimal" value={f.price} onChange={e => patch({ price: e.target.value })} autoFocus/>
           ) : <>
             {units && action !== "income" && (
-              <Input label={`${t("inv.qty", "Ilość")} (${unitLabel})`} type="number" inputMode="decimal" step="any" value={f.qty} onChange={e => patch({ qty: e.target.value })} placeholder="0"/>
+              <Input label={`${t("inv.qty", "Ilość")} (${unitLabel})`} type="text" inputMode="decimal" value={f.qty} onChange={e => patch({ qty: e.target.value })} placeholder="0"/>
+            )}
+            {units && action !== "income" && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <Chip on={!f.byUnit} color={ACCENT} onClick={() => patch({ byUnit: false })}>{t("inv.byTotal", "Kwota łącznie")}</Chip>
+                <Chip on={!!f.byUnit} color={ACCENT} onClick={() => patch({ byUnit: true })}>{t("inv.byUnit", "Cena za 1 {unit}").replace("{unit}", unitLabel)}</Chip>
+              </div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1.2 }}>
-                <Input label={`${action === "sell" ? t("inv.gotTotal", "Otrzymano łącznie") : action === "income" ? t("inv.amount", "Kwota") : t("inv.paidTotal", "Zapłacono łącznie")} · ${cur}`}
-                  type="number" inputMode="decimal" step="0.01" value={f.total} onChange={e => patch({ total: e.target.value })} placeholder="0"/>
+                {units && f.byUnit && action !== "income"
+                  ? <Input label={`${t("inv.byUnit", "Cena za 1 {unit}").replace("{unit}", unitLabel)} · ${cur}`} type="text" inputMode="decimal" value={f.unitPrice} onChange={e => patch({ unitPrice: e.target.value })} placeholder="0"/>
+                  : <Input label={`${action === "sell" ? t("inv.gotTotal", "Otrzymano łącznie") : action === "income" ? t("inv.amount", "Kwota") : t("inv.paidTotal", "Zapłacono łącznie")} · ${cur}`}
+                      type="text" inputMode="decimal" value={f.total} onChange={e => patch({ total: e.target.value })} placeholder="0"/>}
               </div>
               <div style={{ flex: 1 }}><Input label={t("inv.date", "Data")} type="date" value={f.date} onChange={e => patch({ date: e.target.value })}/></div>
             </div>
@@ -678,7 +808,7 @@ function UpdatePrices({ list, today, setPortfolio, onClose, showToast }) {
                   : t("inv.valueWas", "wartość · było {v}").replace("{v}", fmtCurrency(s.value, h.currency || "PLN"))}
               </div>
             </div>
-            <input type="number" inputMode="decimal" step="any" value={vals[h.id]} onChange={e => setVals(v => ({ ...v, [h.id]: e.target.value }))}
+            <input type="text" inputMode="decimal" value={vals[h.id]} onChange={e => setVals(v => ({ ...v, [h.id]: e.target.value }))}
               placeholder={h.currency || "PLN"} aria-label={h.name || h.ticker}
               style={{ width: 120, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontFamily: "inherit", outline: "none" }}/>
           </div>
