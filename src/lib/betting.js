@@ -160,6 +160,7 @@ function buildBetTx(bet, { id, date, acc, rate }) {
     currency: (bet.currency || "PLN").toUpperCase(),
     settledAt: bet.status === "pending" ? null : (bet.settledAt || date),
   };
+  if (bet.ext) clean.ext = String(bet.ext); // id kuponu z zewnętrznego trackera (import)
   const name = bookmakerName(clean.bookmaker);
   return makeTx({
     id, date, acc, rate,
@@ -279,7 +280,65 @@ function bankrollStats(txs) {
   };
 }
 
+// ── Import z „Trackera kuponów AKO” (Claude) ──────────────────────────────────
+// Tracker kopiuje do schowka JSON: { sidegig: "kupony-v1", kupony: [{ ext, nazwa, bukmacher,
+// data, kurs, stawka, status, wyplata, sport }] }. Status już w słowniku Sidegiga.
+// Kupon rozpoznajemy po bet.ext — ponowny import aktualizuje status/wypłatę zamiast dublować.
+
+const IMPORT_SPORTS = {
+  "piłka nożna": "football", tenis: "tennis", "koszykówka": "basketball", hokej: "hockey",
+  "hokej na lodzie": "hockey", "siatkówka": "volleyball", "e-sport": "esports", esport: "esports",
+  mma: "mma", boks: "mma",
+};
+
+function parseTrackerExport(text) {
+  let data;
+  try { data = JSON.parse(String(text || "").trim()); } catch { return null; }
+  if (!data || data.sidegig !== "kupony-v1" || !Array.isArray(data.kupony)) return null;
+  return data.kupony.filter(k => k && k.ext && Number(k.stawka) > 0 && Number(k.kurs) >= 1);
+}
+
+/**
+ * Z listy kuponów trackera robi zmiany w transakcjach. Zwraca { add, remove, created, updated, skipped }.
+ * `buildRate(currency, date)` — async kurs waluty (PLN → 1).
+ */
+async function planTrackerImport(kupony, transactions, { acc = 1, buildRate } = {}) {
+  const byExt = new Map();
+  for (const tx of transactions) if (tx?.bet?.ext) byExt.set(tx.bet.ext, tx);
+  const add = [], remove = [];
+  let created = 0, updated = 0, skipped = 0;
+  for (const k of kupony) {
+    const status = STATUSES.includes(k.status) ? k.status : "pending";
+    const bookmaker = BOOKMAKERS.find(b => b.name.toLowerCase() === String(k.bukmacher || "").toLowerCase())?.id || String(k.bukmacher || "");
+    const bet = {
+      ext: k.ext, bookmaker, event: k.nazwa || `Kupon ${k.ext}`,
+      sport: IMPORT_SPORTS[String(k.sport || "").toLowerCase()] || "other",
+      odds: Number(k.kurs), stake: Number(k.stawka), taxed: isPolishBookmaker(bookmaker),
+      status, currency: "PLN",
+    };
+    bet.payout = usesPayout(status)
+      ? (Number(k.wyplata) > 0 ? Number(k.wyplata) : defaultPayout(status, bet))
+      : null;
+    const old = byExt.get(k.ext);
+    if (old) {
+      const o = old.bet;
+      const same = o.status === bet.status && round2(o.payout || 0) === round2(bet.payout || 0)
+        && round2(o.stake) === round2(bet.stake) && round2(o.odds) === round2(bet.odds);
+      if (same) { skipped++; continue; }
+      const next = buildBetTx({ ...o, ...bet, event: o.event || bet.event, settledAt: o.status === bet.status ? o.settledAt : null },
+        { id: old.id, date: old.date, acc: old.acc, rate: old.fxRate || 1 });
+      add.push(next); remove.push(old); updated++;
+    } else {
+      const date = /^\d{4}-\d{2}-\d{2}/.test(k.data || "") ? k.data.slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const rate = buildRate ? await buildRate("PLN", date) : 1;
+      add.push(buildBetTx(bet, { date, acc, rate })); created++;
+    }
+  }
+  return { add, remove, created, updated, skipped };
+}
+
 export {
+  parseTrackerExport, planTrackerImport,
   PL_TAX, BOOKMAKERS, SPORTS, STATUSES, marketBookmakers,
   bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel,
   potentialPayout, defaultPayout, usesPayout, betNet, buildBetTx, bettingStats,
