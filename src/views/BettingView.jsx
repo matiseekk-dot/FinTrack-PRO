@@ -16,6 +16,7 @@ import { AmountModal } from "../components/AmountModal.jsx";
 import {
   BOOKMAKERS, SPORTS, bookmakerName, isPolishBookmaker, detectBookmaker, sportLabel, marketBookmakers,
   potentialPayout, defaultPayout, usesPayout, buildBetTx, bettingStats, buildTransferTx, bankrollStats,
+  parseTrackerExport, planTrackerImport,
 } from "../lib/betting.js";
 
 const ACCENT = "#a78bfa";
@@ -67,6 +68,7 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
   const [limitOpen, setLimitOpen] = useState(false);
   const [transfer, setTransfer] = useState(null);  // formularz wpłaty/wypłaty u bukmachera
   const [afterWin, setAfterWin] = useState(null);  // „Co robisz z wygraną?” po rozliczeniu
+  const [importText, setImportText] = useState(null); // import z Trackera kuponów (schowek / wklejony JSON)
 
   const all = useMemo(() => transactions
     .filter(tx => tx && tx.date && getModule(tx, hobbies) === "betting")
@@ -267,6 +269,24 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
     setSettle({ tx, status, payout: p != null ? String(p) : "" });
   };
 
+  // Import z Trackera kuponów: najpierw schowek, a gdy brak dostępu — okno do wklejenia
+  const runImport = async (text) => {
+    const kupony = parseTrackerExport(text);
+    if (!kupony) { showToast(t("bet.import.bad", "To nie jest eksport z Trackera kuponów"), "error"); return false; }
+    const plan = await planTrackerImport(kupony, transactions, { acc: defaultAcc, buildRate: rateOnDate });
+    if (plan.add.length || plan.remove.length) commitTxChanges({ setTransactions, setAccounts }, { add: plan.add, remove: plan.remove });
+    showToast(t("bet.import.done", "Nowe: {c} · zaktualizowane: {u} · bez zmian: {s}")
+      .replace("{c}", plan.created).replace("{u}", plan.updated).replace("{s}", plan.skipped));
+    return true;
+  };
+  const startImport = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && parseTrackerExport(text)) { await runImport(text); return; }
+    } catch { /* brak uprawnień do schowka — pokaż okno */ }
+    setImportText("");
+  };
+
   const fmtBet = (amount, currency) => fmtCurrency(amount, currency || "PLN");
   const potential = form ? potentialPayout({ stake: num(form.stake), odds: num(form.odds), taxed: form.taxed, currency: form.currency }) : 0;
 
@@ -281,6 +301,10 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
           <Target size={15} color={ACCENT}/>
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: "-0.02em", flex: 1 }}>{t("bet.title", "Zakłady")}</h1>
+        <button onClick={startImport} aria-label={t("bet.import.title", "Import z Trackera kuponów")} title={t("bet.import.title", "Import z Trackera kuponów")}
+          style={{ background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: "8px 10px", color: "#94a3b8", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
+          <ArrowDownLeft size={14}/> {t("bet.import.short", "Import")}
+        </button>
         <button onClick={openNew} style={{ background: BRAND, border: "none", borderRadius: 10, padding: "8px 12px", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
           <Plus size={14}/> {t("bet.add", "Kupon")}
         </button>
@@ -656,6 +680,18 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
             </button>
           )}
         </>}
+      </Modal>
+
+      <Modal open={importText !== null} onClose={() => setImportText(null)} title={t("bet.import.title", "Import z Trackera kuponów")}>
+        <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 10 }}>
+          {t("bet.import.help", "W Trackerze kuponów kliknij „Do Sidegig”, a potem wklej tutaj skopiowany tekst. Kupony już zaimportowane zostaną tylko zaktualizowane (status, wypłata).")}
+        </div>
+        <textarea value={importText || ""} onChange={e => setImportText(e.target.value)} rows={6} placeholder='{"sidegig":"kupony-v1", ...}'
+          style={{ width: "100%", boxSizing: "border-box", background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, color: "#e2e8f0", padding: 10, fontFamily: "'DM Mono', monospace", fontSize: 12 }}/>
+        <button onClick={async () => { if (await runImport(importText)) setImportText(null); }}
+          style={{ width: "100%", marginTop: 12, background: BRAND, border: "none", borderRadius: 12, padding: 12, color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+          {t("bet.import.run", "Importuj")}
+        </button>
       </Modal>
 
       <Modal open={!!afterWin} onClose={() => setAfterWin(null)} title={t("bet.afterWin.title", "Co robisz z wygraną?")}>
