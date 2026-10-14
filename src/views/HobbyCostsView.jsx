@@ -417,7 +417,7 @@ function HobbyCostsView({ transactions = [], setTransactions, setAccounts, defau
             {t("sub.trialToggle", "Okres próbny — przypomnimy 3 dni przed końcem, żebyś zdążył anulować")}
           </CheckRow>
           {form.editingId != null && (
-            <CheckRow checked={form.active} onChange={(v) => setF({ active: v })}>{t("sub.activeToggle", "Aktywna (odznacz, jeśli anulowałeś)")}</CheckRow>
+            <CheckRow checked={form.active} onChange={(v) => setF({ active: v })}>{t("sub.activeToggle", "Aktywna (odznacz po anulowaniu)")}</CheckRow>
           )}
           <button onClick={saveSub} style={primaryBtn}>{t("common.save", "Zapisz")}</button>
           {form.editingId != null && (

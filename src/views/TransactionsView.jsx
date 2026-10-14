@@ -15,6 +15,10 @@ import { txAmountInAccountCurrency } from "../lib/accountTypes.js";
 import { resolveCategory } from "../lib/categoryHelpers.js";
 import { MODULES, SIDE_MODULES, getModule, moduleLabel } from "../lib/modules.js";
 import { isRulesOnlyElsewhere } from "../lib/hobby.js";
+import { PeriodChips, inPeriodFn } from "../components/ModuleUI.jsx";
+import { newId } from "../lib/ledger.js";
+import { needsPurchase, purchaseDateGuess } from "../lib/collections.js";
+import { linkPurchase } from "../lib/collectionMatch.js";
 
 // Kategoria wpisu wynika z modułu i typu. Wybiera się ją tylko przy Wyjazdach —
 // tam dzieli budżet wyjazdu (noclegi, jedzenie, transport…).
@@ -44,7 +48,7 @@ const catFor = (module, type, pickedCat) =>
 const invKindOf = (type, picked) => picked || (type === "income" ? "result" : "capital");
 const invCat = (type, picked) => invKindOf(type, picked) === "capital" ? "inwestycje" : (type === "income" ? "dodatkowe" : "zakupy");
 
-function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], holdings = [], rentals = [], modules = null, hobbies = [], moduleFilter, onModuleFilterChange, onOpenLinked }) {
+function TransactionsView({ transactions, setTransactions, setAccounts, allCats, presetModule = null, presetTripId = null, _forceOpenModal, _onClose, _onModalClose, defaultAcc = 1, trips = [], holdings = [], rentals = [], modules = null, hobbies = [], collectionItems = [], setCollectionItems = null, moduleFilter, onModuleFilterChange, onOpenLinked, month = null, onMonthChange = null }) {
   const getLocalCat = (id) => resolveCategory(id, allCats);
   const { toast, showToast } = useToast();
   const { success: hapticSuccess, error: hapticError } = useHaptic();
@@ -52,6 +56,10 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   const [modal, setModal] = useState(_forceOpenModal || false);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  // Okres listy: wybrany miesiąc (wspólny z Startem i modułami), rok albo wszystko.
+  // Wyszukiwanie przeszukuje wszystkie miesiące.
+  const [period, setPeriod] = useState(onMonthChange ? "month" : "all");
+  const viewMonth = month || todayLocal().slice(0, 7);
   // Filtr modułu: kontrolowany z App (klik w moduł na Home) albo lokalny
   const [localModFilter, setLocalModFilter] = useState("all");
   const modFilter = onModuleFilterChange ? (moduleFilter || "all") : localModFilter;
@@ -92,6 +100,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       module,
       type: INCOME_FIRST.includes(module) ? "income" : "expense",
       hobbyId: module === "collections" ? (f.hobbyId ?? defaultCollectionId()) : null,
+      catalogLink: "", catalogItemId: null,
       holdingId: module === "investments" ? (f.holdingId ?? null) : null, invKind: null,
       rentalId: module === "rental" ? (f.rentalId ?? null) : null,
       tripId: trip ? trip.id : null,
@@ -113,7 +122,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       acc: tx.acc ?? defaultAcc,
       type: tx.amount > 0 ? "income" : "expense",
       currency: hasFx ? tx.origCurrency : "PLN",
-      module, hobbyId: tx.hobbyId ?? null, tripId: tx.tripId ?? null, tripSplit: Array.isArray(tx.tripSplit) ? tx.tripSplit : null,
+      module, hobbyId: tx.hobbyId ?? null, catalogLink: "", catalogItemId: null, tripId: tx.tripId ?? null, tripSplit: Array.isArray(tx.tripSplit) ? tx.tripSplit : null,
       holdingId: tx.holdingId ?? null, rentalId: tx.rentalId ?? null, invKind: module === "investments" ? (tx.cat === "inwestycje" ? "capital" : "result") : null,
       tripCat: TRIP_CATS.includes(tx.cat) ? tx.cat : "jedzenie",
       hobbyCat: HOBBY_CATS.includes(tx.cat) ? tx.cat : "wydarzenia",
@@ -224,6 +233,30 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       txData.fxRate       = null;
       txData.fxDate       = null;
     }
+    // Kolekcje: wydatek od razu jako zakup pozycji w katalogu (nowej albo już dodanej, np. z Discogs).
+    // Pozycja przejmuje wpis jak przy „Nowy wydatek” w katalogu — jedna rzecz, nic się nie dubluje.
+    const txId = editingId || Date.now();
+    const link = catalogLinkAllowed(form) ? form.catalogLink : "";
+    if (link) {
+      const txFull = { ...(editingId ? transactions.find(x => x.id === editingId) : {}), ...txData, id: txId };
+      if (link === "new") {
+        const item = {
+          ...linkPurchase({
+            id: newId(), hobbyId: form.hobbyId, status: "owned", title: form.desc.trim(), creator: "", format: "",
+            condition: "mint", currency: "PLN", value: null, targetPrice: null, createdAt: todayLocal(),
+          }, txFull),
+          buyTxOwned: true, acc: txData.acc,
+        };
+        txData.collectionItemId = item.id;
+        setCollectionItems(prev => [item, ...prev]);
+      } else if (link === "pick") {
+        const it = collectionItems.find(x => x.id === form.catalogItemId);
+        if (it && needsPurchase(it)) {
+          txData.collectionItemId = it.id;
+          setCollectionItems(prev => prev.map(x => x.id === it.id && needsPurchase(x) ? { ...linkPurchase(x, txFull), buyTxOwned: true, acc: txData.acc } : x));
+        }
+      }
+    }
     if (editingId) {
       // reverse old tx on old account, apply new tx on new account
       // v1.5.0: każda strona księgowania używa konwersji na walutę konta
@@ -255,12 +288,30 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
           return { ...a, balance: parseFloat((a.balance + txAmountInAccountCurrency(a, txData)).toFixed(2)) };
         }));
       }
-      setTransactions(tx => [{ id: Date.now(), ...txData }, ...tx]);
+      setTransactions(tx => [{ id: txId, ...txData }, ...tx]);
       showToast(t("tx.toast.added", "Wpis dodany ✓"));
       hapticSuccess();
     }
     setModal(false);
     if (_onModalClose) _onModalClose();
+  };
+
+  // Wpis z Kolekcji, który można połączyć z pozycją katalogu (nowy albo jeszcze niepołączony)
+  function catalogLinkAllowed(f) {
+    if (!setCollectionItems || f.module !== "collections" || f.type !== "expense" || f.hobbyId == null) return false;
+    if (editingId == null) return true;
+    const old = transactions.find(x => x.id === editingId);
+    return !!old && old.collectionItemId == null && !collectionItems.some(it => it.buyTxId === editingId);
+  }
+  const catalogOptions = form.module === "collections" && form.hobbyId != null
+    ? collectionItems.filter(it => it.hobbyId === form.hobbyId && needsPurchase(it))
+      .sort((a, b) => purchaseDateGuess(b, "").localeCompare(purchaseDateGuess(a, "")))
+      .slice(0, 60)
+    : [];
+  // Pozycja, której tytuł pasuje do opisu — podpowiadana jako pierwsza
+  const guessCatalogItem = (desc) => {
+    const d = String(desc || "").toLowerCase();
+    return (d && catalogOptions.find(it => String(it.title || "").length >= 3 && d.includes(String(it.title).toLowerCase()))) || catalogOptions[0] || null;
   };
 
   const todayStr2 = todayLocal();
@@ -273,6 +324,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
   // Memoized filter + grouping - jedna pętla zamiast 4 filter + forEach
   const { filtered, grouped } = useMemo(() => {
     const searchLower = search.toLowerCase();
+    const inPeriod = inPeriodFn(period, viewMonth);
     const result = [];
     const groupMap = {};
 
@@ -282,6 +334,7 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
       if (t.date > todayStr2) continue;
       if (filter === "income" && t.amount <= 0) continue;
       if (filter === "expense" && t.amount >= 0) continue;
+      if (!searchLower && !inPeriod(t.date)) continue;
       const mod = getModule(t, hobbies);
       if (mod === "personal") continue;   // stare wydatki osobiste: zostają w danych, nie na liście
       if (modFilter !== "all" && mod !== modFilter) continue;
@@ -297,7 +350,17 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
 
     const sorted = Object.entries(groupMap).sort((a, b) => b[0].localeCompare(a[0]));
     return { filtered: result, grouped: sorted };
-  }, [transactions, filter, search, todayStr2, modFilter, hobbies, lang]);
+  }, [transactions, filter, search, todayStr2, modFilter, hobbies, lang, period, viewMonth]);
+  // Podsumowanie okresu (jak sumy dni: bez przelewów „inne”)
+  const periodSums = useMemo(() => {
+    let inflow = 0, outflow = 0;
+    for (const tx of filtered) {
+      if (tx.cat === "inne") continue;
+      const v = txAmountForDisplay(tx);
+      if (v >= 0) inflow += v; else outflow += -v;
+    }
+    return { inflow, outflow, net: inflow - outflow };
+  }, [filtered]);
 
   // Podpis wpisu: moduł + kolekcja / wyjazd i kategoria wyjazdu
   const rowMeta = (tx) => {
@@ -331,6 +394,8 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
             <PlusCircle size={13}/> {t("common.add", "Dodaj")}
           </button>
         </div>
+
+        {onMonthChange && <PeriodChips value={period} onChange={setPeriod} month={viewMonth} onMonthChange={onMonthChange}/>}
 
         {/* Filtr modułów Sidegig */}
         {filterModules.length > 1 && (
@@ -373,6 +438,23 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
         {search && (
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>
             {t("tx.foundCount")}: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{filtered.length}</span>
+            {onMonthChange && period !== "all" && <> · {t("tx.searchAll", "szukamy we wszystkich miesiącach")}</>}
+          </div>
+        )}
+        {!search && onMonthChange && filtered.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+            {[
+              [t("tx.sum.in", "Wpływy"), periodSums.inflow, "#10b981", true],
+              [t("tx.sum.out", "Wydatki"), -periodSums.outflow, "#ef4444", false],
+              [t("tx.sum.net", "Saldo"), periodSums.net, periodSums.net >= 0 ? "#10b981" : "#ef4444", true],
+            ].map(([label, v, color, sign]) => (
+              <div key={label} style={{ flex: 1, minWidth: 0, background: "#0d1628", border: "1px solid #1a2744", borderRadius: 10, padding: "8px 10px" }}>
+                <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {fmtDisplay(v, sign ? { showSign: true } : undefined)}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -382,12 +464,14 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
           <div style={{ textAlign: "center", padding: "48px 16px" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>💸</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>
-              {search ? t("tx.empty.noResults", "Brak wyników") : t("tx.empty.noTx", "Brak wpisów")}
+              {search ? t("tx.empty.noResults", "Brak wyników") : onMonthChange && period !== "all" && transactions.length > 0 ? t("tx.empty.noTxPeriod", "Brak wpisów w tym okresie") : t("tx.empty.noTx", "Brak wpisów")}
             </div>
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 20 }}>
               {search
                 ? t("tx.empty.tryFilters", "Spróbuj zmienić filtry wyszukiwania")
-                : t("tx.empty.addFirst", "Dodaj pierwszy wpis przyciskiem poniżej")}
+                : onMonthChange && period !== "all" && transactions.length > 0
+                  ? t("tx.empty.otherPeriod", "Zmień miesiąc strzałkami albo wybierz „Wszystko”.")
+                  : t("tx.empty.addFirst", "Dodaj pierwszy wpis przyciskiem poniżej")}
             </div>
             {!search && (
               <button onClick={() => { setForm(getEmptyForm()); setEditingId(null); setModal(true); }} style={{
@@ -603,9 +687,37 @@ function TransactionsView({ transactions, setTransactions, setAccounts, allCats,
               <div style={labelStyle}>{t("tx.collection.label", "Kolekcja")}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {activeCollections.map(h => (
-                  <button key={h.id} type="button" aria-pressed={form.hobbyId === h.id} onClick={() => setForm(f => ({ ...f, hobbyId: h.id }))} style={chip(form.hobbyId === h.id, h.color)}>{h.name}</button>
+                  <button key={h.id} type="button" aria-pressed={form.hobbyId === h.id} onClick={() => setForm(f => ({ ...f, hobbyId: h.id, ...(f.hobbyId === h.id ? {} : { catalogLink: "", catalogItemId: null }) }))} style={chip(form.hobbyId === h.id, h.color)}>{h.name}</button>
                 ))}
               </div>
+              {catalogLinkAllowed(form) && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={labelStyle}>{t("tx.catalog.label", "Pozycja w katalogu")}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button type="button" aria-pressed={!form.catalogLink} onClick={() => setForm(f => ({ ...f, catalogLink: "" }))} style={chip(!form.catalogLink, "#34d399")}>{t("tx.catalog.none", "Bez pozycji")}</button>
+                    <button type="button" aria-pressed={form.catalogLink === "new"} onClick={() => setForm(f => ({ ...f, catalogLink: "new" }))} style={chip(form.catalogLink === "new", "#34d399")}>+ {t("tx.catalog.new", "Nowa pozycja")}</button>
+                    {catalogOptions.length > 0 && (
+                      <button type="button" aria-pressed={form.catalogLink === "pick"} onClick={() => setForm(f => ({ ...f, catalogLink: "pick", catalogItemId: f.catalogItemId ?? guessCatalogItem(f.desc)?.id ?? null }))} style={chip(form.catalogLink === "pick", "#34d399")}>
+                        {t("tx.catalog.pick", "Już w katalogu")} · {catalogOptions.length}
+                      </button>
+                    )}
+                  </div>
+                  {form.catalogLink === "pick" && (
+                    <select value={form.catalogItemId ?? ""} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, catalogItemId: catalogOptions.find(it => String(it.id) === v)?.id ?? null })); }}
+                      aria-label={t("tx.catalog.label", "Pozycja w katalogu")}
+                      style={{ width: "100%", marginTop: 8, background: "#060b14", border: "1px solid #1a2744", borderRadius: 10, padding: "11px 12px", color: "#e2e8f0", fontSize: 15, outline: "none", fontFamily: "'Space Grotesk', sans-serif" }}>
+                      {catalogOptions.map(it => <option key={it.id} value={it.id}>{it.creator ? it.title + " – " + it.creator : it.title}</option>)}
+                    </select>
+                  )}
+                  {form.catalogLink && (
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
+                      {form.catalogLink === "new"
+                        ? t("tx.catalog.newHint", "Dodamy pozycję z opisem tego wpisu jako tytułem — z ceną i datą zakupu. Wykonawcę i resztę dopiszesz w katalogu.")
+                        : t("tx.catalog.pickHint", "Pozycja (np. z Discogs albo ze skanera) dostanie cenę i datę z tego wpisu.")}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: "#64748b", margin: "-6px 0 14px" }}>

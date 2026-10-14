@@ -96,9 +96,13 @@ function itemState(item, resaleById) {
 
 const INCOME_CATS = new Set(CATEGORIES.filter(c => c.group === "income").map(c => c.id));
 
-/** Wpis zakupu tworzony z katalogu — z jawnym hobbyId, żeby liczył się do tej kolekcji. */
-function buildPurchaseTx(item, hobby, rate) {
-  const cat = (hobby?.categories || []).find(c => !INCOME_CATS.has(c) && c !== "inne") || "rozrywka";
+/**
+ * Wpis zakupu tworzony z katalogu — z jawnym hobbyId, żeby liczył się do tej kolekcji.
+ * prev: dotychczasowy wpis tej pozycji — jego kategoria zostaje (np. wybrana w Wpisach).
+ */
+function buildPurchaseTx(item, hobby, rate, prev = null) {
+  const cat = (prev && prev.cat && !INCOME_CATS.has(prev.cat) ? prev.cat : null)
+    || (hobby?.categories || []).find(c => !INCOME_CATS.has(c) && c !== "inne") || "rozrywka";
   return makeTx({
     id: item.buyTxId ?? undefined, date: item.buyDate, desc: itemTitle(item),
     amount: -Number(item.buyPrice), currency: item.currency, rate,
@@ -157,6 +161,24 @@ function collectionStats(items, resaleItems) {
   return { by, total, resaleById };
 }
 
+/** Pozycja, którą masz, bez ceny zakupu i bez wpisu (np. z Discogs albo ze skanera). */
+function needsPurchase(it) {
+  return it.status === "owned" && it.resaleItemId == null && it.buyPrice == null && it.buyTxId == null;
+}
+
+/**
+ * Data, którą można brać za datę zakupu: dodanie w Discogs albo dodanie do katalogu.
+ * Płyta z importu Discogs bez daty dodania — null (dzień importu to nie dzień zakupu).
+ */
+function knownAddedDate(it) {
+  return it.buyDate || it.addedAt || (it.discogs && it.discogs.i ? null : it.createdAt) || null;
+}
+
+/** Podpowiedź daty zakupu w formularzach. */
+function purchaseDateGuess(it, today) {
+  return knownAddedDate(it) || it.createdAt || today;
+}
+
 /** Zysk „na papierze” pozycji: wycena − cena zakupu (w walucie pozycji) albo null. */
 function itemGain(it) {
   if (it.value == null || it.buyPrice == null) return null;
@@ -190,4 +212,5 @@ export {
   KINDS, CONDITIONS,
   collectionKind, conditionLabel, itemTitle, itemState,
   buildPurchaseTx, toResaleItem, collectionStats, itemGain, salesMedian, sanitizeCollectionItems,
+  needsPurchase, knownAddedDate, purchaseDateGuess,
 };

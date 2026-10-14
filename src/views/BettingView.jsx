@@ -369,8 +369,8 @@ function BettingView({ transactions, setTransactions, setAccounts, defaultAcc = 
               {t("bet.bank.cash", "Na rękę (wypłaty − wpłaty): {amount}").replace("{amount}", fmtDisplay(bank.cashResult, { showSign: true }))}
               {bank.withdrawnShare != null && <>
                 <br/>{bank.withdrawnShare >= 1
-                  ? t("bet.bank.shareAll", "Wypłaciłeś równowartość wszystkich wygranych.")
-                  : t("bet.bank.share", "Z wygranych wypłaciłeś {pct}% — reszta gra dalej.").replace("{pct}", Math.round(bank.withdrawnShare * 100))}
+                  ? t("bet.bank.shareAll", "Wypłacona jest już równowartość wszystkich wygranych.")
+                  : t("bet.bank.share", "Wypłacono {pct}% wygranych — reszta gra dalej.").replace("{pct}", Math.round(bank.withdrawnShare * 100))}
               </>}
             </div>
           </>}

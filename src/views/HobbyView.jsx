@@ -245,7 +245,7 @@ function HobbyDetails({ hobby, transactions, cyclePool, periodLabel = null, allC
           background: "#0a1120", borderRadius: 14, border: "1px dashed #1a2744" }}>
           {t("hobby.noMatch")}
           <div style={{ fontSize: 11, marginTop: 6, color: "#475569" }}>
-            {t("hobby.noMatchHint", "Sprawdź czy wybrałeś właściwe kategorie albo dodaj słowa kluczowe.")}
+            {t("hobby.noMatchHint", "Sprawdź wybrane kategorie albo dodaj słowa kluczowe.")}
           </div>
         </div>
       )}

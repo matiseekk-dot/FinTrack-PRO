@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink, Link2, ScanBarcode } from "lucide-react";
+import { Disc3, Pencil, Trash2, HandCoins, ChevronRight, ExternalLink, Link2, ScanBarcode, Receipt, X } from "lucide-react";
 import { Modal } from "../components/ui/Modal.jsx";
 import { Input, Select } from "../components/ui/Input.jsx";
 import { Toast } from "../components/ui/Toast.jsx";
@@ -18,16 +18,21 @@ import { getModule } from "../lib/modules.js";
 import { guessHobby } from "../lib/hobbyMove.js";
 import { DiscogsModal, shiftDays } from "../components/DiscogsModal.jsx";
 import { ScanModal } from "../components/ScanModal.jsx";
+import { PurchaseFillModal } from "../components/PurchaseFillModal.jsx";
 import { getSaved as getDiscogsSaved, needsPricing } from "../lib/discogs.js";
 import { matchPurchases, matchDuplicates, linkPurchase, mergeDuplicate, convertValue } from "../lib/collectionMatch.js";
 import { itemProfit } from "../lib/reselling.js";
 import {
   KINDS, CONDITIONS, collectionKind, conditionLabel, itemTitle, itemState,
   buildPurchaseTx, toResaleItem, collectionStats, itemGain, salesMedian,
+  needsPurchase, knownAddedDate, purchaseDateGuess,
 } from "../lib/collections.js";
 
 const ACCENT = "#34d399";
 const STATE_COLORS = { owned: "#34d399", wishlist: "#f59e0b", selling: "#ec4899", sold: "#64748b" };
+// Ukryta podpowiedź „nowe pozycje bez ceny” (per urządzenie): { [hobbyId]: id ostatniej pozycji w chwili ukrycia }
+const NUDGE_KEY = "ft_buyfill_hidden";
+const readNudge = () => { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) || "{}") || {}; } catch { return {}; } };
 
 /**
  * Kolekcje: katalog pozycji w każdej kolekcji (= hobby) + dotychczasowe wydatki hobby.
@@ -86,6 +91,41 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     }
     return { by, byYear, monthTotal, yearTotal };
   }, [hobbies, transactions, ym, items]);
+
+  // Co się działo w kolekcjach w wybranym miesiącu: zakupy (wpisy) i sprzedaż pozycji z katalogu
+  const [monthAll, setMonthAll] = useState(false);
+  const monthActivity = useMemo(() => {
+    const rows = [];
+    const seen = new Set();
+    for (const h of hobbies) {
+      if (h.archived || !isCollection(h)) continue;
+      for (const tx of getHobbyExpenses(transactions, h)) {
+        if (!(tx.date || "").startsWith(ym) || seen.has(tx.id)) continue;
+        seen.add(tx.id);
+        rows.push({ kind: "buy", key: "t" + tx.id, date: tx.date, hobby: h, tx, amount: -Math.abs(txAmountForDisplay(tx)) });
+      }
+    }
+    const fromCatalog = new Map(items.map(it => [it.id, it]));
+    for (const r of resaleItems) {
+      if (r.status !== "sold" || !(r.sellDate || "").startsWith(ym)) continue;
+      const it = fromCatalog.get(r.fromCollectionItemId) || items.find(x => x.resaleItemId === r.id);
+      if (!it) continue;
+      const h = hobbies.find(x => x.id === it.hobbyId);
+      rows.push({ kind: "sell", key: "r" + r.id, date: r.sellDate, hobby: h, resale: r, item: it,
+        amount: amountForDisplay(itemProfit(r), r.currency, r.sellFxRate) });
+    }
+    const idOf = (x) => Number(x.kind === "sell" ? x.resale.id : x.tx.id) || 0;
+    rows.sort((a, b) => (b.date || "").localeCompare(a.date || "") || idOf(b) - idOf(a));
+    const sold = rows.filter(x => x.kind === "sell");
+    return { rows, bought: rows.length - sold.length, sold: sold.length, profit: sold.reduce((s, x) => s + x.amount, 0) };
+  }, [hobbies, transactions, items, resaleItems, ym]);
+  // Stuknięcie w zakup: pozycja z katalogu, a gdy jej nie ma — dodanie do katalogu
+  const openMonthRow = (row) => {
+    if (row.kind === "sell") { if (onOpenResale) onOpenResale(row.resale.id); return; }
+    const it = items.find(x => x.id === row.tx.collectionItemId) || items.find(x => x.buyTxId === row.tx.id);
+    if (it) { setOpenId(it.hobbyId); setDetailTab("catalog"); setForm(formFromItem(it)); }
+    else if (row.hobby && row.tx.amount < 0) { setOpenId(row.hobby.id); setDetailTab("catalog"); startFromTx(row.tx, row.hobby.id); }
+  };
 
   // Wyceny z Discogs (EUR) zaimportowane przed 2.10.1 — przeliczamy na walutę aplikacji,
   // żeby w kolekcji nie mieszały się euro i złotówki. Tylko pozycje bez ceny zakupu.
@@ -165,6 +205,29 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     return { dups, buys: matchPurchases(mineHere.filter(it => !dupIds.has(it.id)), pool) };
   }, [open, items, offCatalog, unassigned, linkedTxIds]);
   const [linkPicks, setLinkPicks] = useState(null); // otwarte okno: { [klucz]: false = odznaczone }
+
+  // Pozycje bez ceny zakupu (z Discogs, ze skanera) — ceny wpisuje się hurtem, wydatki tworzą się same
+  const [fill, setFill] = useState(null);           // { first, older } — migawka list na czas okna
+  const [nudgeHidden, setNudgeHidden] = useState(readNudge);
+  const fillInfo = useMemo(() => {
+    if (!open) return { all: [], recent: [], nudge: [] };
+    const from = shiftDays(today, -30);
+    const all = items.filter(it => it.hobbyId === open.id && needsPurchase(it))
+      .sort((a, b) => purchaseDateGuess(b, today).localeCompare(purchaseDateGuess(a, today)) || (Number(b.id) || 0) - (Number(a.id) || 0));
+    const recent = all.filter(it => { const d = knownAddedDate(it); return d && d >= from; });
+    const hiddenUpTo = Number(nudgeHidden[open.id]) || 0;
+    return { all, recent, nudge: recent.filter(it => !(Number(it.id) <= hiddenUpTo)) };
+  }, [open, items, nudgeHidden, today]);
+  const openFill = (ids = null) => {
+    const pick = new Set(ids || fillInfo.recent.map(it => it.id));
+    setFill({ first: fillInfo.all.filter(it => pick.has(it.id)), older: ids ? [] : fillInfo.all.filter(it => !pick.has(it.id)) });
+  };
+  const hideNudge = () => {
+    if (!open) return;
+    const next = { ...nudgeHidden, [open.id]: Math.max(0, ...fillInfo.recent.map(it => Number(it.id) || 0)) };
+    setNudgeHidden(next);
+    try { localStorage.setItem(NUDGE_KEY, JSON.stringify(next)); } catch { /* tryb prywatny */ }
+  };
   const linkChosen = linkPicks ? {
     dups: linkSuggestions.dups.filter(p => linkPicks["d" + p.dup.id] !== false),
     buys: linkSuggestions.buys.filter(p => linkPicks["b" + p.tx.id] !== false),
@@ -194,8 +257,9 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     editingId: it.id, hobbyId: it.hobbyId, status: it.status, title: it.title, creator: it.creator || "",
     format: it.format || "", condition: it.condition || "mint",
     currency: it.currency || "PLN", acc: it.acc ?? defaultAcc,
-    buyMode: it.buyTxOwned ? "new" : it.buyTxId != null ? "ledger" : "none",
-    buyPrice: it.buyPrice != null ? String(it.buyPrice) : "", buyDate: it.buyDate || today, buyTxId: it.buyTxId ?? null,
+    // Pozycja bez zakupu (np. z Discogs) — „Nowy wydatek”: wpisana cena od razu tworzy wpis
+    buyMode: it.buyTxOwned ? "new" : it.buyTxId != null ? "ledger" : it.buyPrice != null ? "none" : "new",
+    buyPrice: it.buyPrice != null ? String(it.buyPrice) : "", buyDate: purchaseDateGuess(it, today), buyTxId: it.buyTxId ?? null,
     value: it.value != null ? String(it.value) : "", targetPrice: it.targetPrice != null ? String(it.targetPrice) : "",
     valueSource: it.valueSource || null, valueAt: it.valueAt || null, valueTouched: false,
   });
@@ -260,7 +324,10 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
     const old = form.editingId != null ? items.find(x => x.id === form.editingId) : null;
     const owned = form.status === "owned";
     const price = num(form.buyPrice);
-    if (owned && form.buyMode === "new" && (!isFinite(price) || price <= 0)) { showToast(t("coll.err.price", "Wpisz cenę zakupu albo wybierz „Bez wpisu”"), "error"); return; }
+    const hasPrice = isFinite(price) && price > 0;
+    // „Nowy wydatek” bez ceny = pozycja bez zakupu (cenę można dopisać później)
+    if (owned && form.buyMode !== "ledger" && String(form.buyPrice).trim() && !hasPrice) { showToast(t("coll.err.priceBad", "Popraw cenę — to nie wygląda na kwotę."), "error"); return; }
+    const newTx = owned && form.buyMode === "new" && hasPrice;
     if (owned && form.buyMode === "ledger" && form.buyTxId == null) { showToast(t("coll.err.pickTx", "Wybierz wpis z listy"), "error"); return; }
 
     const item = {
@@ -274,10 +341,10 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
         ? (isFinite(num(form.value)) && num(form.value) > 0 ? { valueSource: "manual", valueAt: today, valueCur: form.currency } : { valueSource: null, valueAt: null })
         : old && old.value != null && old.valueSource === "discogs" && form.currency !== (old.currency || "PLN") ? { valueCur: form.currency } : {}),
       targetPrice: !owned && isFinite(num(form.targetPrice)) && num(form.targetPrice) > 0 ? num(form.targetPrice) : null,
-      buyPrice: owned && isFinite(price) && price > 0 ? price : null,
-      buyDate: owned ? form.buyDate : null,
-      buyTxId: owned && form.buyMode === "ledger" ? form.buyTxId : (owned && form.buyMode === "new" && old?.buyTxOwned ? old.buyTxId : null),
-      buyTxOwned: owned && form.buyMode === "new",
+      buyPrice: owned && hasPrice ? price : null,
+      buyDate: owned ? (form.buyMode === "new" && !hasPrice ? (old?.buyDate ?? null) : form.buyDate) : null,
+      buyTxId: owned && form.buyMode === "ledger" ? form.buyTxId : (newTx && old?.buyTxOwned ? old.buyTxId : null),
+      buyTxOwned: newTx,
       createdAt: old?.createdAt || today,
       ...(form.barcode ? { barcode: form.barcode } : {}),
       ...(form.year ? { year: form.year } : {}),
@@ -291,7 +358,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       if (item.buyTxOwned) {
         const reuse = oldOwnedTx && oldOwnedTx.date === item.buyDate && (oldOwnedTx.origCurrency || "PLN") === item.currency;
         const rate = reuse ? (oldOwnedTx.fxRate || 1) : await rateOnDate(item.currency, item.buyDate);
-        const tx = buildPurchaseTx(item, formHobby, rate);
+        const tx = buildPurchaseTx(item, formHobby, rate, oldOwnedTx);
         item.buyTxId = tx.id;
         commitTxChanges({ setTransactions, setAccounts }, { add: [tx], remove: oldOwnedTx ? [oldOwnedTx] : [] });
       } else if (oldOwnedTx) {
@@ -433,6 +500,58 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
           </div>
         )}
 
+        {active.length > 0 && <>
+          <div style={sectionTitle}>{t("coll.monthTitle", "Zakupy i sprzedaż · {period}").replace("{period}", periodInSentence(ym))}</div>
+          {monthActivity.rows.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#64748b", margin: "-4px 2px 4px", lineHeight: 1.5 }}>
+              {t("coll.monthEmpty", "Nic nie kupione ani nie sprzedane w tym miesiącu. Strzałkami wyżej zobaczysz inne miesiące.")}
+            </div>
+          ) : <>
+            <div style={{ fontSize: 12, color: "#64748b", margin: "-4px 2px 8px", lineHeight: 1.45 }}>
+              {[
+                t("coll.monthBought", "zakupy: {n}").replace("{n}", monthActivity.bought),
+                // Ile poszło na każdą kolekcję (winyle, gry…), gdy jest ich więcej niż jedna
+                ...(active.filter(h => spend.by[h.id] > 0).length > 1
+                  ? active.filter(h => spend.by[h.id] > 0).map(h => `${h.name} ${fmtDisplay(spend.by[h.id])}`) : []),
+                monthActivity.sold > 0 ? t("coll.monthSold", "sprzedane: {n} · zysk {amount}").replace("{n}", monthActivity.sold).replace("{amount}", fmtDisplay(monthActivity.profit, { showSign: true })) : null,
+              ].filter(Boolean).join(" · ")}
+            </div>
+            <div style={{ ...card, padding: "2px 14px" }}>
+              {(monthAll ? monthActivity.rows : monthActivity.rows.slice(0, 8)).map((row, i, arr) => {
+                const sell = row.kind === "sell";
+                const title = sell ? itemTitle(row.item) : (row.tx.desc || "—");
+                const linked = !sell && (row.tx.collectionItemId != null || items.some(x => x.buyTxId === row.tx.id));
+                const sub = [row.hobby ? row.hobby.name : null, row.date,
+                  sell ? t("coll.monthSoldTag", "sprzedane") : !linked ? t("coll.monthNotInCatalog", "poza katalogiem") : null].filter(Boolean).join(" · ");
+                return (
+                  <button key={row.key} onClick={() => openMonthRow(row)} style={{
+                    all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #0f1a2e" : "none",
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: row.hobby ? row.hobby.color : "#475569" }}/>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>
+                    </span>
+                    <span style={{ textAlign: "right", flexShrink: 0 }}>
+                      {sell && <span style={{ display: "block", fontSize: 10, color: "#64748b" }}>{t("coll.profit", "zysk")}</span>}
+                      <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: row.amount >= 0 ? "#34d399" : "#f87171" }}>
+                        {sell ? fmtDisplay(row.amount, { showSign: true }) : txLabel(row.tx)}
+                      </span>
+                    </span>
+                    <ChevronRight size={14} color="#334155"/>
+                  </button>
+                );
+              })}
+            </div>
+            {monthActivity.rows.length > 8 && (
+              <button onClick={() => setMonthAll(v => !v)} style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                {monthAll ? t("common.showLess", "Pokaż mniej") : t("coll.monthShowAll", "Pokaż wszystkie ({n})").replace("{n}", monthActivity.rows.length)}
+              </button>
+            )}
+          </>}
+        </>}
+
         {unassigned.length > 0 && <>
           <div style={sectionTitle}>{t("coll.unassigned", "Wpisy bez kolekcji")} · {unassigned.length}</div>
           <div style={{ fontSize: 12, color: "#64748b", margin: "-4px 2px 8px", lineHeight: 1.45 }}>
@@ -459,7 +578,7 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
 
         {active.length === 0 && archived.length === 0 ? (
           <EmptyCard title={t("coll.emptyTitle", "Załóż pierwszą kolekcję")}
-            desc={t("coll.emptyDesc", "Winyle, książki, gry — zapisuj pozycje, ich wartość i to, co sprzedałeś.")}
+            desc={t("coll.emptyDesc", "Winyle, książki, gry — zapisuj pozycje, ich wartość i sprzedaż.")}
             cta={t("coll.addCollection", "Kolekcja")} onCta={newCollection}/>
         ) : <>
           {hobbyLike.length > 0 && (
@@ -530,10 +649,34 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                   </div>
                 )}
                 {pairedNote(s)}
+                {fillInfo.all.length > 0 && fillInfo.nudge.length === 0 && (
+                  <button onClick={() => openFill()} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 6, color: ACCENT, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", lineHeight: 1.45 }}>
+                    {t("buyfill.link", "Bez ceny zakupu: {n} · uzupełnij →").replace("{n}", fillInfo.all.length)}
+                  </button>
+                )}
                 {spendRow(spend.by[open.id] || 0, null, true)}
               </div>
             );
           })()}
+
+          {fillInfo.nudge.length > 0 && (
+            <div style={{ marginTop: 10, borderRadius: 12, background: ACCENT + "14", border: `1px solid ${ACCENT}44`, display: "flex", alignItems: "stretch" }}>
+              <button onClick={() => openFill()} style={{
+                all: "unset", boxSizing: "border-box", flex: 1, minWidth: 0, cursor: "pointer", padding: "10px 0 10px 14px",
+                display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#cbd5e1", lineHeight: 1.45,
+              }}>
+                <Receipt size={16} color={ACCENT} style={{ flexShrink: 0 }}/>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "block", fontWeight: 700, color: "#e2e8f0" }}>{t("buyfill.card", "Nowe pozycje bez ceny zakupu: {n}").replace("{n}", fillInfo.nudge.length)}</span>
+                  {t("buyfill.cardSub", "Wpisz ceny — zakupy same trafią do Wpisów, połączone z pozycjami.")}
+                </span>
+                <ChevronRight size={14} color={ACCENT} style={{ flexShrink: 0 }}/>
+              </button>
+              <button onClick={hideNudge} aria-label={t("buyfill.hide", "Ukryj")} title={t("buyfill.hide", "Ukryj")} style={{ flex: "none", background: "none", border: "none", padding: "0 12px", color: "#64748b", cursor: "pointer", display: "grid", placeItems: "center" }}>
+                <X size={14}/>
+              </button>
+            </div>
+          )}
 
           <button onClick={() => setScanMode("batch")} style={{
             all: "unset", boxSizing: "border-box", width: "100%", cursor: "pointer", marginTop: 10, padding: "10px 14px", borderRadius: 12,
@@ -728,8 +871,8 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
                 <Chip on={form.buyMode === "none"} color={ACCENT} onClick={() => setF({ buyMode: "none", buyTxId: null })}>{t("coll.buy.none", "Bez wpisu")}</Chip>
               </div>
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.45 }}>
-                {form.buyMode === "new" ? t("coll.buy.newHint", "Zapiszemy wydatek w Wpisach i w tej kolekcji.")
-                  : form.buyMode === "ledger" ? t("coll.buy.ledgerHint", "Wybierz zakup, który już zapisałeś — nic się nie zdubluje.")
+                {form.buyMode === "new" ? t("coll.buy.newHint2", "Wpisz cenę — zapiszemy wydatek w Wpisach i w tej kolekcji, połączony z pozycją. Bez ceny pozycja zostanie bez wydatku.")
+                  : form.buyMode === "ledger" ? t("coll.buy.ledgerHint", "Wybierz zakup, który już jest w Wpisach — nic się nie zdubluje.")
                   : t("coll.buy.noneHint", "Masz to od dawna albo w prezencie. Cena jest opcjonalna — posłuży do liczenia zysku przy sprzedaży.")}
               </div>
 
@@ -936,7 +1079,20 @@ function CollectionsView({ hobbies = [], setHobbies, items = [], setItems, resal
       )}
 
       {discogsOpen && open && (
-        <DiscogsModal hobby={open} items={items} setItems={setItems} today={today} onClose={() => setDiscogsOpen(false)}/>
+        <DiscogsModal hobby={open} items={items} setItems={setItems} today={today} onClose={() => setDiscogsOpen(false)}
+          onFillPrices={(ids) => { setDiscogsOpen(false); openFill(ids); }}/>
+      )}
+
+      {fill && open && (
+        <PurchaseFillModal hobby={open} items={fill.first} older={fill.older} setItems={setItems}
+          setTransactions={setTransactions} setAccounts={setAccounts} defaultAcc={defaultAcc} today={today}
+          onClose={() => setFill(null)}
+          onSaved={(n, m) => {
+            setFill(null);
+            showToast(m > 0
+              ? t("buyfill.savedWith", "Ceny zapisane: {n} · wydatki w Wpisach: {m} ✓").replace("{n}", n).replace("{m}", m)
+              : t("buyfill.saved", "Ceny zapisane: {n} ✓").replace("{n}", n));
+          }}/>
       )}
 
       {hobbyForm && (

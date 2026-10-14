@@ -151,7 +151,10 @@ function mapRelease(entry, lang) {
   else if (/box/i.test(fmt.name || "")) format = names[6];
   const condNote = (entry.notes || []).find(n => n.field_id === 1);
   const cond = condNote ? (CONDITION_MAP.find(([re]) => re.test(condNote.value || "")) || [])[1] : null;
+  // Kiedy płyta trafiła do kolekcji Discogs — podpowiedź daty zakupu
+  const added = /^\d{4}-\d{2}-\d{2}/.test(entry.date_added || "") ? entry.date_added.slice(0, 10) : null;
   return {
+    ...(added ? { addedAt: added } : {}),
     title: b.title || "—",
     creator: (b.artists || []).map(a => (a.name || "").replace(/\s\(\d+\)$/, "")).join(" & "),
     format,

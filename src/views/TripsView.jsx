@@ -281,7 +281,7 @@ function TripDetails({ trip, cost, transactions, setTransactions, setAccounts, d
     const label = fmtCurrency(amountDisp, disp);
     const q = p.balance > 0
       ? t("trips.settleInQ", "{name} oddał(a) Ci {amount}?").replace("{name}", p.name).replace("{amount}", label)
-      : t("trips.settleOutQ", "Oddałeś {amount} — {name}?").replace("{name}", p.name).replace("{amount}", label);
+      : t("trips.settleOutQ", "Zapisać zwrot {amount} dla: {name}?").replace("{name}", p.name).replace("{amount}", label);
     if (!window.confirm(q)) return;
     const rate = disp === "PLN" ? 1 : getRate(disp);
     const tx = makeTx({
@@ -379,7 +379,7 @@ function TripDetails({ trip, cost, transactions, setTransactions, setAccounts, d
           </div>
         )}
         {preTrip > 0 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{t("trips.preTrip", "Przed wyjazdem (rezerwacje, bilety): {amount}").replace("{amount}", fmtDisplay(preTrip))}</div>}
-        {cost && cost.paid > spent + 0.01 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{t("trips.paidLine", "Zapłaciłeś łącznie {amount} — część oddadzą znajomi.").replace("{amount}", fmtDisplay(cost.paid))}</div>}
+        {cost && cost.paid > spent + 0.01 && <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{t("trips.paidLine", "Zapłacone łącznie: {amount} — część oddadzą znajomi.").replace("{amount}", fmtDisplay(cost.paid))}</div>}
       </div>
 
       {/* Ekipa i rozliczenie */}

@@ -267,7 +267,7 @@ function InvestmentsView({ portfolio = [], setPortfolio, transactions = [], setT
         <div style={{ ...card, padding: "24px 18px", marginTop: 8 }}>
           <div style={{ fontSize: 15, fontWeight: 700, textAlign: "center" }}>{t("inv.emptyTitle", "Co masz w portfelu?")}</div>
           <div style={{ fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.5, textAlign: "center" }}>
-            {t("inv.emptyDesc2", "Wszystko w jednym miejscu: ile wpłaciłeś, ile to jest warte i ile zarobiłeś. Ceny krypto i złota aktualizują się same.")}
+            {t("inv.emptyDesc2", "Wszystko w jednym miejscu: wpłaty, obecna wartość i zysk. Ceny krypto i złota aktualizują się same.")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 16 }}>
             {KIND_ORDER.map(k => {

@@ -15,7 +15,7 @@ import { getSaved, save, markSynced, needsPricing, fetchFolders, fetchReleases, 
  * Ponowny import dodaje tylko nowe płyty — Twoich zmian w pozycjach nie nadpisuje.
  * Płyta, którą masz już w katalogu (dodaną ręcznie), dostaje dane z Discogs zamiast duplikatu.
  */
-function DiscogsModal({ hobby, items, setItems, today, onClose }) {
+function DiscogsModal({ hobby, items, setItems, today, onClose, onFillPrices }) {
   const lang = getLang();
   const saved = getSaved();
   const [user, setUser] = useState(saved.user);
@@ -25,7 +25,7 @@ function DiscogsModal({ hobby, items, setItems, today, onClose }) {
   const [folderId, setFolderId] = useState(saved.folder);
   const [busy, setBusy] = useState(null);       // tekst postępu
   const [error, setError] = useState("");
-  const [result, setResult] = useState(null);   // { added, skipped, wants, merged }
+  const [result, setResult] = useState(null);   // { added, skipped, wants, merged, addedIds }
   const [priced, setPriced] = useState(null);   // ile płyt wyceniono
   const [value, setValue] = useState(null);     // wartość kolekcji wg Discogs (z tokenem)
   const [showSetup, setShowSetup] = useState(!saved.user);
@@ -66,7 +66,7 @@ function DiscogsModal({ hobby, items, setItems, today, onClose }) {
       catch { wants = []; } // prywatna lista życzeń — pomijamy bez błędu
     }
     const current = itemsRef.current.filter(it => it.hobbyId === hobby.id);
-    const haveInstance = new Set(current.map(it => it.discogs && it.discogs.i).filter(Boolean));
+    const byInstance = new Map(current.filter(it => it.discogs && it.discogs.i).map(it => [it.discogs.i, it]));
     // Płyta dodana skanerem/ręcznie z numerem wydania, ale bez egzemplarza z kolekcji Discogs
     const byRelease = new Map(current.filter(it => it.status === "owned" && it.discogs && it.discogs.r && !it.discogs.i).map(it => [it.discogs.r, it]));
     const haveWant = new Set(current.filter(it => it.status === "wishlist").map(it => it.discogs && it.discogs.r).filter(Boolean));
@@ -77,7 +77,12 @@ function DiscogsModal({ hobby, items, setItems, today, onClose }) {
     let skipped = 0;
     for (const r of releases) {
       const m = mapRelease(r, lang);
-      if (m.discogs.i && haveInstance.has(m.discogs.i)) { skipped++; continue; }
+      if (m.discogs.i && byInstance.has(m.discogs.i)) {
+        // Płyty z wcześniejszych importów dostają datę dodania w Discogs (podpowiedź daty zakupu)
+        const had = byInstance.get(m.discogs.i);
+        if (m.addedAt && !had.addedAt) patches[had.id] = { addedAt: m.addedAt };
+        skipped++; continue;
+      }
       const same = byRelease.get(m.discogs.r);
       if (same) { patches[same.id] = { discogs: m.discogs }; byRelease.delete(m.discogs.r); skipped++; continue; }
       added.push({ ...base, id: newId(), status: "owned", ...m });
@@ -103,7 +108,8 @@ function DiscogsModal({ hobby, items, setItems, today, onClose }) {
     }
     const wantsFresh = fresh.filter(it => it.status === "wishlist").length;
     markSynced(folder, today);
-    return { added: fresh.length - wantsFresh, skipped, wants: wantsFresh, merged: merges.length };
+    const addedIds = fresh.filter(it => it.status === "owned").map(it => it.id);
+    return { added: addedIds.length, skipped, wants: wantsFresh, merged: merges.length, addedIds };
   };
 
   // Wyceny po kolei (limit Discogs); zapis co kilka płyt, żeby przerwanie nie gubiło postępu
@@ -218,6 +224,11 @@ function DiscogsModal({ hobby, items, setItems, today, onClose }) {
         <div style={{ fontSize: 13, color: "#34d399", marginTop: 12, lineHeight: 1.5 }}>
           {t("discogs.done", "Dodane płyty: {added}, na liście życzeń: {wants}, już były: {skipped}.").replace("{added}", result.added).replace("{wants}", result.wants).replace("{skipped}", result.skipped)}
           {result.merged > 0 && <> {t("discogs.merged", "Połączone z płytami, które były już w katalogu: {n}.").replace("{n}", result.merged)}</>}
+          {onFillPrices && !busy && result.addedIds && result.addedIds.length > 0 && (
+            <button onClick={() => onFillPrices(result.addedIds)} style={{ ...primaryBtn, marginTop: 10, padding: 12, fontSize: 13, lineHeight: 1.35 }}>
+              {t("buyfill.fromDiscogs", "Wpisz ceny zakupu nowych płyt ({n}) — zapiszemy wydatki").replace("{n}", result.addedIds.length)}
+            </button>
+          )}
         </div>
       )}
       {priced != null && (

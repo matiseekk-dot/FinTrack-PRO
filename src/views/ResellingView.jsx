@@ -315,7 +315,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
           })}
           <div style={{ fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
             {dac7.some(g => g.reached)
-              ? t("resale.dac7.reached", "Na platformie zaznaczonej na czerwono przekroczyłeś próg — zgłosi ona Twoje sprzedaże do urzędu skarbowego. To raport, nie podatek: sprawdź, czy Twoja sprzedaż podlega opodatkowaniu.")
+              ? t("resale.dac7.reached", "Na platformie zaznaczonej na czerwono próg jest przekroczony — zgłosi ona Twoje sprzedaże do urzędu skarbowego. To raport, nie podatek: sprawdź, czy Twoja sprzedaż podlega opodatkowaniu.")
               : t("resale.dac7.hint", "Platformy w UE zgłaszają do urzędu skarbowego sprzedawców z co najmniej 30 sprzedażami albo 2000 € w roku — osobno na każdej platformie. To raport, nie podatek.")}
           </div>
         </div>
@@ -325,7 +325,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
         <div style={{ ...card, padding: "28px 20px", textAlign: "center", marginTop: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{t("resale.emptyTitle", "Dodaj pierwszy przedmiot")}</div>
           <div style={{ fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.5 }}>
-            {t("resale.emptyDesc", "Zapisz, za ile kupiłeś i gdzie sprzedałeś — prowizję i zysk policzymy sami.")}
+            {t("resale.emptyDesc", "Zapisz cenę zakupu i miejsce sprzedaży — prowizję i zysk policzymy sami.")}
           </div>
           <button onClick={() => setForm(blankForm())} style={{ marginTop: 16, background: BRAND, border: "none", borderRadius: 12, padding: "11px 18px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
             + {t("resale.add", "Przedmiot")}
@@ -500,7 +500,7 @@ function ResellingView({ items = [], setItems, transactions, setTransactions, se
               <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${form.recordPurchase ? "#10b981" : "#475569"}`, background: form.recordPurchase ? "#10b981" : "transparent", display: "grid", placeItems: "center" }}>
                 {form.recordPurchase && <Check size={12} color="white" strokeWidth={3}/>}
               </span>
-              <span>{t("resale.recordPurchase", "Zapisz zakup jako wydatek. Odznacz, jeśli sprzedajesz coś, co już miałeś.")}</span>
+              <span>{t("resale.recordPurchase", "Zapisz zakup jako wydatek. Odznacz, jeśli sprzedajesz coś, co masz od dawna.")}</span>
             </button>
           )}
 

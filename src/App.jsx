@@ -766,7 +766,7 @@ export default function App() {
             addSignal={moduleAddSignal} openAdd={addOnMount} focusTripId={focusTrip} onFocusHandled={() => setFocusTrip(null)}/></ErrorBoundary>}
           {tab === "rental"       && <ErrorBoundary><RentalView rentals={rentals} setRentals={setRentalsTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} month={viewMonth} onMonthChange={setViewMonth} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount}/></ErrorBoundary>}
           {tab === "portfolio"    && <ErrorBoundary><InvestmentsView portfolio={portfolio} setPortfolio={setPortfolioTracked} transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} defaultAcc={defaultAcc} month={viewMonth} onMonthChange={setViewMonth} onBack={() => setTab("home")} addSignal={moduleAddSignal} openAdd={addOnMount}/></ErrorBoundary>}
-          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} holdings={portfolio} rentals={rentals} modules={enabledModules} hobbies={hobbies} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
+          {tab === "transactions" && <ErrorBoundary><TransactionsView transactions={transactions} setTransactions={setTransactionsTracked} setAccounts={setAccountsTracked} allCats={allCategories} _forceOpenModal={fabOpen} _onModalClose={() => setFabOpen(false)} defaultAcc={defaultAcc} trips={trips} holdings={portfolio} rentals={rentals} modules={enabledModules} hobbies={hobbies} collectionItems={collectionItems} setCollectionItems={setCollectionItemsTracked} month={viewMonth} onMonthChange={setViewMonth} moduleFilter={ledgerModule} onModuleFilterChange={setLedgerModule} onOpenLinked={openLinkedTx}/></ErrorBoundary>}
       </div>
 
       {importErr && (
@@ -810,6 +810,7 @@ export default function App() {
           defaultAcc={defaultAcc}
           trips={trips} holdings={portfolio} rentals={rentals}
           modules={enabledModules} hobbies={hobbies}
+          collectionItems={collectionItems} setCollectionItems={setCollectionItemsTracked}
           onOpenLinked={(tx) => { setQuickAddOpen(false); openLinkedTx(tx); }}
         />
       )}
